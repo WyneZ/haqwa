@@ -1,0 +1,83 @@
+haqwa/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # pytest + lint on push/PR          [B]
+├── .gitignore                      # CLAUDE.md, .claude/, .env, .venv  [B]
+├── README.md                       # library + web section         [B + A]
+├── pyproject.toml                  # uv, deps, CLI entry point         [B]
+├── CLAUDE.md                       # git ထဲ မ commit (gitignore)
+│
+├── src/haqwa/                      # ===== LIBRARY (product) =====
+│   ├── __init__.py                 # public API: check(), emit()       [B]
+│   ├── core/                       # ---- no AI ----                   [B]
+│   │   ├── __init__.py
+│   │   ├── spec.py                 # C1: Pydantic models
+│   │   ├── events.py               # C2: event format + event map
+│   │   ├── patterns/               # pattern တစ်ခုချင်း file ခွဲ
+│   │   │   ├── at_most_once.py
+│   │   │   ├── never_after.py
+│   │   │   ├── must_precede.py
+│   │   │   └── within_time.py
+│   │   ├── compiler.py             # spec → checker + self-test
+│   │   ├── checker.py              # run patterns over events
+│   │   └── report.py               # violation → timeline
+│   ├── ai/                         # ---- Gemini ----                  [A]
+│   │   ├── __init__.py
+│   │   ├── client.py               # Gemini client (env key)
+│   │   ├── parse.py                # rule text → draft spec
+│   │   ├── clarify.py              # ambiguity → example questions
+│   │   ├── explain.py              # violation → advice (advisory)
+│   │   └── prompts/                # prompt template (.md/.txt)
+│   ├── adapters/                   #                                   [B]
+│   │   ├── __init__.py
+│   │   ├── pytest.py               # check() helper for tests
+│   │   └── agentproof.py           # trace → events, spec → invariants
+│   └── cli.py                      # init / build / check              [B]
+│
+├── web/                            # ===== WEB APP =====               [A]
+│   ├── api/
+│   │   ├── main.py                 # FastAPI app (C3 endpoints)
+│   │   ├── routes.py
+│   │   └── schemas.py              # request/response (core.spec ကို သုံး)
+│   ├── frontend/                   # framework TBD
+│   │   └── src/                    # 3 screens
+│   ├── Dockerfile                  # Cloud Run အတွက်
+│   └── README.md                   # deploy လုပ်နည်း
+│
+├── demo/                           # ===== DEMO =====                  [B]
+│   ├── shop/                       # simple shop tools for the agent
+│   │   └── tools.py                # create_order, charge_payment, refund
+│   ├── agents/
+│   │   ├── naive_agent.py          # fail ဖြစ်တဲ့ version (demo safety)
+│   │   └── fixed_agent.py          # pass ဖြစ်တဲ့ version
+│   ├── scenarios/
+│   │   ├── payment_timeout.py      # timeout_after_commit
+│   │   └── duplicate_webhook.py    # duplicate_event
+│   └── run_demo.py
+│
+├── examples/                       # user တွေ ကြည့်ဖို့ နမူနာ        [B]
+│   └── shop/
+│       ├── rules.haqwa             # English rules
+│       ├── events.map.yaml         # event mapping
+│       ├── rules.spec.yaml         # sealed spec (generated, commit)
+│       └── events.json             # sample event log
+│
+├── docs/                           # ===== SHARED =====            [A + B]
+│   ├── brief.md                    # source of truth
+│   ├── contracts.md                # C1 / C2 / C3
+│   ├── decisions.md                # decision log
+│   └── architecture.md             # diagram တွေ (optional)
+│
+└── tests/                          # ===== TESTS =====
+    ├── core/                       #                                   [B]
+    │   ├── test_at_most_once.py
+    │   ├── test_never_after.py
+    │   ├── test_must_precede.py
+    │   ├── test_within_time.py
+    │   ├── test_exceptions.py      # reset_after / allow_if
+    │   ├── test_compiler.py        # self-test မှန်မမှန်
+    │   └── test_events.py          # event map
+    ├── ai/                         #                                   [A]
+    │   └── test_parse.py           # recorded response နဲ့ (Gemini မခေါ်ဘဲ)
+    └── web/                        #                                   [A]
+        └── test_api.py
