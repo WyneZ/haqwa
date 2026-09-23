@@ -1,9 +1,12 @@
-from ast import pattern
+from typing import Literal
+import logging
 import os
 from pathlib import Path
 
 from google import genai
-from pydantic import BaseModel  
+from pydantic import BaseModel
+
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 # Load .env without extra dependency
 for line in Path(".env").read_text().splitlines():
@@ -13,15 +16,18 @@ for line in Path(".env").read_text().splitlines():
 
 
 class ParseRule(BaseModel):
-    pattern: str
+    pattern: Literal["at_most_once", "never_after", "must_precede", "within_time"] | None = None
     event: str
     per: str
+    supported: bool
+    unsupported_reason: str | None
 
 
 client = genai.Client() # read Gemini_api_key
 response = client.models.generate_content(
     model="gemini-3.6-flash",
-    contents="Rule: A customer must not be charged twice for the same order.",
+    # contents="Rule: A customer must not be charged twice for the same order.",
+    contents="Rule: Every order must have an invoice.",
     config={"response_mime_type": "application/json", "response_schema": ParseRule},
 )
 
