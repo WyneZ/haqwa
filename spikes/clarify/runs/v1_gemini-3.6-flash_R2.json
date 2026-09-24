@@ -1,0 +1,23 @@
+{
+  "rule_id": "R2",
+  "parse": {
+    "pattern": "never_after",
+    "event": "shipped",
+    "per": "order_id",
+    "supported": true,
+    "unsupported_reason": null
+  },
+  "ambiguities": [
+    {
+      "id": "recreated-order-resets-cancellation",
+      "description": "If an order is cancelled and subsequently re-created under the same order ID, does the new order creation allow the order to be shipped?",
+      "examples": [
+        {
+          "events": ["cancelled", "order_created", "shipped"],
+          "question": "Is shipping allowed if an order is created again after being cancelled?"
+        }
+      ],
+      "spec_change_if_yes": "reset_after: order_created"
+    }
+  ]
+}

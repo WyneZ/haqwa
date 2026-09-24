@@ -13,28 +13,6 @@ Scope key: `in` = expressible with the 4 patterns + reset_after/allow_if.
 
 ---
 
-## R1: "A customer must not be charged twice for the same order."
-Expected parse: `at_most_once` · event=`charged` · per=`order_id`
-
-| # | Ambiguity | Timeline that decides it | My expected answer | Spec effect | Scope |
-|---|---|---|---|---|---|
-| G1.1 | Charging again after a refund | charged → refunded → charged | not a violation | `reset_after: refunded` | in |
-| G1.2 | Installment payments | charged(installment) → charged(installment) | not a violation | `allow_if: payment_type == "installment"` | in |
-| G1.3 | Failed charge followed by a retry | charge_failed → charged | not a violation (charge_failed is not "charged") | none needed if event map only counts successful charges | in |
-| G1.4 | Two charges with no refund between them | charged → charged | violation | (base rule, no exception) | in |
-| G1.5 | "Customer" scope: same customer, two different orders | charged(order=1) → charged(order=2), same customer_id | not a violation (rule is per order_id, not per customer_id) | confirms `per: order_id` is correct, not `per: customer_id` | in |
-| G1.6 | Partial refund then re-charge for the remaining amount | charged(amount=100) → refunded(amount=40) → charged(amount=60) | ambiguous — depends on whether "refunded" resets on any refund or only a full refund | needs an amount-aware exception; not expressible with `reset_after` alone | out |
-
-## R2: "A cancelled order must never be shipped."
-Expected parse: `never_after` · event=`shipped` · after=`cancelled` · per=`order_id`
-
-| # | Ambiguity | Timeline that decides it | My expected answer | Spec effect | Scope |
-|---|---|---|---|---|---|
-| G2.1 | Order is re-opened/reinstated after cancellation, then shipped | cancelled → order_created (reinstate) → shipped | not a violation, if a reinstatement event exists | `reset_after: <reinstated>` (needs the event to exist first) | out (no reinstated event in current vocabulary) |
-| G2.2 | Shipped, then cancelled afterward | shipped → cancelled | not a violation of this rule (already shipped before cancellation) | base rule already handles this: never_after only checks shipped occurring after cancelled | in |
-| G2.3 | Cancelled twice, then shipped | cancelled → cancelled → shipped | violation (any cancelled before a shipped is a violation) | base rule | in |
-| G2.4 | Partial shipment (some items) after cancellation | cancelled → shipped(partial) | violation — no reason to treat partial differently without an explicit exception | base rule, unless the team wants an allow_if on shipment type | in |
-
 ## R3: "A refund must be completed within 24 hours of the request."
 Expected parse: `within_time` · after=`refund_requested` · before=`refund_completed` · window=`24h` · per=`order_id`
 
