@@ -1,0 +1,19 @@
+version: 1
+rules:
+  - id: no-double-charge
+    source: "A customer must not be charged twice for the same order."
+    pattern: at_most_once
+    event: charged
+    per: order_id
+    except:
+      - reset_after: refunded
+      - allow_if: { field: payment_type, op: eq, value: installment }
+    confirmed_examples:
+      - timeline: [{event: charged}, {event: refunded}, {event: charged}]
+        violation: false
+      - timeline:
+          - {event: charged, data: {payment_type: installment}}
+          - {event: charged, data: {payment_type: installment}}
+        violation: false
+      - timeline: [{event: charged}, {event: charged}]
+        violation: true
