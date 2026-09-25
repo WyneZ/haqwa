@@ -1,0 +1,426 @@
+{
+  "$defs": {
+    "AllowIf": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_if": {
+          "$ref": "#/$defs/Condition"
+        }
+      },
+      "required": [
+        "allow_if"
+      ],
+      "title": "AllowIf",
+      "type": "object"
+    },
+    "AtMostOnce": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "per": {
+          "title": "Per",
+          "type": "string"
+        },
+        "except": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResetAfter"
+              },
+              {
+                "$ref": "#/$defs/AllowIf"
+              }
+            ]
+          },
+          "title": "Except",
+          "type": "array"
+        },
+        "confirmed_examples": {
+          "items": {
+            "$ref": "#/$defs/ConfirmedExample"
+          },
+          "title": "Confirmed Examples",
+          "type": "array"
+        },
+        "pattern": {
+          "const": "at_most_once",
+          "title": "Pattern",
+          "type": "string"
+        },
+        "event": {
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "per",
+        "pattern",
+        "event"
+      ],
+      "title": "AtMostOnce",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "eq",
+            "ne",
+            "in"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "field",
+        "op",
+        "value"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "ConfirmedExample": {
+      "additionalProperties": false,
+      "properties": {
+        "timeline": {
+          "items": {
+            "$ref": "#/$defs/TimelineEvent"
+          },
+          "minItems": 1,
+          "title": "Timeline",
+          "type": "array"
+        },
+        "violation": {
+          "title": "Violation",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "timeline",
+        "violation"
+      ],
+      "title": "ConfirmedExample",
+      "type": "object"
+    },
+    "MustPrecede": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "per": {
+          "title": "Per",
+          "type": "string"
+        },
+        "except": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResetAfter"
+              },
+              {
+                "$ref": "#/$defs/AllowIf"
+              }
+            ]
+          },
+          "title": "Except",
+          "type": "array"
+        },
+        "confirmed_examples": {
+          "items": {
+            "$ref": "#/$defs/ConfirmedExample"
+          },
+          "title": "Confirmed Examples",
+          "type": "array"
+        },
+        "pattern": {
+          "const": "must_precede",
+          "title": "Pattern",
+          "type": "string"
+        },
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "requires": {
+          "title": "Requires",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "per",
+        "pattern",
+        "event",
+        "requires"
+      ],
+      "title": "MustPrecede",
+      "type": "object"
+    },
+    "NeverAfter": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "per": {
+          "title": "Per",
+          "type": "string"
+        },
+        "except": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResetAfter"
+              },
+              {
+                "$ref": "#/$defs/AllowIf"
+              }
+            ]
+          },
+          "title": "Except",
+          "type": "array"
+        },
+        "confirmed_examples": {
+          "items": {
+            "$ref": "#/$defs/ConfirmedExample"
+          },
+          "title": "Confirmed Examples",
+          "type": "array"
+        },
+        "pattern": {
+          "const": "never_after",
+          "title": "Pattern",
+          "type": "string"
+        },
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "after": {
+          "title": "After",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "per",
+        "pattern",
+        "event",
+        "after"
+      ],
+      "title": "NeverAfter",
+      "type": "object"
+    },
+    "ResetAfter": {
+      "additionalProperties": false,
+      "properties": {
+        "reset_after": {
+          "title": "Reset After",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reset_after"
+      ],
+      "title": "ResetAfter",
+      "type": "object"
+    },
+    "TimelineEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        }
+      },
+      "required": [
+        "event"
+      ],
+      "title": "TimelineEvent",
+      "type": "object"
+    },
+    "WithinTime": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "per": {
+          "title": "Per",
+          "type": "string"
+        },
+        "except": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResetAfter"
+              },
+              {
+                "$ref": "#/$defs/AllowIf"
+              }
+            ]
+          },
+          "title": "Except",
+          "type": "array"
+        },
+        "confirmed_examples": {
+          "items": {
+            "$ref": "#/$defs/ConfirmedExample"
+          },
+          "title": "Confirmed Examples",
+          "type": "array"
+        },
+        "pattern": {
+          "const": "within_time",
+          "title": "Pattern",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "within": {
+          "format": "duration",
+          "title": "Within",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "per",
+        "pattern",
+        "start",
+        "event",
+        "within"
+      ],
+      "title": "WithinTime",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "rules": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "at_most_once": "#/$defs/AtMostOnce",
+            "must_precede": "#/$defs/MustPrecede",
+            "never_after": "#/$defs/NeverAfter",
+            "within_time": "#/$defs/WithinTime"
+          },
+          "propertyName": "pattern"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/AtMostOnce"
+          },
+          {
+            "$ref": "#/$defs/NeverAfter"
+          },
+          {
+            "$ref": "#/$defs/MustPrecede"
+          },
+          {
+            "$ref": "#/$defs/WithinTime"
+          }
+        ]
+      },
+      "title": "Rules",
+      "type": "array"
+    }
+  },
+  "required": [
+    "rules"
+  ],
+  "title": "Spec",
+  "type": "object"
+}
