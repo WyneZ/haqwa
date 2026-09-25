@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "Event": {
+      "additionalProperties": false,
+      "description": "One thing that happened in a system.\n\n`event` is the event name, `ts` a timezone-aware timestamp, and `data` holds\nevery other field (entity keys such as `order_id`, amounts, payment_type...).\nRules find their entity through `data[rule.per]`.",
+      "properties": {
+        "event": {
+          "minLength": 1,
+          "title": "Event",
+          "type": "string"
+        },
+        "ts": {
+          "format": "date-time",
+          "title": "Ts",
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        }
+      },
+      "required": [
+        "event",
+        "ts"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "RuleResult": {
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "violation"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "violations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "source",
+        "status"
+      ],
+      "title": "RuleResult",
+      "type": "object"
+    },
+    "Violation": {
+      "description": "One broken rule for one entity.",
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "timeline": {
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "title": "Timeline",
+          "type": "array"
+        },
+        "offending_index": {
+          "title": "Offending Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rule_id",
+        "entity",
+        "message",
+        "timeline",
+        "offending_index"
+      ],
+      "title": "Violation",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "results": {
+      "items": {
+        "$ref": "#/$defs/RuleResult"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "Report",
+  "type": "object"
+}

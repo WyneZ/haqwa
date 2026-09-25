@@ -1,0 +1,124 @@
+"""C2 Event format: what a system did, in the rule vocabulary (DRAFT, not locked).
+
+Pipeline: raw events (system names) -> EventMap.translate -> Event (rule names).
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any, Literal
+
+import yaml
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+
+
+class Event(BaseModel):
+    """One thing that happened in a system.
+
+    `event` is the event name, `ts` a timezone-aware timestamp, and `data` holds
+    every other field (entity keys such as `order_id`, amounts, payment_type...).
+    Rules find their entity through `data[rule.per]`.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event: str = Field(min_length=1)
+    ts: AwareDatetime
+    data: dict[str, Any] = Field(default_factory=dict)
+    source_id: str | None = None  # id in the original system, for traceability
+
+
+class EventMap(BaseModel):
+    """Maps system event names to rule vocabulary.
+
+    YAML form (rule name -> one or more system names):
+
+        version: 1
+        events:
+          charged: [PAYMENT_CAPTURED]
+          refunded: REFUND_ISSUED
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: Literal[1] = 1
+    events: dict[str, list[str]]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _wrap_single_names(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("events"), dict):
+            data = dict(data)
+            data["events"] = {
+                k: [v] if isinstance(v, str) else v for k, v in data["events"].items()
+            }
+        return data
+
+    @model_validator(mode="after")
+    def _no_ambiguous_system_names(self) -> EventMap:
+        seen: dict[str, str] = {}
+        for rule_name, system_names in self.events.items():
+            for name in system_names:
+                if name in seen and seen[name] != rule_name:
+                    raise ValueError(
+                        f"system event {name!r} mapped to both {seen[name]!r} and {rule_name!r}"
+                    )
+                seen[name] = rule_name
+        return self
+
+    @property
+    def vocabulary(self) -> set[str]:
+        """Rule-side event names this map can produce."""
+        return set(self.events)
+
+    def translate(self, events: Iterable[Event]) -> list[Event]:
+        """Rename mapped events to rule vocabulary; drop events the map doesn't know."""
+        lookup = {sys: rule for rule, names in self.events.items() for sys in names}
+        return [
+            e.model_copy(update={"event": lookup[e.event]}) for e in events if e.event in lookup
+        ]
+
+
+def sort_events(events: Iterable[Event]) -> list[Event]:
+    """Sort by timestamp. Stable: equal timestamps keep their input order."""
+    return sorted(events, key=lambda e: e.ts)
+
+
+def group_by(events: Iterable[Event], key: str) -> dict[Any, list[Event]]:
+    """Group events by `data[key]`, keeping order. Events without the key are skipped."""
+    groups: dict[Any, list[Event]] = {}
+    for e in events:
+        if key in e.data:
+            groups.setdefault(e.data[key], []).append(e)
+    return groups
+
+
+def load_events(path: str | Path) -> list[Event]:
+    """Load a JSON array of events."""
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    return [Event.model_validate(item) for item in raw]
+
+
+def load_event_map(path: str | Path) -> EventMap:
+    """Load an events.map.yaml file."""
+    return EventMap.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+
+
+def synthetic_timeline(
+    timeline: Iterable[tuple[str, dict[str, Any]]],
+    per: str,
+    entity_id: str = "example-1",
+    start: datetime | None = None,
+) -> list[Event]:
+    """Build events from (name, data) pairs: one entity, 1 second apart.
+
+    Used by the compiler self-test to run confirmed examples.
+    """
+    t0 = start or datetime(2000, 1, 1, tzinfo=UTC)
+    return [
+        Event(event=name, ts=t0 + timedelta(seconds=i), data={per: entity_id, **data})
+        for i, (name, data) in enumerate(timeline)
+    ]

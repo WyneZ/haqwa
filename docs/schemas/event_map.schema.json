@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "description": "Maps system event names to rule vocabulary.\n\nYAML form (rule name -> one or more system names):\n\n    version: 1\n    events:\n      charged: [PAYMENT_CAPTURED]\n      refunded: REFUND_ISSUED",
+  "properties": {
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "events": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Events",
+      "type": "object"
+    }
+  },
+  "required": [
+    "events"
+  ],
+  "title": "EventMap",
+  "type": "object"
+}
