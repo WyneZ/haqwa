@@ -11,6 +11,12 @@ Format: date · decision · decided by · reason
 - 2026-09-22 · Work split = Track A (Meaning Negotiation) / Track B (Verification Engine); owners TBD · team · both developers own a hard problem
 - 2026-09-22 · Name: Haqwa (package `haqwa`, CLI `haqwa`) · team · `intentc` collides with pboueri/intentc
 - 2026-09-23 · docs/ committed to the public repo as-is; before submission (Oct 18) remove internal sections of brief.md (competitors, judge Q&A, risks, cost, organizer questions) and add a public-facing docs/overview.md · team · repo must be public; keeps one shared source of truth until then
+- 2026-09-25 · AGREED · C1: one Pydantic model per pattern (discriminated union on `pattern`) · Track A + Track B · invalid field combinations fail at load time
+- 2026-09-25 · AGREED · C1: `allow_if` is structured `{field, op, value}` (eq/ne/in), never a string expression · Track A + Track B · no eval, easy for Gemini to fill and for code to validate
+- 2026-09-25 · AGREED · C1: confirmed-example timelines are `{event, data}` objects, not `charged(installment)` strings · Track A + Track B · same shape as C2 events; no mini-parser
+- 2026-09-25 · AGREED · C1: unsupported rules are a separate `UnsupportedRule` model; sealed specs hold only supported rules · Track A + Track B · checker never has to skip rules
+- 2026-09-25 · AGREED · C2 event format `{event, ts, data, source_id?}` and event map (rule name -> system name(s)) · Track A + Track B · entity keys and conditions live in `data`
+- 2026-09-25 · AGREED · `at_most_once` semantics: allow_if events not counted; reset_after resets count to 0; every counted event beyond the first is a violation · Track A + Track B · matches the brief's confirmed examples
 - TBD · Track owners · TBD
 - TBD · Frontend framework · Track A owner
 - TBD · Contracts C1/C2/C3 locked · both

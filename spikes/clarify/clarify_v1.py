@@ -41,20 +41,42 @@ FIELDS = ["order_id", "customer_id", "payment_type", "amount", "time"]
 
 
 # ---- Schema ----------------------------------------------------------
+# Aligned to C1 (docs/contracts.md, locked 2026-09-25): allow_if is a
+# structured condition (no string expressions, no eval), and timeline
+# events use the same {event, data} shape as C2 events - no mini-parser
+# needed to turn "charged(installment)" back into structured data.
+
+class EventOccurrence(BaseModel):
+    event: str = Field(description="one of the event vocabulary names, e.g. 'charged'")
+    data: dict[str, str] = Field(
+        default_factory=dict,
+        description="extra fields on this occurrence, e.g. {'payment_type': 'installment'}",
+    )
+
 
 class ExampleTimeline(BaseModel):
-    events: list[str] = Field(description="Ordered event names, e.g. ['charged', 'refunded', 'charged']")
+    events: list[EventOccurrence] = Field(description="ordered event occurrences")
     question: str = Field(description="Yes/No question to ask the policy owner about this exact timeline")
+
+
+class Condition(BaseModel):
+    field: str
+    op: Literal["eq", "ne", "in"]
+    value: str = Field(description="comma-separated list of values if op is 'in'")
+
+
+class SpecChange(BaseModel):
+    kind: Literal["reset_after", "allow_if", "none"]
+    event: str | None = Field(default=None, description="required if kind == 'reset_after'")
+    condition: Condition | None = Field(default=None, description="required if kind == 'allow_if'")
 
 
 class Ambiguity(BaseModel):
     id: str = Field(description="short slug, e.g. 'refund-resets-charge'")
     description: str = Field(description="plain English, for a non-technical business owner")
     examples: list[ExampleTimeline] = Field(description="1-2 concrete example timelines")
-    spec_change_if_yes: str = Field(
-        description="Exact deterministic spec change to apply if the owner answers Yes, "
-                    "using only: reset_after: <event>  OR  allow_if: <field> == \"<value>\". "
-                    "If neither applies, write 'none'."
+    spec_change_if_yes: SpecChange = Field(
+        description="exact deterministic spec change to apply if the owner answers Yes"
     )
 
 
@@ -88,8 +110,9 @@ Supported rule patterns (exactly these 4, no others exist):
 
 Supported exceptions (exactly these 2):
 - reset_after: <event>  (an event resets an at_most_once/never_after counter)
-- allow_if: <field> == "<value>"  (a condition that makes an otherwise-matching
-  event allowed)
+- allow_if: {{field, op, value}}  (a structured condition, op is eq/ne/in, that
+  makes an otherwise-matching event allowed; never write it as code or a
+  string expression)
 
 Event vocabulary (use ONLY these event names, never invent new ones):
 {", ".join(EVENT_VOCAB)}
@@ -104,11 +127,12 @@ pattern that does not really match).
 
 Step 2 - Find ambiguities: List the specific business decisions a policy
 owner (not a developer) must make to fully pin down this rule's meaning.
-For each ambiguity, give 1-2 concrete example event timelines (using only
-the event vocabulary above) that would resolve it, phrased as a yes/no
-question about whether that timeline is a violation. Also give the exact
-deterministic spec_change_if_yes using only reset_after or allow_if syntax,
-or 'none' if the ambiguity cannot be captured that way.
+For each ambiguity, give 1-2 concrete example event timelines (each event is
+{{event, data}}, using only the event vocabulary and fields above) that would
+resolve it, phrased as a yes/no question about whether that timeline is a
+violation. Also give the exact deterministic spec_change_if_yes: kind
+"reset_after" with an event, kind "allow_if" with a structured condition, or
+kind "none" if the ambiguity cannot be captured that way.
 
 Only include ambiguities that would change whether some real timeline counts
 as a violation. Do not ask questions the developer should already know the
