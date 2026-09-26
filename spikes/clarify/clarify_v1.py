@@ -45,12 +45,22 @@ FIELDS = ["order_id", "customer_id", "payment_type", "amount", "time"]
 # structured condition (no string expressions, no eval), and timeline
 # events use the same {event, data} shape as C2 events - no mini-parser
 # needed to turn "charged(installment)" back into structured data.
+#
+# LLM wire format: `data` is a list of {key, value} pairs, not a dict.
+# A dict makes Pydantic emit `additionalProperties`, which the Gemini
+# Developer API (API-key mode) rejects. ai/parse.py converts it to the
+# C1 dict: {f.key: f.value for f in occ.data}. C1 itself is unchanged.
+
+class DataField(BaseModel):
+    key: str = Field(description="field name, e.g. 'payment_type'")
+    value: str = Field(description="field value as a string, e.g. 'installment'")
+
 
 class EventOccurrence(BaseModel):
     event: str = Field(description="one of the event vocabulary names, e.g. 'charged'")
-    data: dict[str, str] = Field(
-        default_factory=dict,
-        description="extra fields on this occurrence, e.g. {'payment_type': 'installment'}",
+    data: list[DataField] = Field(
+        default_factory=list,
+        description="optional fields on this event as key/value pairs; empty list if none",
     )
 
 
@@ -128,7 +138,8 @@ pattern that does not really match).
 Step 2 - Find ambiguities: List the specific business decisions a policy
 owner (not a developer) must make to fully pin down this rule's meaning.
 For each ambiguity, give 1-2 concrete example event timelines (each event is
-{{event, data}}, using only the event vocabulary and fields above) that would
+{{event, data}}, where data is a list of {{key, value}} pairs, using only the
+event vocabulary and fields above) that would
 resolve it, phrased as a yes/no question about whether that timeline is a
 violation. Also give the exact deterministic spec_change_if_yes: kind
 "reset_after" with an event, kind "allow_if" with a structured condition, or
