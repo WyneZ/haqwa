@@ -17,6 +17,7 @@ Format: date · decision · decided by · reason
 - 2026-09-25 · AGREED · C1: unsupported rules are a separate `UnsupportedRule` model; sealed specs hold only supported rules · Track A + Track B · checker never has to skip rules
 - 2026-09-25 · AGREED · C2 event format `{event, ts, data, source_id?}` and event map (rule name -> system name(s)) · Track A + Track B · entity keys and conditions live in `data`
 - 2026-09-25 · AGREED · `at_most_once` semantics: allow_if events not counted; reset_after resets count to 0; every counted event beyond the first is a violation · Track A + Track B · matches the brief's confirmed examples
+- 2026-09-26 · Track A: the Gemini wire schema for clarify uses `data: list[{key, value}]` instead of `dict[str, str]`; `ai/parse.py` will convert it to the C1 dict. C1 is unchanged · Track A (Hazel) · Gemini Developer API (API-key mode) rejects the `additionalProperties` that Pydantic emits for dict fields
 - TBD · Track owners · TBD
 - TBD · Frontend framework · Track A owner
 - TBD · Contracts C1/C2/C3 locked · both
