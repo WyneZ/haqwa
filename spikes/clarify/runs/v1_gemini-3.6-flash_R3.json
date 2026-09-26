@@ -1,0 +1,38 @@
+{
+  "rule_id": "R3",
+  "parse": {
+    "pattern": "within_time",
+    "event": "refund_completed",
+    "per": "order_id",
+    "supported": true,
+    "unsupported_reason": null
+  },
+  "ambiguities": [
+    {
+      "id": "cancellation-resets-refund-window",
+      "description": "Does cancelling an order after a refund request remove the requirement to complete the refund within 24 hours?",
+      "examples": [
+        {
+          "events": [
+            {
+              "event": "refund_requested",
+              "data": [
+                { "key": "order_id", "value": "101" },
+                { "key": "time", "value": "2023-01-01T10:00:00Z" }
+              ]
+            },
+            {
+              "event": "cancelled",
+              "data": [
+                { "key": "order_id", "value": "101" },
+                { "key": "time", "value": "2023-01-01T12:00:00Z" }
+              ]
+            }
+          ],
+          "question": "If the order is cancelled 2 hours after a refund request and no refund is completed within 24 hours, is this timeline allowed?"
+        }
+      ],
+      "spec_change_if_yes": { "kind": "reset_after", "event": "cancelled" }
+    }
+  ]
+}
