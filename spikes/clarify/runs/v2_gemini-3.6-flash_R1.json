@@ -1,0 +1,99 @@
+{
+  "rule_id": "R1",
+  "parse": {
+    "pattern": "at_most_once",
+    "event": "charged",
+    "per": "order_id"
+  },
+  "ambiguities": [
+    {
+      "id": "refund-resets-charge-count",
+      "description": "If an order is refunded, can the customer be charged again for that order?",
+      "examples": [
+        {
+          "events": [
+            {
+              "event": "charged",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "ORD-101"
+                }
+              ]
+            },
+            {
+              "event": "refunded",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "ORD-101"
+                }
+              ]
+            },
+            {
+              "event": "charged",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "ORD-101"
+                }
+              ]
+            }
+          ],
+          "question": "Is a second charge permitted on the same order if a refund was issued after the first charge?"
+        }
+      ],
+      "spec_change_if_yes": {
+        "kind": "reset_after",
+        "event": "refunded",
+        "condition": null
+      }
+    },
+    {
+      "id": "installment-payments-allow-multiple-charges",
+      "description": "Are multiple charges allowed if the payment method is installment-based?",
+      "examples": [
+        {
+          "events": [
+            {
+              "event": "charged",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "ORD-102"
+                },
+                {
+                  "key": "payment_type",
+                  "value": "installment"
+                }
+              ]
+            },
+            {
+              "event": "charged",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "ORD-102"
+                },
+                {
+                  "key": "payment_type",
+                  "value": "installment"
+                }
+              ]
+            }
+          ],
+          "question": "Are multiple charge events allowed for an order if the payment type is 'installment'?"
+        }
+      ],
+      "spec_change_if_yes": {
+        "kind": "allow_if",
+        "event": null,
+        "condition": {
+          "field": "payment_type",
+          "op": "eq",
+          "value": "installment"
+        }
+      }
+    }
+  ]
+}
