@@ -32,3 +32,27 @@
   G3.4 absence). Its cancel question is not in golden — owner to judge
   (noise or a missing golden item). R1/R2 sections are missing from golden.md,
   so R1/R2 cannot be scored yet.
+
+## 2026-09-27 — scoring v1 against golden (manual, option A labels)
+
+R1/R2 golden items were rewritten by Hazel from a pattern checklist (after
+seeing the v1 runs, so some bias risk). Matching Gemini question -> golden id
+was done by meaning and confirmed by the owner.
+
+| Rule | Gemini question -> golden | Recall (all `in`) | Noise |
+|---|---|---|---|
+| R1 | refund-resets-charge -> G1.1; allow-installment-payments -> G1.2 | 2/4 | 0 |
+| R2 | recreation-resets-cancellation -> G2.1 | 1/4 | 0 |
+| R3 | cancellation-resets-refund-window -> G3.5 | 1/3 | 0 |
+| Total | | 4/11 = 36% | 0 |
+
+Split by type:
+- Decision questions (answer changes the spec: G1.1, G1.2, G2.1, G3.1, G3.5):
+  Gemini found 4/5 = 80%. Missed G3.1 (calendar vs business hours).
+- Confirmation questions (core case, event order, per-entity, absence:
+  G1.3, G1.4, G2.2, G2.3, G2.4, G3.4): Gemini found 0/6. The prompt tells it
+  not to ask what the developer already knows, which likely suppresses them.
+
+Decision: confirmations come from a per-pattern code template (see
+decisions.md, 2026-09-27). Prompt v2 focuses Gemini on decision questions and
+adds a per-pattern checklist (e.g. within_time: clock type).
