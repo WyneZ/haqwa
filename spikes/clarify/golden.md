@@ -4,7 +4,9 @@ Drafted by Claude on the developer's request; the developer must review and
 correct the "My expected answer" column before this is used to score Gemini.
 
 Review status: R3 reviewed by Hazel (policy owner) on 2026-09-26.
-R1/R2 sections are missing in this file; to be recovered from Wyne.
+R1/R2 rewritten by Hazel on 2026-09-27 from a pattern checklist (the original
+R1/R2 sections were missing). Note: written after seeing Gemini v1 runs, so
+there is some risk of bias toward Gemini's questions.
 
 Event vocabulary (provisional, C2 not locked):
 order_created, charged, charge_failed, refunded, cancelled,
@@ -13,6 +15,32 @@ Fields: order_id, customer_id, payment_type, amount, time
 
 Scope key: `in` = expressible with the 4 patterns + reset_after/allow_if.
 `out` = a real ambiguity but not solvable in the MVP spec shape.
+
+---
+
+## R1: "A customer must not be charged twice for the same order."
+Expected parse: `at_most_once` · event=`charged` · per=`order_id`
+
+| # | Ambiguity | Timeline that decides it | My expected answer | Spec effect | Scope |
+|---|---|---|---|---|---|
+| G1.1 | Does a refund allow a new charge on the same order? | charged → refunded → charged | not a violation | `reset_after: refunded` | in |
+| G1.2 | Are repeated charges allowed for installment payments? | charged(payment_type=installment) → charged(payment_type=installment) | not a violation | `allow_if: payment_type eq installment` | in |
+| G1.3 | Does a failed charge count as a charge? | charge_failed → charged | not a violation (only `charged` is counted) | none — confirms the counted event | in |
+| G1.4 | Is the limit per order or per customer? | charged(order_id=A, customer_id=C1) → charged(order_id=B, customer_id=C1) | not a violation (per order) | none — confirms per=`order_id` | in |
+| G1.5 | The same charge event delivered twice by the system (retry / webhook redelivery) | charged(source_id=x) → charged(source_id=x) | not a real double charge; needs de-duplication by `source_id` | handled at event ingestion (C2 `source_id`) — agree with Track B | out |
+| G1.6 | Partial refund, then charged again | charged(amount=100) → refunded(amount=40) → charged(amount=100) | ambiguous — needs amount logic | amount-aware reset | out |
+
+## R2: "A cancelled order must never be shipped."
+Expected parse: `never_after` · after=`cancelled` · event=`shipped` · per=`order_id`
+
+| # | Ambiguity | Timeline that decides it | My expected answer | Spec effect | Scope |
+|---|---|---|---|---|---|
+| G2.1 | Does re-opening / re-creating a cancelled order allow shipping? | cancelled → order_created → shipped | ambiguous — owner must decide | if Yes: `reset_after: order_created` | in |
+| G2.2 | Shipped first, cancelled later | shipped → cancelled | not a violation for this rule (order of events matters) | none — confirms direction | in |
+| G2.3 | Shipped after cancellation (the core case) | cancelled → shipped | violation | base rule | in |
+| G2.4 | Is the rule per order? | cancelled(order_id=A) → shipped(order_id=B) | not a violation | none — confirms per=`order_id` | in |
+| G2.5 | Cancel and ship have the same timestamp (race) | cancelled(ts=T) + shipped(ts=T) | ambiguous — needs a tie-break rule | ordering in core — agree with Track B | out |
+| G2.6 | Partial cancellation / partial shipment (item level) | cancelled(item 1) → shipped(item 2) | ambiguous — needs item-level logic | — | out |
 
 ---
 
