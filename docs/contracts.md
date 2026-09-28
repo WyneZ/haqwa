@@ -225,7 +225,7 @@ report.passed; report.model_dump()          # JSON-ready
 
 ### Open C3 questions
 
-1. Who makes the rule `id` slug: Gemini (parse) or code from the text?
+1. ~~Who makes the rule `id` slug?~~ **Resolved 2026-09-29 (AGREED):** `core` suggests an id once for a new rule (`suggest_rule_id(text, existing_ids)`: keywords → `^[a-z0-9][a-z0-9-]*$`, `-2` suffix if taken); the owner may edit it; after that the id is stored in the spec and never regenerated (text edits keep the id).
 2. Error shape for all endpoints: `{"error": code, "message": text}`?
 3. `/api/runs` duration: the AgentProof run is synchronous — is it short enough (< 30 s) for one HTTP request?
 
