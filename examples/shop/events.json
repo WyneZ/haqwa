@@ -1,0 +1,10 @@
+[
+  {"event": "ORDER_CREATED",    "ts": "2026-10-01T10:00:00Z", "data": {"order_id": "A-1"}},
+  {"event": "PAYMENT_CAPTURED", "ts": "2026-10-01T10:00:05Z", "data": {"order_id": "A-1", "amount": 50}},
+  {"event": "PAYMENT_CAPTURED", "ts": "2026-10-01T10:00:45Z", "data": {"order_id": "A-1", "amount": 50}},
+  {"event": "ORDER_CREATED",    "ts": "2026-10-01T11:00:00Z", "data": {"order_id": "B-2"}},
+  {"event": "PAYMENT_CAPTURED", "ts": "2026-10-01T11:00:05Z", "data": {"order_id": "B-2", "amount": 20}},
+  {"event": "REFUND_ISSUED",    "ts": "2026-10-01T11:05:00Z", "data": {"order_id": "B-2"}},
+  {"event": "PAYMENT_CAPTURED", "ts": "2026-10-01T11:06:00Z", "data": {"order_id": "B-2", "amount": 20}},
+  {"event": "EMAIL_SENT",       "ts": "2026-10-01T11:06:01Z", "data": {"order_id": "B-2"}}
+]
