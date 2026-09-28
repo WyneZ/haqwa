@@ -121,7 +121,9 @@ report.passed; report.model_dump()          # JSON-ready
 - **The spec is a file.** Seal returns `rules.spec.yaml` for the owner to download and commit.
 - **No business logic in `web/`.** Each endpoint calls one library function (`ai/` or `core/`) and returns its result.
 - **Shapes follow C1/C2.** Rules, confirmed examples, events and reports use the C1/C2 JSON shapes. Gemini's wire format (`data: [{key, value}]`) never leaves `ai/`.
-- **Gemini quota.** `clarify` and `explain` return cached answers for the demo rules (`"cached": true`). A Gemini 429 becomes HTTP 429 `{"error": "gemini_quota", "message": ...}`.
+- **Gemini quota.** `clarify` and `explain` return cached answers for the demo rules (`"cached": true`). A Gemini 429 becomes HTTP 429 with code `gemini_quota`.
+- **Errors (proposal, see open question 2).** RFC 9457 Problem Details (`application/problem+json`: `type`, `title`, `status`, `detail`) plus a stable machine `code`. One code list in `core/errors.py`, shared by CLI and web.
+- **Versioning (Track A).** All paths are under `/api/v1/` (shown below without the prefix).
 - **Types.** The React app generates its TypeScript types from FastAPI's OpenAPI schema (`/openapi.json`).
 - **Question wording.** Every owner question asks "Is this allowed?". Yes → `violation: false`, No → `violation: true`.
 
@@ -226,8 +228,24 @@ report.passed; report.model_dump()          # JSON-ready
 ### Open C3 questions
 
 1. ~~Who makes the rule `id` slug?~~ **Resolved 2026-09-29 (AGREED):** `core` suggests an id once for a new rule (`suggest_rule_id(text, existing_ids)`: keywords → `^[a-z0-9][a-z0-9-]*$`, `-2` suffix if taken); the owner may edit it; after that the id is stored in the spec and never regenerated (text edits keep the id).
-2. Error shape for all endpoints: `{"error": code, "message": text}`?
-3. `/api/runs` duration: the AgentProof run is synchronous — is it short enough (< 30 s) for one HTTP request?
+2. **Error shape — Track A proposal (2026-09-29), needs Track B agreement:** RFC 9457 + stable `code`, e.g.
+   `{"type": "https://haqwa.dev/errors/gemini-quota", "title": "Gemini quota exceeded", "status": 429, "detail": "...", "code": "gemini_quota"}`.
+   Codes live in `core/errors.py` (Track B): `compile_failed`, `invalid_spec`, …; Track A adds `gemini_quota`, `unsupported_rule` by request. CLI maps the same codes to exit codes.
+3. **`/api/runs` — Track A proposal (2026-09-29), needs Track B agreement:** start **synchronous** (one request returns events + report). In week 3 add **SSE streaming** on the same endpoint so the timeline appears live; the response shape stays "events + report". Async jobs (202 + poll) only on the roadmap, because they need storage. Needs from Track B: measured AgentProof run time, and a runner that can yield events one by one.
+
+### Who does what (C3)
+
+| Item | Code | Decides |
+|---|---|---|
+| `suggest_rule_id`, id freeze on load/dump | Track B (`core/spec.py`) | AGREED 2026-09-29 |
+| id shown and editable on the Yes/No card | Track A (`web/ui`) | Track A |
+| `core/errors.py` code list | Track B | both |
+| RFC 9457 handler in FastAPI, UI error messages | Track A (`web/`) | both (C3) |
+| CLI exit codes | Track B | Track B |
+| `canonical_examples(rule)` | Track B (`core/`) | AGREED 2026-09-27 (shape: both) |
+| `list_scenarios()`, `run_scenario()`, event generator for SSE | Track B (`demo/`/`adapters/`) | both |
+| Endpoints 1–6, `/api/v1` prefix, SSE on the web side | Track A (`web/`) | both (C3) |
+| Deterministic YAML dump | Track B | Track B |
 
 ---
 
