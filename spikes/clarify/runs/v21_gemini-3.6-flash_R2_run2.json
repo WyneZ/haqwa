@@ -1,0 +1,59 @@
+{
+  "raw": {
+    "rule_id": "R2",
+    "parse": {
+      "pattern": "never_after",
+      "after": "cancelled",
+      "event": "shipped",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "recreated-order-lifts-shipping-ban",
+        "description": "If an order is cancelled and subsequently re-created with the same order ID, should shipping be allowed?",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "cancelled",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "O-1001"
+                  }
+                ]
+              },
+              {
+                "event": "order_created",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "O-1001"
+                  }
+                ]
+              },
+              {
+                "event": "shipped",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "O-1001"
+                  }
+                ]
+              }
+            ],
+            "question": "Is the order allowed to be shipped if it was re-created after being cancelled?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "order_created"
+        }
+      }
+    ]
+  },
+  "kept": [
+    "recreated-order-lifts-shipping-ban"
+  ],
+  "dropped": []
+}

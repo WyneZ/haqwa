@@ -1,0 +1,106 @@
+{
+  "raw": {
+    "rule_id": "R1",
+    "parse": {
+      "pattern": "at_most_once",
+      "event": "charged",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "refund-resets-charge-limit",
+        "description": "If an order is refunded, determines whether a new charge can be issued for that same order.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "123"
+                  }
+                ]
+              },
+              {
+                "event": "refunded",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "123"
+                  }
+                ]
+              },
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "123"
+                  }
+                ]
+              }
+            ],
+            "question": "If an order has been charged and then refunded, is a second charge allowed on the same order?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "refunded",
+          "condition": null
+        }
+      },
+      {
+        "id": "installment-payments-exemption",
+        "description": "Determines whether orders paid via installments are allowed to have multiple charge events.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "123"
+                  },
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              },
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "123"
+                  },
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              }
+            ],
+            "question": "Is charging an order multiple times allowed when the payment type is installment?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "allow_if",
+          "event": null,
+          "condition": {
+            "field": "payment_type",
+            "op": "eq",
+            "value": "installment"
+          }
+        }
+      }
+    ]
+  },
+  "kept": [
+    "refund-resets-charge-limit",
+    "installment-payments-exemption"
+  ],
+  "dropped": []
+}
