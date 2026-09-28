@@ -1,0 +1,83 @@
+{
+  "raw": {
+    "rule_id": "R1",
+    "parse": {
+      "pattern": "at_most_once",
+      "event": "charged",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "refund-resets-charge",
+        "description": "Determines whether refunding a charge permits a subsequent charge on the same order.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": []
+              },
+              {
+                "event": "refunded",
+                "data": []
+              },
+              {
+                "event": "charged",
+                "data": []
+              }
+            ],
+            "question": "Is a second charge allowed if the previous charge was refunded?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "refunded",
+          "condition": null
+        }
+      },
+      {
+        "id": "allow-installment-payments",
+        "description": "Determines whether installment payment types are exempt from the single charge restriction.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              },
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              }
+            ],
+            "question": "Are multiple charges allowed if the payment type is set to installment?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "allow_if",
+          "event": null,
+          "condition": {
+            "field": "payment_type",
+            "op": "eq",
+            "value": "installment"
+          }
+        }
+      }
+    ]
+  },
+  "kept": [
+    "refund-resets-charge",
+    "allow-installment-payments"
+  ],
+  "dropped": []
+}
