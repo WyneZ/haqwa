@@ -56,3 +56,46 @@ Split by type:
 Decision: confirmations come from a per-pattern code template (see
 decisions.md, 2026-09-27). Prompt v2 focuses Gemini on decision questions and
 adds a per-pattern checklist (e.g. within_time: clock type).
+
+## 2026-09-28 — prompt v2 (clarify_v2.py)
+
+- Parse is a per-pattern union with C1 field names. Parse correct: v1 1/3 -> v2 3/3
+  (v1 lost `shipped` in R2 and `refund_requested` + 24h in R3).
+- Q5 answered: `oneOf` + `discriminator` is rejected client-side by
+  google-genai 2.25.0 (tested offline with a fake key); `anyOf` passes the SDK
+  and the server (real runs OK).
+- Decision questions 4/5 as in v1; confirmation questions no longer asked (by design).
+- Noise 2: Gemini invented payment_type values `replacement` (R2) and
+  `store_credit` (R3), pushed by the checklist line "which field values make
+  ... acceptable?". Code checked field names only, not values.
+- Owner decisions: D1 invented-value exemptions = noise; D2 G3.2 reframed as
+  "new request restarts the clock?" (in, decision); D3 G3.1 clock type moves to
+  the within_time confirmation template.
+
+## 2026-09-28/29 — prompt v2.1 (clarify_v21.py), 3 runs per rule
+
+Changes: closed value list (`payment_type: card, installment`), generic
+field-value checklist lines removed, code drops questions with unknown
+event/field/value (raw answer kept in the run file).
+
+| Rule | Decision questions found (run1/run2/run3) | Dropped by code | Other |
+|---|---|---|---|
+| R1 | G1.1, G1.2 / same / same | 0 | — |
+| R2 | G2.1 / same / same | 0 | — |
+| R3 | G3.2, G3.5 / same / same | 0 | installment exemption in 3/3 runs |
+
+- Parse correct 9/9. No invented values: the prompt change alone removed them
+  (code filter C had nothing to drop, but stays as a safety net).
+- R3 installment exemption asked in all 3 runs; owner (Hazel) judged it a valid
+  question -> golden G3.6. Final: decision questions 6/6 in every run, noise 0.
+- Results are stable across runs (same questions, different wording/ids).
+
+## 2026-09-28/29 — Gemini free-tier limits (seen in 429 errors)
+
+- gemini-3.6-flash free tier: 5 requests/minute and 20 requests/day per project
+  (quotaIds ...PerMinute... = 5, ...PerDay... = 20). 503 retries also count.
+- 503 "high demand" happened on every run day (Sep 23, 25, 26, 28, 29).
+- Impact: development, the evidence experiment and judges using the demo all
+  share 20/day. -> ai/client.py needs a cache and a clear 429 message; use
+  saved run files as test fixtures; separate keys per developer; paid tier is a
+  team decision (brief §17 says no upgrade during the hackathon).

@@ -1,0 +1,106 @@
+{
+  "raw": {
+    "rule_id": "R1",
+    "parse": {
+      "pattern": "at_most_once",
+      "event": "charged",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "refund-resets-charge",
+        "description": "If an order is refunded, can the customer be charged again for that order?",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              },
+              {
+                "event": "refunded",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              },
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              }
+            ],
+            "question": "Is a second charge allowed if the order was previously refunded?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "refunded",
+          "condition": null
+        }
+      },
+      {
+        "id": "installment-payments-exempt",
+        "description": "Are installment charges exempt from the single-charge restriction?",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  },
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              },
+              {
+                "event": "charged",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  },
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              }
+            ],
+            "question": "Should installment payments be allowed to issue multiple charges for the same order?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "allow_if",
+          "event": null,
+          "condition": {
+            "field": "payment_type",
+            "op": "eq",
+            "value": "installment"
+          }
+        }
+      }
+    ]
+  },
+  "kept": [
+    "refund-resets-charge",
+    "installment-payments-exempt"
+  ],
+  "dropped": []
+}
