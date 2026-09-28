@@ -29,3 +29,6 @@ Format: date · decision · decided by · reason
 - TBD · Contracts C1/C2/C3 locked · both
 - 2026-09-28 · Wireframe approved: 3 screens (Define / Test / Results), teal theme, plain-language UI for non-technical policy owners, one question at a time · Hazel · Target user is an ops manager, not a developer; fewer choices per screen reduces mistakes.
 - 2026-09-28 · Logo deferred to week 4 polish (parking list) · Hazel · Not needed for the week 2–3 build; avoids spending time before the core flow works.
+- 2026-09-28 · Track owners: Track A = Hazel (ai/, web/, deploy), Track B = Wyne (core/, cli, adapters, demo, tests) · Hazel + Wyne · Confirms the brief's split.
+- 2026-09-28 · C3 Web API LOCKED (6 endpoints under /api/v1, RFC 9457 errors + stable code, runs sync now / SSE in week 3). C1, C2, C3 all locked · Hazel + Wyne · Both tracks can build against a fixed interface.
+- 2026-09-28 · Gemini: free tier only, no paid billing plan · Hazel + Wyne · Keeps cost at zero; quota limits handled by caching and pacing (see ai/client.py).
