@@ -1,0 +1,51 @@
+((.venv) ) wynez@WyneZs-MacBook-Air haqwa % clear                                     
+((.venv) ) wynez@WyneZs-MacBook-Air haqwa % uv run python spikes/clarify/clarify_v1.py
+--- R1 -> spikes/clarify/runs/v1_gemini-3.6-flash_R1.json ---
+{"rule_id":"R1","parse":{"pattern":"at_most_once","event":"charged","per":"order_id","supported":true,"unsupported_reason":null},"ambiguities":[{"id":"refund-resets-charge","description":"If an order's charge is refunded, is a second charge permitted for the same order?","examples":[{"events":["charged","refunded","charged"],"question":"Is the second 'charged' event allowed if a 'refunded' event occurred after the first charge?"}],"spec_change_if_yes":"reset_after: refunded"}]}
+
+Traceback (most recent call last):
+  File "/Users/wynez/Documents/haqwa/spikes/clarify/clarify_v1.py", line 144, in <module>
+    main()
+  File "/Users/wynez/Documents/haqwa/spikes/clarify/clarify_v1.py", line 131, in main
+    response = client.models.generate_content(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/models.py", line 6251, in generate_content
+    response = self._generate_content(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/models.py", line 4688, in _generate_content
+    response = self._api_client.request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/_api_client.py", line 1750, in request
+    response = self._request(http_request, http_options, stream=False)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/_api_client.py", line 1537, in _request
+    return self._retry(self._request_once, http_request, stream)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 371, in iter
+    result = action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 413, in exc_check
+    raise retry_exc.reraise()
+          ^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 184, in reraise
+    raise self.last_attempt.result()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.14/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.14/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/_api_client.py", line 1514, in _request_once
+    errors.APIError.raise_for_response(response)
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/errors.py", line 173, in raise_for_response
+    cls.raise_error(response.status_code, response_json, response)
+  File "/Users/wynez/Documents/haqwa/.venv/lib/python3.12/site-packages/google/genai/errors.py", line 204, in raise_error
+    raise ServerError(status_code, response_json, response)
+google.genai.errors.ServerError: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+((.venv) ) wynez@WyneZs-MacBook-Air haqwa % 

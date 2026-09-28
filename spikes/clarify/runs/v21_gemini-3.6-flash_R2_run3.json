@@ -1,0 +1,59 @@
+{
+  "raw": {
+    "rule_id": "R2",
+    "parse": {
+      "pattern": "never_after",
+      "after": "cancelled",
+      "event": "shipped",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "reorder-after-cancellation",
+        "description": "If an order is cancelled but then re-created under the same order ID, can it be shipped afterwards?",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "cancelled",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "1001"
+                  }
+                ]
+              },
+              {
+                "event": "order_created",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "1001"
+                  }
+                ]
+              },
+              {
+                "event": "shipped",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "1001"
+                  }
+                ]
+              }
+            ],
+            "question": "Is an order allowed to be shipped if a new order_created event occurs after the cancellation?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "order_created"
+        }
+      }
+    ]
+  },
+  "kept": [
+    "reorder-after-cancellation"
+  ],
+  "dropped": []
+}

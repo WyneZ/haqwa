@@ -1,0 +1,130 @@
+{
+  "raw": {
+    "rule_id": "R3",
+    "parse": {
+      "pattern": "within_time",
+      "start": "refund_requested",
+      "event": "refund_completed",
+      "within": "PT24H",
+      "per": "order_id"
+    },
+    "ambiguities": [
+      {
+        "id": "cancellation-resets-deadline",
+        "description": "An order cancellation after a refund request might remove the obligation to complete the refund within 24 hours.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "refund_requested",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              },
+              {
+                "event": "cancelled",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              }
+            ],
+            "question": "Is it allowed for a refund not to be completed within 24 hours if the order was cancelled after the refund request?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "cancelled",
+          "condition": null
+        }
+      },
+      {
+        "id": "subsequent-request-resets-clock",
+        "description": "A second refund request for the same order might restart the 24-hour deadline.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "refund_requested",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              },
+              {
+                "event": "refund_requested",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              },
+              {
+                "event": "refund_completed",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  }
+                ]
+              }
+            ],
+            "question": "If a customer submits a second refund request, does that restart the 24-hour clock for completion?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "reset_after",
+          "event": "refund_requested",
+          "condition": null
+        }
+      },
+      {
+        "id": "installment-payment-exemption",
+        "description": "Refund requests for installment payments may be exempt from the 24-hour deadline.",
+        "examples": [
+          {
+            "events": [
+              {
+                "event": "refund_requested",
+                "data": [
+                  {
+                    "key": "order_id",
+                    "value": "101"
+                  },
+                  {
+                    "key": "payment_type",
+                    "value": "installment"
+                  }
+                ]
+              }
+            ],
+            "question": "Are refund requests for installment payments exempt from the 24-hour completion requirement?"
+          }
+        ],
+        "spec_change_if_yes": {
+          "kind": "allow_if",
+          "event": null,
+          "condition": {
+            "field": "payment_type",
+            "op": "eq",
+            "value": "installment"
+          }
+        }
+      }
+    ]
+  },
+  "kept": [
+    "cancellation-resets-deadline",
+    "subsequent-request-resets-clock",
+    "installment-payment-exemption"
+  ],
+  "dropped": []
+}
