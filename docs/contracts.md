@@ -246,6 +246,9 @@ report.passed; report.model_dump()          # JSON-ready
 | `list_scenarios()`, `run_scenario()`, event generator for SSE | Track B (`demo/`/`adapters/`) | both |
 | Endpoints 1–6, `/api/v1` prefix, SSE on the web side | Track A (`web/`) | both (C3) |
 | Deterministic YAML dump | Track B | Track B |
+To be drafted together; Track A writes it. Suggested inputs/outputs from the core side:
+- compile: spec (C1 JSON) + event map → ok, or `CompileError` problems/failures (show the failing example to the owner)
+- check: spec + event map + events (C2 JSON) → `Report` JSON
 
 ---
 

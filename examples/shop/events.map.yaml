@@ -1,0 +1,5 @@
+version: 1
+events:
+  charged: PAYMENT_CAPTURED
+  refunded: REFUND_ISSUED
+  order_created: ORDER_CREATED
