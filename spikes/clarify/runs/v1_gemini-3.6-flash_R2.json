@@ -1,0 +1,55 @@
+{
+  "rule_id": "R2",
+  "parse": {
+    "pattern": "never_after",
+    "event": "cancelled",
+    "per": "order_id",
+    "supported": true,
+    "unsupported_reason": null
+  },
+  "ambiguities": [
+    {
+      "id": "recreation-resets-cancellation",
+      "description": "If an order is cancelled, but a new order_created event occurs for the same order_id, does that reset the cancellation status and allow the order to be shipped?",
+      "examples": [
+        {
+          "events": [
+            {
+              "event": "cancelled",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "1001"
+                }
+              ]
+            },
+            {
+              "event": "order_created",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "1001"
+                }
+              ]
+            },
+            {
+              "event": "shipped",
+              "data": [
+                {
+                  "key": "order_id",
+                  "value": "1001"
+                }
+              ]
+            }
+          ],
+          "question": "Should shipping order 1001 be allowed because a new order_created event occurred after the cancellation?"
+        }
+      ],
+      "spec_change_if_yes": {
+        "kind": "reset_after",
+        "event": "order_created",
+        "condition": null
+      }
+    }
+  ]
+}
