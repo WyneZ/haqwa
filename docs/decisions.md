@@ -23,5 +23,6 @@ Format: date · decision · decided by · reason
 - 2026-09-28 · Track A: clarify parse uses a per-pattern `anyOf` union with C1 field names (clarify_v2); `oneOf` + `discriminator` is rejected client-side by google-genai 2.25.0, `anyOf` is accepted by SDK and server (contracts open Q5) · Track A (Hazel) · no rule loses its second event or window; core/spec.py still validates with its discriminated union
 - 2026-09-29 · Track A: prompt v2.1 noise controls — closed field-value lists in the prompt, no generic "field value exemption" checklist, and code drops any question with an unknown event/field/value · Track A (Hazel) · removed invented values (replacement, store_credit) with no loss of decision questions over 9 runs
 - TBD · Track owners · TBD
-- TBD · Frontend framework · Track A owner
+- 2026-09-29 · Frontend = React + Vite + TypeScript SPA; the build is served as static files by the FastAPI app (one container, one Cloud Run service); types generated from the FastAPI OpenAPI schema · Track A (Hazel) · no SEO/SSR need; keeps FastAPI the only server so web holds no business logic; simplest deploy for Oct 11; components can move to Next.js later if a public site is needed
+- 2026-09-29 · Track A: MVP web API is stateless (browser holds the draft spec); no database; Seal returns `rules.spec.yaml` for download; Firestore moves to the roadmap · Track A (Hazel), to confirm with Track B in the C3 review · brief §9 "no DB at first", §10 multi-user out of scope, principle "the spec is a file"
 - TBD · Contracts C1/C2/C3 locked · both
