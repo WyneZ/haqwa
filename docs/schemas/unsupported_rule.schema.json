@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source",
+    "reason"
+  ],
+  "title": "UnsupportedRule",
+  "type": "object"
+}
