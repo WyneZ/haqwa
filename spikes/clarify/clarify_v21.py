@@ -45,6 +45,8 @@ FIELD_VALUES: dict[str, list[str]] = {
     "payment_type": ["card", "installment"],
 }
 
+# Default model. Override with HAQWA_MODEL in .env (e.g. a Flash Lite model
+# with a higher free-tier daily quota) without editing this file.
 MODEL = "gemini-3.6-flash"
 
 # Free tier allows 5 requests per minute for this model (429 seen on
@@ -298,6 +300,9 @@ def main(argv: list[str]) -> None:
     from google import genai
 
     load_env()
+    global MODEL
+    MODEL = os.environ.get("HAQWA_MODEL", MODEL)
+    print(f"model: {MODEL}")
     repeat = int(argv[argv.index("--repeat") + 1]) if "--repeat" in argv else 1
     start = int(argv[argv.index("--start") + 1]) if "--start" in argv else 1
     wanted = [a for a in argv if a.startswith("R")]
