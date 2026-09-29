@@ -120,7 +120,13 @@ class GeminiClient:
                 response = self._client().models.generate_content(
                     model=self.model,
                     contents=prompt,
-                    config={"response_mime_type": "application/json", "response_schema": schema},
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_schema": schema,
+                        # We pass no tools, so automatic function calling is never needed.
+                        # Turning it off also stops the SDK's "AFC is not recommended" warning.
+                        "automatic_function_calling": {"disable": True},
+                    },
                 )
                 return response.text or ""
             except genai_errors.ClientError as e:
