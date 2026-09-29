@@ -31,6 +31,3 @@ Format: date · decision · decided by · reason
 - 2026-09-28 · C3 Web API LOCKED (6 endpoints under /api/v1, RFC 9457 errors + stable code, runs sync now / SSE in week 3). C1, C2, C3 all locked · Hazel + Wyne · Both tracks can build against a fixed interface.
 - 2026-09-28 · Gemini: free tier only, no paid billing plan · Hazel + Wyne · Keeps cost at zero; quota limits handled by caching and pacing (see ai/client.py).
 - 2026-09-28 · Model: stay on gemini-3.6-flash for everything (dev, demo, evidence). HAQWA_MODEL env override kept for later, default unchanged · Hazel · One model keeps prompt behaviour consistent; quota handled by mocks in tests, disk cache, and spreading live calls across days.
-- TBD · Track owners · TBD
-- TBD · Frontend framework · Track A owner
-- TBD · Contracts C1/C2/C3 locked · both
