@@ -1,5 +1,14 @@
 """Gemini-backed meaning negotiation (Track A). `core/` never imports this package."""
 
+from .clarify import (
+    Answer,
+    AnswersOutcome,
+    ClarifyOutcome,
+    DroppedQuestion,
+    Question,
+    apply_answers,
+    clarify,
+)
 from .client import (
     DEFAULT_MODEL,
     GeminiBadOutput,
@@ -14,7 +23,11 @@ from .vocab import Vocabulary
 
 __all__ = [
     "DEFAULT_MODEL",
+    "Answer",
+    "AnswersOutcome",
+    "ClarifyOutcome",
     "DraftRule",
+    "DroppedQuestion",
     "GeminiBadOutput",
     "GeminiClient",
     "GeminiError",
@@ -22,7 +35,10 @@ __all__ = [
     "GeminiResult",
     "GeminiUnavailable",
     "ParseError",
+    "Question",
     "Vocabulary",
+    "apply_answers",
+    "clarify",
     "draft_problems",
     "to_rule",
 ]
