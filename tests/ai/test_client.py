@@ -96,6 +96,7 @@ def test_returns_validated_value_and_sends_schema(tmp_path: Path) -> None:
     config = sdk.calls[0]["config"]
     assert config["response_mime_type"] == "application/json"
     assert config["response_schema"] is Answer
+    assert config["automatic_function_calling"] == {"disable": True}
 
 
 def test_second_identical_call_uses_cache_without_calling_gemini(tmp_path: Path) -> None:
