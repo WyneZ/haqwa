@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from haqwa.core.events import Event
-from haqwa.core.spec import AtMostOnce
+from haqwa.core.spec import AtMostOnce, MustPrecede, NeverAfter
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -22,3 +22,27 @@ def amo(**kw: Any) -> AtMostOnce:
         "per": "order_id",
     }
     return AtMostOnce.model_validate({**base, **kw})
+
+
+def nav(**kw: Any) -> NeverAfter:
+    base = {
+        "id": "r",
+        "source": "s",
+        "pattern": "never_after",
+        "event": "shipped",
+        "after": "cancelled",
+        "per": "order_id",
+    }
+    return NeverAfter.model_validate({**base, **kw})
+
+
+def mp(**kw: Any) -> MustPrecede:
+    base = {
+        "id": "r",
+        "source": "s",
+        "pattern": "must_precede",
+        "event": "shipped",
+        "requires": "approved",
+        "per": "order_id",
+    }
+    return MustPrecede.model_validate({**base, **kw})

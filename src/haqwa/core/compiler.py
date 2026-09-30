@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .events import EventMap, synthetic_timeline
-from .patterns import REGISTRY, Evaluator
-from .spec import ConfirmedExample, Rule, Spec
+from .patterns import REGISTRY, Evaluator, Finding
+from .spec import ConfirmedExample, Rule, Spec, TimelineEvent
 
 
 @dataclass(frozen=True)
@@ -59,12 +60,31 @@ def rule_event_names(rule: Rule) -> set[str]:
     return names
 
 
+def run_timeline(
+    rule: Rule, timeline: Sequence[TimelineEvent], evaluate: Evaluator | None = None
+) -> list[Finding]:
+    """Run one rule on a C1 example timeline (one synthetic entity, increasing timestamps)."""
+    if evaluate is None:
+        evaluate = REGISTRY.get(rule.pattern)
+        if evaluate is None:
+            raise ValueError(f"pattern {rule.pattern!r} is not implemented yet")
+    events = synthetic_timeline(((t.event, t.data) for t in timeline), per=rule.per)
+    return evaluate(rule, events)
+
+
+def violates(rule: Rule, timeline: Sequence[TimelineEvent]) -> bool:
+    """True if the rule reports a violation on this example timeline.
+
+    Shared by the compile self-test, canonical examples and (later) question checks.
+    """
+    return bool(run_timeline(rule, timeline))
+
+
 def self_test(rule: Rule, evaluate: Evaluator) -> list[SelfTestFailure]:
     """Run each confirmed example as a synthetic event list; compare with the human answer."""
     failures: list[SelfTestFailure] = []
     for i, ex in enumerate(rule.confirmed_examples):
-        events = synthetic_timeline(((t.event, t.data) for t in ex.timeline), per=rule.per)
-        got = bool(evaluate(rule, events))
+        got = bool(run_timeline(rule, ex.timeline, evaluate))
         if got != ex.violation:
             failures.append(SelfTestFailure(rule.id, i, ex, ex.violation, got))
     return failures
