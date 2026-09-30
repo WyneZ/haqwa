@@ -1,4 +1,6 @@
-from haqwa import check, compile_spec, format_text, load_event_map, load_events, load_spec
+from haqwa import Spec, check, compile_spec, format_text, load_event_map, load_events, load_spec
+
+from .helpers import ev
 
 
 def run_shop(shop_dir):
@@ -49,3 +51,23 @@ def test_text_report_marks_offending_event(shop_dir):
     text = format_text(run_shop(shop_dir))
     assert "[VIOLATION] no-double-charge" in text
     assert ">> 2026-10-01T10:00:45+00:00  charged" in text
+
+
+def test_requires_of_one_entity_does_not_enable_another():
+    spec = Spec.model_validate(
+        {
+            "rules": [
+                {
+                    "id": "approve-before-ship",
+                    "source": "An order must be approved before it is shipped.",
+                    "pattern": "must_precede",
+                    "event": "shipped",
+                    "requires": "approved",
+                    "per": "order_id",
+                }
+            ]
+        }
+    )
+    events = [ev("approved", 0, "o1"), ev("shipped", 1, "o2"), ev("shipped", 2, "o1")]
+    (result,) = check(compile_spec(spec), events).results
+    assert [v.entity for v in result.violations] == ["o2"]
