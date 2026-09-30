@@ -15,12 +15,13 @@ def check(
     """Translate (optional) -> sort by time -> group by entity -> evaluate each rule."""
     evs = event_map.translate(events) if event_map else list(events)
     evs = sort_events(evs)
+    trace_end = evs[-1].ts if evs else None
 
     results: list[RuleResult] = []
     for cr in compiled.rules:
         violations: list[Violation] = []
         for entity, stream in group_by(evs, cr.rule.per).items():
-            for f in cr.evaluate(cr.rule, stream):
+            for f in cr.evaluate(cr.rule, stream, trace_end):
                 violations.append(
                     Violation(
                         rule_id=cr.rule.id,

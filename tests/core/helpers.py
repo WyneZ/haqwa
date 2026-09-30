@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from haqwa.core.events import Event
-from haqwa.core.spec import AtMostOnce, MustPrecede, NeverAfter
+from haqwa.core.spec import AtMostOnce, MustPrecede, NeverAfter, WithinTime
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -46,3 +46,19 @@ def mp(**kw: Any) -> MustPrecede:
         "per": "order_id",
     }
     return MustPrecede.model_validate({**base, **kw})
+
+
+def wt(**kw: Any) -> WithinTime:
+    base = {
+        "id": "r",
+        "source": "s",
+        "pattern": "within_time",
+        "start": "refund_requested",
+        "event": "refund_completed",
+        "within": "PT48H",
+        "per": "order_id",
+    }
+    return WithinTime.model_validate({**base, **kw})
+
+
+H = 3600  # seconds per hour, for ev(name, sec)

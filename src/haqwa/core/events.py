@@ -108,17 +108,22 @@ def load_event_map(path: str | Path) -> EventMap:
 
 
 def synthetic_timeline(
-    timeline: Iterable[tuple[str, dict[str, Any]]],
+    timeline: Iterable[tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], timedelta | None]],
     per: str,
     entity_id: str = "example-1",
     start: datetime | None = None,
 ) -> list[Event]:
-    """Build events from (name, data) pairs: one entity, 1 second apart.
+    """Build events from (name, data[, at]) items for one synthetic entity.
 
-    Used by the compiler self-test to run confirmed examples.
+    Items without an `at` offset are 1 second apart; with `at`, ts = start + at.
+    `data` may override `per` to put an item on a different entity.
+    Used by the compiler self-test, canonical examples and question checks.
     """
     t0 = start or datetime(2000, 1, 1, tzinfo=UTC)
-    return [
-        Event(event=name, ts=t0 + timedelta(seconds=i), data={per: entity_id, **data})
-        for i, (name, data) in enumerate(timeline)
-    ]
+    events: list[Event] = []
+    for i, item in enumerate(timeline):
+        name, data = item[0], item[1]
+        at = item[2] if len(item) > 2 else None
+        ts = t0 + (at if at is not None else timedelta(seconds=i))
+        events.append(Event(event=name, ts=ts, data={per: entity_id, **data}))
+    return events

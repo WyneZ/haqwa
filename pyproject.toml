@@ -25,6 +25,7 @@ demo = [
     "google-adk==2.9.2",
 ]
 dev = [
+    "agentproof-sim==0.1.1",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]

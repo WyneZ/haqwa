@@ -10,13 +10,18 @@ Semantics (DRAFT, Track B):
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from ..conditions import is_allowed, reset_events
 from ..events import Event
 from ..spec import NeverAfter
 from .base import Finding
 
 
-def evaluate(rule: NeverAfter, events: list[Event]) -> list[Finding]:
+def evaluate(
+    rule: NeverAfter, events: list[Event], trace_end: datetime | None = None
+) -> list[Finding]:
+    del trace_end  # not time-based
     resets = reset_events(rule)
     armed = False
     findings: list[Finding] = []

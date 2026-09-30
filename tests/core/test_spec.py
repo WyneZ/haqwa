@@ -70,3 +70,36 @@ def test_spec_is_frozen(shop_dir):
     spec = load_spec(shop_dir / "rules.spec.yaml")
     with pytest.raises(ValidationError):
         spec.rules[0].event = "other"
+
+
+def _example(timeline):
+    return spec_with(
+        pattern="within_time",
+        start="s",
+        event="e",
+        within="PT1H",
+        confirmed_examples=[{"timeline": timeline, "violation": False}],
+    )
+
+
+def test_at_offsets_accepted():
+    s = _example([{"event": "s", "at": "PT0S"}, {"event": "e", "at": "PT65H"}])
+    assert s.rules[0].confirmed_examples[0].timeline[1].at.total_seconds() == 65 * 3600
+
+
+@pytest.mark.parametrize(
+    "timeline",
+    [
+        [{"event": "s", "at": "PT0S"}, {"event": "e"}],  # mixed
+        [{"event": "s", "at": "PT1H"}, {"event": "e", "at": "PT2H"}],  # first not 0
+        [{"event": "s", "at": "PT0S"}, {"event": "e", "at": "PT2H"}, {"event": "e", "at": "PT1H"}],
+    ],
+)
+def test_bad_at_offsets_rejected(timeline):
+    with pytest.raises(ValidationError):
+        _example(timeline)
+
+
+def test_within_must_be_positive():
+    with pytest.raises(ValidationError):
+        spec_with(pattern="within_time", start="s", event="e", within="PT0S")
