@@ -1,9 +1,11 @@
 """Exception helpers shared by all patterns (`reset_after`, `allow_if`).
 
 Semantics (DRAFT):
-- `allow_if`: an event that matches ANY allow_if condition is invisible to the rule.
 - `reset_after`: when a reset event happens for the entity, the rule forgets
-  everything it saw before for that entity.
+  everything it saw before for that entity. Reset events always reset
+  (allow_if is not checked for them).
+- `allow_if`: any other event that matches ANY allow_if condition is ignored by
+  the rule (it is not counted, does not trigger and does not violate).
 - A condition on a field the event doesn't have is False (never allows).
 """
 
