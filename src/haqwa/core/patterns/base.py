@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from datetime import datetime
+from typing import Any, Protocol
 
 from ..events import Event
 
@@ -17,4 +17,13 @@ class Finding:
     message: str
 
 
-Evaluator = Callable[[Any, list[Event]], list[Finding]]
+class Evaluator(Protocol):
+    """(rule, one entity's time-sorted events, trace end) -> findings.
+
+    `trace_end` is the last timestamp of the whole checked trace (all entities);
+    only time-based patterns use it. Defaults to the entity's last event.
+    """
+
+    def __call__(
+        self, rule: Any, events: list[Event], trace_end: datetime | None = None
+    ) -> list[Finding]: ...

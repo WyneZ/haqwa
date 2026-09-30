@@ -303,6 +303,19 @@
           "additionalProperties": true,
           "title": "Data",
           "type": "object"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "format": "duration",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
         }
       },
       "required": [

@@ -28,16 +28,16 @@ Unknown keys are rejected (typos fail loudly). The spec is immutable after loadi
 | Pattern | Fields | Meaning (per entity) | Status |
 |---|---|---|---|
 | `at_most_once` | `event` | `event` happens at most once | implemented |
-| `never_after` | `event`, `after` | once `after` happened, `event` must not happen | week 2 |
-| `must_precede` | `event`, `requires` | `event` only if `requires` happened earlier | week 2 |
-| `within_time` | `start`, `event`, `within` | after `start`, `event` must happen within `within` (seconds or ISO 8601, e.g. `PT24H`) | week 2 |
+| `never_after` | `event`, `after` | once `after` happened, `event` must not happen | implemented |
+| `must_precede` | `event`, `requires` | `event` only if `requires` happened earlier (one `requires` enables any number of later `event`s) | implemented |
+| `within_time` | `start`, `event`, `within` | after `start`, `event` must happen within `within` (calendar time; seconds or ISO 8601, e.g. `PT48H`; must be > 0) | implemented (end-of-trace per Q2 proposal) |
 
 ### Exceptions
 
 | Exception | Form | Semantics |
 |---|---|---|
-| `reset_after` | `reset_after: refunded` | When this event happens for the entity, the rule forgets what it saw before |
-| `allow_if` | `allow_if: {field, op, value}` | Events matching the condition are invisible to the rule. Multiple `allow_if` = OR |
+| `reset_after` | `reset_after: refunded` | When this event happens for the entity, the rule forgets what it saw before. Reset events always reset (allow_if is not checked for them) |
+| `allow_if` | `allow_if: {field, op, value}` | Other events matching the condition are ignored by the rule (not counted, do not trigger, do not violate). Multiple `allow_if` = OR |
 
 Condition: `op` is `eq`, `ne` or `in` (`in` needs a list). A field missing from the event never matches (also for `ne`). Conditions are data, never evaluated as code.
 
@@ -53,7 +53,16 @@ confirmed_examples:
     violation: false
 ```
 
-Timeline items use the same `{event, data}` shape as C2 events (no `ts`; the self-test adds increasing timestamps and one synthetic entity id).
+Timeline items use the same `{event, data}` shape as C2 events (no `ts`; the self-test adds increasing timestamps and one synthetic entity id). An item may set `data.<per>` to put it on a different entity.
+
+**PROPOSED (needs Track A agreement, Q1):** optional `at` on timeline items = ISO 8601 duration offset from the **first** item. If one item has `at`, all must; the first is `PT0S`; offsets never decrease. Without `at`, items are 1 s apart.
+
+```yaml
+  - timeline:
+      - {event: refund_requested, at: PT0S}     # Fri 17:00
+      - {event: refund_completed, at: PT65H}    # Mon 10:00
+    violation: true
+```
 
 ### Unsupported rules (not part of a sealed spec)
 
@@ -108,6 +117,22 @@ report.passed; report.model_dump()          # JSON-ready
 
 `Report` → `results[]: {rule_id, source, status: "pass"|"violation", violations[]}`;
 `Violation` → `{rule_id, entity, message, timeline: Event[], offending_index}`.
+
+Week 2 additions:
+
+```python
+from haqwa import canonical_examples, suggest_rule_id, violates
+from haqwa.demo import list_scenarios, run_scenario        # needs agentproof-sim==0.1.1
+from haqwa.adapters.pytest import assert_policies
+
+canonical_examples(rule)      # -> [CanonicalExample(label, timeline, violation)]; .as_confirmed(owner_says_allowed)
+suggest_rule_id(text, existing_ids)   # deterministic slug; "-2", "-3" if taken; call once per new rule
+violates(rule, timeline)      # -> bool, one rule on one C1 example timeline
+list_scenarios()              # -> [{id, title, fault, agent, description, expected}]
+run_scenario(id, spec)        # -> (events, Report); deterministic native agents, ~1 ms
+```
+
+Canonical examples per pattern (confirmation cards; "Is this allowed?" Yes = `violation: false`): core case, reversed order (two-event patterns), different entity; `within_time` also "exactly at the limit", "1 h late" and, when the window is under 65 h, "Fri 17:00 → Mon 10:00 (weekend counts)".
 
 ---
 
@@ -254,12 +279,12 @@ To be drafted together; Track A writes it. Suggested inputs/outputs from the cor
 
 ## Open questions (decide before lock)
 
-1. **`within_time` examples need time.** Timeline items have no time; add an optional offset such as `at: PT25H`?
-2. **`within_time` at end of trace:** `start` seen, deadline not reached, no `event` yet — pass or "pending"?
+1. **`within_time` examples need time.** PROPOSED by Track B (2026-09-30): optional `at` offset from the first item (see Confirmed examples). Implemented behind this proposal; rename is cheap until locked.
+2. **`within_time` at end of trace.** PROPOSED by Track B (2026-09-30), option B: an open obligation is a violation only if the end of the checked trace (last event of any entity) is past its deadline; otherwise pass. No "pending" status.
 3. **Events missing the `per` key** are skipped silently. Add a warning count to the report?
 4. **Entity id types:** `"123"` and `123` are different entities today. Normalize to string?
-5. **Gemini + discriminated union:** the spec schema uses `oneOf` + `discriminator`. Unverified whether Gemini structured output handles this well — Track A to test in the spike. Fallback: Gemini fills a flat draft model; `core/spec.py` validates it.
+5. **ANSWERED (Track A, 2026-09-28) — proposal: close.** Gemini uses a plain `anyOf` union; `core/spec.py` validates with the discriminated union. Original question — **Gemini + discriminated union:** the spec schema uses `oneOf` + `discriminator`. Unverified whether Gemini structured output handles this well — Track A to test in the spike. Fallback: Gemini fills a flat draft model; `core/spec.py` validates it.
 6. **Naming:** brief says `compile()`; code uses `compile_spec()` to avoid shadowing Python's built-in `compile`.
-7. **Stubs:** instead of fixed-output stubs, `at_most_once` is real already; other patterns raise "not implemented yet" at compile until week 2.
+7. **Stubs:** not needed any more — all 4 patterns are implemented (2026-09-30).
 
 Parking list (not in MVP): field renaming in the event map (e.g. `orderId` → `order_id`).

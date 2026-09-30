@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -47,11 +49,27 @@ RuleException = ResetAfter | AllowIf
 class TimelineEvent(_Strict):
     event: str
     data: dict[str, Any] = Field(default_factory=dict)
+    # PROPOSED C1 change (needs Track A agreement): offset from the FIRST event of the
+    # timeline, ISO 8601 duration in YAML (e.g. PT65H). None -> events are 1 s apart.
+    at: timedelta | None = None
 
 
 class ConfirmedExample(_Strict):
     timeline: list[TimelineEvent] = Field(min_length=1)
     violation: bool
+
+    @model_validator(mode="after")
+    def _offsets_consistent(self) -> ConfirmedExample:
+        offsets = [t.at for t in self.timeline]
+        if all(o is None for o in offsets):
+            return self
+        if any(o is None for o in offsets):
+            raise ValueError("if one timeline item has `at`, every item must have it")
+        if offsets[0] != timedelta(0):
+            raise ValueError("the first timeline item must have `at: PT0S`")
+        if any(b < a for a, b in zip(offsets, offsets[1:], strict=False)):
+            raise ValueError("`at` offsets must not decrease")
+        return self
 
 
 # ---------- Rules (D1: discriminated union) ----------
@@ -86,6 +104,12 @@ class WithinTime(_RuleBase):
     event: str  # must happen within `within` after `start`
     within: timedelta  # YAML: seconds (86400) or ISO 8601 ("PT24H")
 
+    @model_validator(mode="after")
+    def _positive_window(self) -> WithinTime:
+        if self.within <= timedelta(0):
+            raise ValueError("`within` must be a positive duration")
+        return self
+
 
 Rule = Annotated[AtMostOnce | NeverAfter | MustPrecede | WithinTime, Field(discriminator="pattern")]
 
@@ -114,3 +138,36 @@ def load_spec(path: str | Path) -> Spec:
     """Load and validate a rules.spec.yaml file."""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return Spec.model_validate(data)
+
+
+# ---------- Rule ids (agreed 2026-09-29: suggest once, owner may edit, then frozen) ----------
+_STOPWORDS = frozenset(
+    "a an the and or of for to in on at by with from is are be been being must should shall "
+    "can may will would it its this that these those same any every each per than then "
+    "customer customers user users".split()
+)
+_NEGATIONS = {"not": "no", "never": "no", "no": "no", "cannot": "no"}
+_MAX_WORDS = 4
+
+
+def suggest_rule_id(text: str, existing_ids: Iterable[str] = ()) -> str:
+    """Suggest a C1-valid id from rule text. Deterministic; call only for rules without an id.
+
+    "A customer must not be charged twice for the same order." -> "no-charged-twice-order"
+    If the slug is taken, "-2", "-3", ... is added.
+    """
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    kept: list[str] = []
+    for w in words:
+        w = _NEGATIONS.get(w, w)
+        if w in _STOPWORDS or (kept and kept[-1] == w):
+            continue
+        kept.append(w)
+    base = "-".join(kept[:_MAX_WORDS]) or "rule"
+    taken = set(existing_ids)
+    if base not in taken:
+        return base
+    n = 2
+    while f"{base}-{n}" in taken:
+        n += 1
+    return f"{base}-{n}"

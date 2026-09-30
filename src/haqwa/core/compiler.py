@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from .events import EventMap, synthetic_timeline
+from .events import EventMap, group_by, sort_events, synthetic_timeline
 from .patterns import REGISTRY, Evaluator, Finding
 from .spec import ConfirmedExample, Rule, Spec, TimelineEvent
 
@@ -68,8 +68,14 @@ def run_timeline(
         evaluate = REGISTRY.get(rule.pattern)
         if evaluate is None:
             raise ValueError(f"pattern {rule.pattern!r} is not implemented yet")
-    events = synthetic_timeline(((t.event, t.data) for t in timeline), per=rule.per)
-    return evaluate(rule, events)
+    events = synthetic_timeline(((t.event, t.data, t.at) for t in timeline), per=rule.per)
+    # Items may name another entity via data[per]; evaluate each entity like check() does.
+    events = sort_events(events)
+    trace_end = events[-1].ts if events else None
+    findings: list[Finding] = []
+    for stream in group_by(events, rule.per).values():
+        findings += evaluate(rule, stream, trace_end)
+    return findings
 
 
 def violates(rule: Rule, timeline: Sequence[TimelineEvent]) -> bool:

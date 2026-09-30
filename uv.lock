@@ -512,6 +512,7 @@ demo = [
     { name = "google-adk" },
 ]
 dev = [
+    { name = "agentproof-sim" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -531,6 +532,7 @@ demo = [
     { name = "google-adk", specifier = "==2.9.2" },
 ]
 dev = [
+    { name = "agentproof-sim", specifier = "==0.1.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.8" },
 ]
