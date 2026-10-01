@@ -18,10 +18,12 @@ Every question asks "is this allowed?": allowed=True -> violation False.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
+from haqwa.core.canonical import canonical_examples
 from haqwa.core.spec import (
     AllowIf,
     Condition,
@@ -30,6 +32,7 @@ from haqwa.core.spec import (
     RuleException,
     TimelineEvent,
     UnsupportedRule,
+    suggest_rule_id,
 )
 
 from .client import GeminiClient
@@ -208,14 +211,31 @@ or kind "none" if it cannot be captured that way."""
 
 
 def clarify(
-    rule_text: str, *, rule_id: str, vocab: Vocabulary, client: GeminiClient
+    rule_text: str,
+    *,
+    vocab: Vocabulary,
+    client: GeminiClient,
+    rule_id: str | None = None,
+    existing_ids: Iterable[str] = (),
 ) -> ClarifyOutcome:
     """Ask Gemini once for the rule's pattern and the owner's decision questions.
+
+    Questions come back confirmations first (from core), then decisions (from Gemini).
+
+    Args:
+        rule_text: The owner's rule in English.
+        vocab: Allowed events, fields and values.
+        client: Gemini client (pass a fake in tests).
+        rule_id: Keep an id the owner already has or edited. When omitted, core suggests
+            one from the text (`suggest_rule_id`); the caller should then freeze it.
+        existing_ids: Ids already used in the spec, so a suggested id is unique.
 
     Raises:
         ParseError: Gemini's draft uses names outside `vocab` or is not a valid C1 rule.
         GeminiError: quota, availability or bad output (see `client.py`).
     """
+    if rule_id is None:
+        rule_id = suggest_rule_id(rule_text, existing_ids)
     result = client.generate(build_prompt(rule_id, rule_text, vocab), WireClarify)
     wire = result.value
 
@@ -332,39 +352,27 @@ def _to_timeline_event(occ: WireEvent, per: str) -> TimelineEvent:
 
 
 # =========================================================================================
-# 5. Confirmation questions  --  WAITING FOR TRACK B (Wyne)
-# =========================================================================================
-#
-#   What we need from core (AGREED 2026-09-27, contracts.md "Needed from the library API"):
-#
-#       canonical_examples(rule) -> list[(timeline, expected_violation, label)]
-#
-#   e.g. for never_after(after=cancelled, event=shipped):
-#       ([cancelled, shipped], True,  "core case")
-#       ([shipped, cancelled], False, "reverse order")
-#
-#   Until it is merged into main, this returns [] and clarify() sends decision
-#   questions only. When it lands, replace the body with:
-#
-#       from haqwa.core.<module> import canonical_examples
-#       return [
-#           Question(
-#               id=f"c{i}",
-#               kind="confirmation",
-#               text="Is this allowed?",
-#               timeline=list(timeline),
-#               expected_violation=expected,
-#           )
-#           for i, (timeline, expected, _label) in enumerate(canonical_examples(rule), 1)
-#       ]
-#
-#   and add tests: one confirmation per label, and a mismatch in apply_answers.
+# 5. Confirmation questions (from core, no Gemini)
 # =========================================================================================
 
 
 def confirmation_questions(rule: C1Rule) -> list[Question]:
-    """Confirmation cards from core's canonical examples. Empty until Track B ships them."""
-    return []
+    """Confirmation cards from core's canonical examples (`core/canonical.py`).
+
+    They check that the owner reads the pattern the way core does: the core case, the
+    reversed order, a different entity, and for `within_time` the deadline and calendar
+    hours. Timelines keep core's `data[per]` (a different entity) and `at` offsets.
+    """
+    return [
+        Question(
+            id=f"c{i}",
+            kind="confirmation",
+            text="Is this allowed?",
+            timeline=list(example.timeline),
+            expected_violation=example.violation,
+        )
+        for i, example in enumerate(canonical_examples(rule), 1)
+    ]
 
 
 # =========================================================================================

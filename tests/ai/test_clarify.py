@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import pytest
 
 from haqwa.ai.clarify import (
     Answer,
+    ClarifyOutcome,
     Question,
     WireAmbiguity,
     WireClarify,
@@ -21,6 +23,7 @@ from haqwa.ai.clarify import (
 from haqwa.ai.client import GeminiClient
 from haqwa.ai.parse import ParseError
 from haqwa.ai.vocab import Vocabulary
+from haqwa.core.compiler import compile_spec
 from haqwa.core.spec import (
     AllowIf,
     AtMostOnce,
@@ -28,7 +31,10 @@ from haqwa.core.spec import (
     ConfirmedExample,
     NeverAfter,
     ResetAfter,
+    Rule,
+    Spec,
     TimelineEvent,
+    suggest_rule_id,
 )
 
 RUNS = Path(__file__).resolve().parents[2] / "spikes" / "clarify" / "runs"
@@ -65,10 +71,18 @@ class FakeSDK:
         return _Response(self.answer)
 
 
-def run_clarify(answer: dict[str, Any], text: str = "rule text", rule_id: str = "r1"):
+def run_clarify(answer: dict[str, Any], text: str = "rule text", rule_id: str | None = "r1"):
     sdk = FakeSDK(answer)
     client = GeminiClient(model="test", cache_dir=None, sdk=sdk)
     return clarify(text, rule_id=rule_id, vocab=SHOP, client=client), sdk
+
+
+def decisions(outcome: ClarifyOutcome) -> list[Question]:
+    return [q for q in outcome.questions if q.kind == "decision"]
+
+
+def confirmations(outcome: ClarifyOutcome) -> list[Question]:
+    return [q for q in outcome.questions if q.kind == "confirmation"]
 
 
 # ---- clarify() on real Gemini output ------------------------------------------------------
@@ -84,9 +98,9 @@ def test_r1_rule_and_two_decision_questions() -> None:
         "charged",
         "order_id",
     )
-    assert [q.id for q in outcome.questions] == ["d1", "d2"]
-    assert outcome.questions[0].if_yes == ResetAfter(reset_after="refunded")
-    assert outcome.questions[1].if_yes == AllowIf(
+    assert [q.id for q in decisions(outcome)] == ["d1", "d2"]
+    assert decisions(outcome)[0].if_yes == ResetAfter(reset_after="refunded")
+    assert decisions(outcome)[1].if_yes == AllowIf(
         allow_if=Condition(field="payment_type", op="eq", value="installment")
     )
     assert outcome.dropped == []
@@ -95,8 +109,8 @@ def test_r1_rule_and_two_decision_questions() -> None:
 def test_timeline_drops_the_entity_key_but_keeps_other_fields() -> None:
     outcome, _ = run_clarify(spike_raw("R1"))
     # Gemini wrote order_id "123"; core's self-test adds its own entity id.
-    assert outcome.questions[0].timeline[0] == TimelineEvent(event="charged", data={})
-    assert outcome.questions[1].timeline[0] == TimelineEvent(
+    assert decisions(outcome)[0].timeline[0] == TimelineEvent(event="charged", data={})
+    assert decisions(outcome)[1].timeline[0] == TimelineEvent(
         event="charged", data={"payment_type": "installment"}
     )
 
@@ -104,13 +118,13 @@ def test_timeline_drops_the_entity_key_but_keeps_other_fields() -> None:
 def test_r2_never_after_with_reset_question() -> None:
     outcome, _ = run_clarify(spike_raw("R2"))
     assert isinstance(outcome.rule, NeverAfter)
-    assert [q.if_yes for q in outcome.questions] == [ResetAfter(reset_after="order_created")]
+    assert [q.if_yes for q in decisions(outcome)] == [ResetAfter(reset_after="order_created")]
 
 
 def test_r3_within_time_has_three_questions() -> None:
     outcome, _ = run_clarify(spike_raw("R3"))
     assert outcome.rule is not None and outcome.rule.pattern == "within_time"
-    assert len(outcome.questions) == 3
+    assert len(decisions(outcome)) == 3
 
 
 def test_prompt_uses_the_callers_vocabulary() -> None:
@@ -261,3 +275,79 @@ def test_updated_rule_serialises_with_c1_alias() -> None:
     out = apply_answers(RULE, [Answer(question=decision(REFUND), allowed=True)])
     dumped = out.rule.model_dump(by_alias=True, exclude_none=True)
     assert dumped["except"] == [{"reset_after": "refunded"}]
+
+
+# ---- confirmations (core canonical examples) and rule ids --------------------------------
+
+
+def test_confirmations_come_first_and_follow_core() -> None:
+    outcome, _ = run_clarify(spike_raw("R1"))
+    assert [q.id for q in outcome.questions] == ["c1", "c2", "c3", "d1", "d2"]
+    conf = confirmations(outcome)
+    assert all(q.text == "Is this allowed?" and q.if_yes is None for q in conf)
+    # at_most_once: once (ok), twice (violation), once each for two orders (ok)
+    assert [q.expected_violation for q in conf] == [False, True, False]
+
+
+def test_other_entity_confirmation_keeps_the_entity_key() -> None:
+    outcome, _ = run_clarify(spike_raw("R2"))
+    other = confirmations(outcome)[2]
+    assert other.timeline[0].data == {}
+    assert "order_id" in other.timeline[1].data  # a different order
+
+
+def test_within_time_confirmations_carry_time_offsets() -> None:
+    outcome, _ = run_clarify(spike_raw("R3"))
+    conf = confirmations(outcome)
+    assert len(conf) == 5  # incl. "Fri 17:00 -> Mon 10:00" because the window is under 65 h
+    assert all(t.at is not None for q in conf for t in q.timeline)
+    assert conf[-1].timeline[-1].at == timedelta(hours=65)
+
+
+def test_rule_id_is_suggested_by_core_when_missing() -> None:
+    text = "A customer must not be charged twice for the same order."
+    outcome, sdk = run_clarify(spike_raw("R1"), text=text, rule_id=None)
+    assert outcome.rule is not None
+    assert outcome.rule.id == suggest_rule_id(text)
+    assert f"Rule ({outcome.rule.id})" in sdk.prompts[0]
+
+
+def test_suggested_rule_id_avoids_existing_ids() -> None:
+    text = "A cancelled order must never be shipped."
+    taken = suggest_rule_id(text)
+    sdk = FakeSDK(spike_raw("R2"))
+    client = GeminiClient(model="test", cache_dir=None, sdk=sdk)
+    outcome = clarify(text, vocab=SHOP, client=client, existing_ids=[taken])
+    assert outcome.rule is not None and outcome.rule.id == f"{taken}-2"
+
+
+def test_given_rule_id_is_kept() -> None:
+    outcome, _ = run_clarify(spike_raw("R1"), rule_id="owner-edited-id")
+    assert outcome.rule is not None and outcome.rule.id == "owner-edited-id"
+
+
+def answer_all(outcome: ClarifyOutcome, decision_allowed: bool) -> Rule:
+    answers = [Answer(question=q, allowed=not q.expected_violation) for q in confirmations(outcome)]
+    answers += [Answer(question=q, allowed=decision_allowed) for q in decisions(outcome)]
+    result = apply_answers(outcome.rule, answers)  # type: ignore[arg-type]
+    assert result.mismatches == []
+    return result.rule
+
+
+@pytest.mark.parametrize("rule", ["R1", "R2"])
+@pytest.mark.parametrize("decision_allowed", [True, False])
+def test_answered_rule_passes_core_self_test(rule: str, decision_allowed: bool) -> None:
+    # End to end: Gemini's real questions + core's confirmations + owner answers -> the
+    # sealed rule must pass core's self-test (AI meaning and core semantics agree).
+    outcome, _ = run_clarify(spike_raw(rule))
+    compile_spec(Spec(rules=[answer_all(outcome, decision_allowed)]))
+
+
+@pytest.mark.xfail(
+    reason="R3: Gemini's within_time timelines carry no time (`at`), and 'second request "
+    "restarts the clock' maps to reset_after=start, which core treats as cancel",
+    strict=True,
+)
+def test_r3_answered_rule_passes_core_self_test() -> None:
+    outcome, _ = run_clarify(spike_raw("R3"))
+    compile_spec(Spec(rules=[answer_all(outcome, decision_allowed=True)]))
