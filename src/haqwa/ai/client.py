@@ -58,11 +58,16 @@ class GeminiBadOutput(GeminiError):
 
 @dataclass(frozen=True)
 class GeminiResult[T: BaseModel]:
-    """A validated Gemini answer. `cached` is True when no API call was made."""
+    """A validated Gemini answer. `cached` is True when no API call was made.
+
+    Token counts come from Gemini's usage metadata; None when cached or not reported.
+    """
 
     value: T
     cached: bool
     model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class GeminiClient:
@@ -101,18 +106,26 @@ class GeminiClient:
         if cached is not None:
             return GeminiResult(value=cached, cached=True, model=self.model)
 
-        text = self._call_with_retry(prompt, schema)
+        response = self._call_with_retry(prompt, schema)
+        text = response.text or ""
         try:
             value = schema.model_validate_json(text)
         except ValidationError as e:
             raise GeminiBadOutput(f"Gemini output does not match {schema.__name__}: {e}") from e
 
         self._write_cache(key, text)
-        return GeminiResult(value=value, cached=False, model=self.model)
+        usage = getattr(response, "usage_metadata", None)
+        return GeminiResult(
+            value=value,
+            cached=False,
+            model=self.model,
+            input_tokens=getattr(usage, "prompt_token_count", None),
+            output_tokens=getattr(usage, "candidates_token_count", None),
+        )
 
     # ---- Gemini call ---------------------------------------------------------------
 
-    def _call_with_retry(self, prompt: str, schema: type[BaseModel]) -> str:
+    def _call_with_retry(self, prompt: str, schema: type[BaseModel]) -> Any:
         server_retries = 0
         minute_retries = 0
         while True:
@@ -128,7 +141,7 @@ class GeminiClient:
                         "automatic_function_calling": {"disable": True},
                     },
                 )
-                return response.text or ""
+                return response
             except genai_errors.ClientError as e:
                 if e.code != 429:
                     raise

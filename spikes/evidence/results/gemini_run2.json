@@ -1,0 +1,30 @@
+{
+  "run": 2,
+  "model": "gemini-3.6-flash",
+  "seconds": 36.8,
+  "input_tokens": 3189,
+  "output_tokens": 83,
+  "found": [
+    "A-2",
+    "A-8"
+  ],
+  "caught": [
+    "A-2",
+    "A-8"
+  ],
+  "missed": [],
+  "false_alarms": [],
+  "exact": true,
+  "raw": {
+    "violations": [
+      {
+        "order_id": "A-2",
+        "explanation": "Order A-2 was charged twice with card payments (evt_004 and evt_005) without any refund in between."
+      },
+      {
+        "order_id": "A-8",
+        "explanation": "Order A-8 was charged twice with card payments (evt_025 and evt_026) after a refund was issued."
+      }
+    ]
+  }
+}

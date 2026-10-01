@@ -28,6 +28,11 @@ class OtherAnswer(BaseModel):
     score: int = 0
 
 
+class _Usage:
+    prompt_token_count = 120
+    candidates_token_count = 30
+
+
 class _Response:
     def __init__(self, text: str) -> None:
         self.text = text
@@ -246,3 +251,22 @@ def test_other_client_errors_are_not_retried(tmp_path: Path) -> None:
     with pytest.raises(genai_errors.ClientError):
         client.generate("p", Answer)
     assert waits == []
+
+
+def test_token_usage_is_reported_and_none_when_cached(tmp_path: Path) -> None:
+    sdk = FakeSDK(OK)
+    client, _ = make_client(sdk, tmp_path)
+    original = sdk.generate_content
+
+    def with_usage(**kwargs: Any) -> _Response:
+        response = original(**kwargs)
+        response.usage_metadata = _Usage()  # type: ignore[attr-defined]
+        return response
+
+    sdk.generate_content = with_usage  # type: ignore[method-assign]
+
+    first = client.generate("p", Answer)
+    second = client.generate("p", Answer)
+
+    assert (first.input_tokens, first.output_tokens) == (120, 30)
+    assert (second.input_tokens, second.output_tokens) == (None, None)

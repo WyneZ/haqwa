@@ -1,0 +1,30 @@
+{
+  "run": 6,
+  "model": "gemini-3.6-flash",
+  "seconds": 12.31,
+  "input_tokens": 3189,
+  "output_tokens": 63,
+  "found": [
+    "A-2",
+    "A-8"
+  ],
+  "caught": [
+    "A-2",
+    "A-8"
+  ],
+  "missed": [],
+  "false_alarms": [],
+  "exact": true,
+  "raw": {
+    "violations": [
+      {
+        "order_id": "A-2",
+        "explanation": "Order A-2 was charged twice with non-installment payments without a refund in between."
+      },
+      {
+        "order_id": "A-8",
+        "explanation": "Order A-8 was charged twice with non-installment payments after a refund without an intervening refund."
+      }
+    ]
+  }
+}
