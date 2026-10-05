@@ -5,6 +5,7 @@ import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
 import { QuestionCard } from '../components/QuestionCard'
 import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
+import { usePersistentState } from '../lib/persist'
 import { entityNoun, ruleTitle } from '../lib/words'
 
 const DEMO_POLICY = [
@@ -22,18 +23,19 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
 /**
  * Screen 1 (Define): the AI interviews the policy owner, one question at a time.
  * All meaning changes come from the API (`clarify`, `answers`); this screen only keeps
- * track of where the owner is.
+ * track of where the owner is. Progress is saved for this tab, so a refresh keeps the
+ * answers and does not call the AI again.
  */
-export function DefineScreen() {
-  const [text, setText] = useState(DEMO_POLICY)
-  const [results, setResults] = useState<ClarifyResult[] | null>(null)
+export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
+  const [text, setText] = usePersistentState('define.text', DEMO_POLICY)
+  const [results, setResults] = usePersistentState<ClarifyResult[] | null>('define.results', null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [current, setCurrent] = useState<number | null>(null)
-  const [step, setStep] = useState(0)
-  const [answers, setAnswers] = useState<boolean[]>([])
-  const [confirmed, setConfirmed] = useState<Record<number, Rule>>({})
+  const [current, setCurrent] = usePersistentState<number | null>('define.current', null)
+  const [step, setStep] = usePersistentState('define.question', 0)
+  const [answers, setAnswers] = usePersistentState<boolean[]>('define.answers', [])
+  const [confirmed, setConfirmed] = usePersistentState<Record<number, Rule>>('define.confirmed', {})
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -195,8 +197,13 @@ export function DefineScreen() {
                 </ul>
               </div>
             )}
-            <button type="button" className="btn btn--primary" disabled>
-              Next: test an agent (coming soon)
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => onDone(Object.values(confirmed))}
+              disabled={Object.keys(confirmed).length === 0}
+            >
+              Next: test an agent →
             </button>
           </section>
         )}
