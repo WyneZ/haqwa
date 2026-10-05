@@ -18,6 +18,7 @@ from .client import (
     GeminiResult,
     GeminiUnavailable,
 )
+from .explain import Explanation, explain_violation
 from .parse import DraftRule, ParseError, draft_problems, to_rule
 from .vocab import Vocabulary
 
@@ -28,6 +29,7 @@ __all__ = [
     "ClarifyOutcome",
     "DraftRule",
     "DroppedQuestion",
+    "Explanation",
     "GeminiBadOutput",
     "GeminiClient",
     "GeminiError",
@@ -40,5 +42,6 @@ __all__ = [
     "apply_answers",
     "clarify",
     "draft_problems",
+    "explain_violation",
     "to_rule",
 ]
