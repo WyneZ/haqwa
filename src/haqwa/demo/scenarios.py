@@ -90,11 +90,21 @@ _SCENARIOS: tuple[Scenario, ...] = (
 )
 
 
-def list_scenarios() -> list[dict[str, str]]:
-    """All demo scenarios, JSON-ready."""
+def list_scenarios(
+    spec: Spec | None = None, event_map: EventMap | None = None
+) -> list[dict[str, str]]:
+    """All scenarios; recorded verdicts are known only when checked against a spec."""
     scenarios = [s.to_dict() for s in _SCENARIOS]
     for path in sorted(RECORDINGS_DIR.glob("gemini_*.json")):
+        if not re.fullmatch(r"gemini_\d{4}_\d{2}_\d{2}", path.stem):
+            continue
         date = path.stem.removeprefix("gemini_").replace("_", "-")
+        expected = "unknown"
+        if spec is not None:
+            compiled = compile_spec(spec, event_map)
+            expected = (
+                "pass" if check(compiled, load_effects(path), event_map).passed else "violation"
+            )
         scenarios.append(
             {
                 "id": f"recorded_{path.stem}",
@@ -102,7 +112,7 @@ def list_scenarios() -> list[dict[str, str]]:
                 "fault": "recorded",
                 "agent": "gemini",
                 "description": "Saved AgentProof effects; replay makes no Gemini request.",
-                "expected": "violation",
+                "expected": expected,
             }
         )
     return scenarios

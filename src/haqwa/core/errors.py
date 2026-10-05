@@ -25,6 +25,7 @@ class ErrorCode:
 INVALID_SPEC = ErrorCode("invalid_spec", "The spec is not valid", 422, 2)
 COMPILE_FAILED = ErrorCode("compile_failed", "The spec could not be compiled", 422, 2)
 INVALID_EVENTS = ErrorCode("invalid_events", "The events are not valid", 422, 3)
+INVALID_RECORDING = ErrorCode("invalid_recording", "The recording is not valid", 422, 3)
 INVALID_EVENT_MAP = ErrorCode("invalid_event_map", "The event map is not valid", 422, 3)
 UNKNOWN_SCENARIO = ErrorCode("unknown_scenario", "Unknown demo scenario", 404, 3)
 PATTERN_NOT_IMPLEMENTED = ErrorCode("pattern_not_implemented", "Pattern not implemented", 422, 2)
@@ -36,6 +37,7 @@ CODES: dict[str, ErrorCode] = {
         INVALID_SPEC,
         COMPILE_FAILED,
         INVALID_EVENTS,
+        INVALID_RECORDING,
         INVALID_EVENT_MAP,
         UNKNOWN_SCENARIO,
         PATTERN_NOT_IMPLEMENTED,

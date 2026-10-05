@@ -1,6 +1,7 @@
 """CLI behavior without network or Gemini calls."""
 
 import json
+from datetime import timedelta
 
 from typer.testing import CliRunner
 
@@ -84,7 +85,14 @@ def test_build_uses_fake_clarify(shop_dir, tmp_path, monkeypatch):
                     id="c1",
                     kind="confirmation",
                     text="Is this allowed?",
-                    timeline=[TimelineEvent(event="charged"), TimelineEvent(event="charged")],
+                    timeline=[
+                        TimelineEvent(event="charged", at=timedelta(0)),
+                        TimelineEvent(
+                            event="charged",
+                            data={"payment_type": "installment"},
+                            at=timedelta(hours=65),
+                        ),
+                    ],
                     expected_violation=True,
                 )
             ],
@@ -102,6 +110,8 @@ def test_build_uses_fake_clarify(shop_dir, tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "at_most_once" in output.read_text()
     assert "violation: true" in output.read_text()
+    assert "payment_type" in result.output and "installment" in result.output
+    assert "at +65 hours from the first event" in result.output
 
 
 def test_build_quota_exit_code(shop_dir, tmp_path, monkeypatch):

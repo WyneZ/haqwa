@@ -15,7 +15,7 @@ uv run haqwa check examples/shop/rules.spec.yaml examples/shop/events.json --map
 uv run haqwa check examples/shop/rules.spec.yaml examples/shop/events.json --map examples/shop/events.map.yaml --json
 ```
 
-`init` creates an English rules file and an event map. `build` calls Gemini to propose a rule, asks the policy owner whether example timelines are allowed, then compiles and saves the confirmed spec. Set `GEMINI_API_KEY` in the environment for `build`; `check` and the demo need no key. Use `--field` for each data field Gemini may mention. The event map supplies event names but does not define data fields. `init` and `build` refuse or report invalid input; `check` exits 0 for pass, 1 for violation, 2 for a spec or compile error, and 3 for a bad input file.
+`init` creates an English rules file and an event map. `build` calls Gemini to propose a rule, asks the policy owner whether example timelines are allowed, then compiles and saves the confirmed spec. The terminal shows each timeline's event names, data values and time offsets before asking for an answer. Set `GEMINI_API_KEY` in the environment for `build`; `check` and the demo need no key. Use `--field` for each data field Gemini may mention. The event map supplies event names but does not define data fields. `check` exits 0 for pass, 1 for violation, 2 for a spec or compile error, and 3 for a bad input file. `build` exits 4 when Gemini quota is exhausted or the service is unavailable.
 
 ## Spec format
 
@@ -81,7 +81,7 @@ JSON events -> optional event map -> core/ compiler + checker -> report
 
 The `core/` package is pure deterministic code and never imports `ai/`. The CLI and web API call library functions. The demo uses AgentProof faults and native agents to show a failing and corrected payment flow.
 
-For a recorded Gemini agent run, Wyne can run the ADK spike with `--save-effects src/haqwa/demo/recordings/gemini_YYYY_MM_DD.json` using his own environment key. The demo discovers files with that name and replays only their AgentProof effects. The committed `sample_native.json` is an offline test fixture, not a Gemini run.
+To record a Gemini agent run, run the ADK spike with your own environment key and `--save-effects src/haqwa/demo/recordings/gemini_YYYY_MM_DD.json`. The demo discovers files with that name and replays only their AgentProof effects. A recorded scenario's expected verdict is calculated from the spec when one is supplied; otherwise it is `unknown`. The committed `sample_native.json` is an offline test fixture, not a Gemini run.
 
 ## Roadmap
 
