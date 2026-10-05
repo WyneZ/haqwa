@@ -70,8 +70,8 @@ the policy):
 
 In 2-3 short sentences of plain English: say what happened to {rule.per}
 {violation.entity}, then the most likely cause. Use only facts from the events above;
-if the cause is not certain, say "likely". No code, no event names in snake_case, no
-markdown."""
+if the cause is not certain, say "likely". Do not add currencies, units, names or other
+details that are not in the events. No code, no event names in snake_case, no markdown."""
 
 
 def _owner_decisions(rule: Rule) -> list[str]:

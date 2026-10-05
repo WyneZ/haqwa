@@ -83,6 +83,7 @@ def test_prompt_has_rule_decisions_entity_and_marked_timeline() -> None:
     assert "order_id A-2" in prompt
     assert ">> 2026-10-01T09:01:30+00:00  charged  (amount=120)" in prompt
     assert "ALREADY decided this is a violation" in prompt
+    assert "Do not add currencies, units" in prompt  # live run once invented "$50"
 
 
 def test_entity_key_is_not_repeated_in_event_lines() -> None:
