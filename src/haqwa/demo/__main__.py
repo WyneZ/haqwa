@@ -16,7 +16,7 @@ DEFAULT_SPEC = Path("examples/shop/rules.spec.yaml")
 def main(argv: list[str]) -> int:
     spec = load_spec(argv[0] if argv else DEFAULT_SPEC)
     ok = True
-    for s in list_scenarios():
+    for s in list_scenarios(spec):
         start = time.perf_counter()
         events, report = run_scenario(s["id"], spec)
         ms = (time.perf_counter() - start) * 1000

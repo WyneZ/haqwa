@@ -4,6 +4,6 @@ Used by the terminal demo (`python -m haqwa.demo`) and the web API (screen 2).
 The agents are deterministic native Python (no Gemini): see docs/decisions.md.
 """
 
-from .scenarios import Scenario, list_scenarios, run_scenario
+from .scenarios import Scenario, iter_scenario, list_scenarios, run_scenario
 
-__all__ = ["Scenario", "list_scenarios", "run_scenario"]
+__all__ = ["Scenario", "iter_scenario", "list_scenarios", "run_scenario"]
