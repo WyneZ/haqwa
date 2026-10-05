@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from .errors import INVALID_EVENT_MAP, INVALID_EVENTS, HaqwaError, validation_errors
 
 
 class Event(BaseModel):
@@ -96,15 +98,46 @@ def group_by(events: Iterable[Event], key: str) -> dict[Any, list[Event]]:
     return groups
 
 
+def parse_events(raw: Any) -> list[Event]:
+    """Validate a list of event dicts. Raises HaqwaError `invalid_events`."""
+    if not isinstance(raw, list):
+        raise HaqwaError(INVALID_EVENTS, "events must be a JSON array")
+    try:
+        return [Event.model_validate(item) for item in raw]
+    except ValidationError as e:
+        raise HaqwaError(
+            INVALID_EVENTS, str(e.errors()[0]["msg"]), errors=validation_errors(e)
+        ) from e
+
+
 def load_events(path: str | Path) -> list[Event]:
-    """Load a JSON array of events."""
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [Event.model_validate(item) for item in raw]
+    """Load a JSON array of events. Raises HaqwaError `invalid_events`."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise HaqwaError(INVALID_EVENTS, f"not valid JSON: {e}") from e
+    return parse_events(raw)
+
+
+def parse_event_map(data: Any) -> EventMap:
+    """Validate event map data. Raises HaqwaError `invalid_event_map`."""
+    try:
+        return EventMap.model_validate(data)
+    except ValidationError as e:
+        raise HaqwaError(
+            INVALID_EVENT_MAP,
+            f"{e.error_count()} problem(s) in the event map",
+            errors=validation_errors(e),
+        ) from e
 
 
 def load_event_map(path: str | Path) -> EventMap:
-    """Load an events.map.yaml file."""
-    return EventMap.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+    """Load an events.map.yaml file. Raises HaqwaError `invalid_event_map`."""
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        raise HaqwaError(INVALID_EVENT_MAP, f"not valid YAML: {e}") from e
+    return parse_event_map(data)
 
 
 def synthetic_timeline(
