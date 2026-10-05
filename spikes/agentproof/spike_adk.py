@@ -4,10 +4,10 @@ agentproof-sim 0.1.1 has no ADK adapter, so `ADKAdapter` below is our own (patte
 from agentproof's OpenAIAgentsAdapter: wrap world tools as framework tools, run the agent).
 
 Offline (no key, no LLM): checks imports + tool wrapping + fault plumbing.
-    python spikes/agentproof/spike_adk.py --offline
+    uv run --group demo python spikes/agentproof/spike_adk.py --offline
 Live (calls Gemini; key only from the environment, never hard-coded):
     export GEMINI_API_KEY=...        # or: set -a; source .env; set +a
-    python spikes/agentproof/spike_adk.py [--model gemini-...]
+    uv run --group demo python spikes/agentproof/spike_adk.py [--model gemini-...]
 """
 
 from __future__ import annotations
