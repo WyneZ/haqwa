@@ -1,0 +1,29 @@
+[
+  {
+    "type": "order_created",
+    "data": {
+      "order_id": "A-1",
+      "amount": 50
+    },
+    "committed_at": 0.0,
+    "id": "eff_001"
+  },
+  {
+    "type": "charged",
+    "data": {
+      "order_id": "A-1",
+      "amount": 50
+    },
+    "committed_at": 0.0,
+    "id": "eff_002"
+  },
+  {
+    "type": "charged",
+    "data": {
+      "order_id": "A-1",
+      "amount": 50
+    },
+    "committed_at": 0.0,
+    "id": "eff_003"
+  }
+]
