@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
+from .errors import COMPILE_FAILED, PATTERN_NOT_IMPLEMENTED, UNKNOWN_EVENT, HaqwaError
 from .events import EventMap, group_by, sort_events, synthetic_timeline
 from .patterns import REGISTRY, Evaluator, Finding
 from .spec import ConfirmedExample, Rule, Spec, TimelineEvent
@@ -32,6 +34,18 @@ class SelfTestFailure:
     expected_violation: bool
     got_violation: bool
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON shape used by the web API (C3 seal 422)."""
+        return {
+            "rule_id": self.rule_id,
+            "example_index": self.example_index,
+            "timeline": [
+                t.model_dump(mode="json", exclude_defaults=True) for t in self.example.timeline
+            ],
+            "expected": self.expected_violation,
+            "got": self.got_violation,
+        }
+
     def __str__(self) -> str:
         names = " -> ".join(e.event for e in self.example.timeline)
         return (
@@ -41,13 +55,22 @@ class SelfTestFailure:
         )
 
 
-class CompileError(Exception):
-    """Spec can't be compiled. `problems` lists every reason, not just the first."""
+class CompileError(HaqwaError):
+    """Spec can't be compiled. `problems` lists every reason, not just the first.
+
+    Code `compile_failed`. `to_problem()` adds `problems` and `failures` (C3 seal 422 shape).
+    """
 
     def __init__(self, problems: list[str], failures: list[SelfTestFailure] | None = None):
         self.problems = problems
         self.failures = failures or []
-        super().__init__("\n".join(problems + [str(f) for f in self.failures]))
+        lines = problems + [str(f) for f in self.failures]
+        super().__init__(
+            COMPILE_FAILED,
+            "\n".join(lines),
+            problems=list(problems),
+            failures=[f.to_dict() for f in self.failures],
+        )
 
 
 def rule_event_names(rule: Rule) -> set[str]:
@@ -67,7 +90,9 @@ def run_timeline(
     if evaluate is None:
         evaluate = REGISTRY.get(rule.pattern)
         if evaluate is None:
-            raise ValueError(f"pattern {rule.pattern!r} is not implemented yet")
+            raise HaqwaError(
+                PATTERN_NOT_IMPLEMENTED, f"pattern {rule.pattern!r} is not implemented yet"
+            )
     events = synthetic_timeline(((t.event, t.data, t.at) for t in timeline), per=rule.per)
     # Items may name another entity via data[per]; evaluate each entity like check() does.
     events = sort_events(events)
@@ -84,6 +109,13 @@ def violates(rule: Rule, timeline: Sequence[TimelineEvent]) -> bool:
     Shared by the compile self-test, canonical examples and (later) question checks.
     """
     return bool(run_timeline(rule, timeline))
+
+
+def validate_rule_events(rule: Rule, event_map: EventMap) -> None:
+    """Raise `unknown_event` if a rule references a name absent from the event map."""
+    unknown = sorted(rule_event_names(rule) - event_map.vocabulary)
+    if unknown:
+        raise HaqwaError(UNKNOWN_EVENT, f"rule {rule.id!r}: events not in event map: {unknown}")
 
 
 def self_test(rule: Rule, evaluate: Evaluator) -> list[SelfTestFailure]:

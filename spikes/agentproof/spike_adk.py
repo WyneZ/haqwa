@@ -4,10 +4,10 @@ agentproof-sim 0.1.1 has no ADK adapter, so `ADKAdapter` below is our own (patte
 from agentproof's OpenAIAgentsAdapter: wrap world tools as framework tools, run the agent).
 
 Offline (no key, no LLM): checks imports + tool wrapping + fault plumbing.
-    python spikes/agentproof/spike_adk.py --offline
+    uv run --group demo python spikes/agentproof/spike_adk.py --offline
 Live (calls Gemini; key only from the environment, never hard-coded):
     export GEMINI_API_KEY=...        # or: set -a; source .env; set +a
-    python spikes/agentproof/spike_adk.py [--model gemini-...]
+    uv run --group demo python spikes/agentproof/spike_adk.py [--model gemini-...]
 """
 
 from __future__ import annotations
@@ -169,6 +169,7 @@ async def offline_check() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--save-effects", help="write the faulted effect ledger as recording JSON")
     parser.add_argument("--model", default=os.environ.get("HAQWA_DEMO_MODEL", DEFAULT_MODEL))
     parser.add_argument(
         "--min-interval",
@@ -198,7 +199,16 @@ def main() -> None:
         world.input("Buy order A-1 for 50 dollars.")
 
     try:
-        print_haqwa_report(suite.run_sync(store_artifacts=False))
+        result = suite.run_sync(store_artifacts=False)
+        print_haqwa_report(result)
+        if args.save_effects:
+            from haqwa.demo.recording import save_effects
+
+            faulted = [run for run in result.results if run.mutation is not None]
+            if not faulted or faulted[-1].error_message:
+                sys.exit("Cannot save recording: the faulted run did not complete.")
+            save_effects(faulted[-1].effects, args.save_effects)
+            print(f"Saved effects to {args.save_effects}")
     finally:
         print(counter.summary())  # printed even if a run fails
 
