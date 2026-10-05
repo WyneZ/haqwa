@@ -8,11 +8,13 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115",
     "google-genai>=2.25.0",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",
     "typer>=0.27.2",
+    "uvicorn[standard]>=0.30",
 ]
 
 [project.scripts]
@@ -29,6 +31,7 @@ demo = [
 ]
 dev = [
     "agentproof-sim==0.1.1",
+    "httpx>=0.28",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
