@@ -292,3 +292,5 @@ Parking list (not in MVP): field renaming in the event map (e.g. `orderId` → `
 ### Track B library additions (2026-10-05)
 
 `core/errors.py` exposes stable error codes and `to_problem()` for RFC 9457 responses. The `https://haqwa.dev/errors/` type URI is a placeholder until an error documentation site exists. `compile_failed` retains `CompileError.problems` and `.failures`. `dump_spec()` and `save_spec()` write deterministic YAML in owner rule order. `demo.iter_scenario()` yields C2 events followed by a report for the agreed SSE integration. The C1 `at` offset and `within_time` end-of-trace behavior remain PROPOSED.
+
+Recorded demo files with invalid JSON or effect data raise `HaqwaError` with code `invalid_recording` (HTTP 422). `list_scenarios()` reports `expected: unknown` for recordings unless a spec is supplied, in which case it derives the expected verdict with the core checker.

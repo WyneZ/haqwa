@@ -8,13 +8,14 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.text import Text
 
 from .core.checker import check
 from .core.compiler import compile_spec
 from .core.errors import HaqwaError
 from .core.events import load_event_map, load_events
 from .core.report import format_text
-from .core.spec import Spec, load_spec, save_spec, suggest_rule_id
+from .core.spec import Spec, TimelineEvent, load_spec, save_spec, suggest_rule_id
 
 app = typer.Typer(help="Build and check executable business policies.")
 console = Console()
@@ -29,6 +30,25 @@ _SHOP_MAP = (
 def _fail(message: str, code: int) -> None:
     typer.echo(message, err=True)
     raise typer.Exit(code)
+
+
+def _timeline_label(item: TimelineEvent) -> str:
+    """Show every fact the owner is being asked to judge."""
+    details = [
+        f"{field}: {json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)}"
+        for field, value in sorted(item.data.items())
+    ]
+    if item.at is not None:
+        seconds = item.at.total_seconds()
+        if seconds == 0:
+            details.append("at the start")
+        elif seconds % 3600 == 0:
+            offset = f"{seconds / 3600:g} hours"
+        else:
+            offset = f"{seconds / 60:g} minutes" if seconds % 60 == 0 else f"{seconds:g} seconds"
+        if seconds:
+            details.append(f"at +{offset} from the first event")
+    return item.event + (f" ({'; '.join(details)})" if details else "")
 
 
 @app.command()
@@ -120,9 +140,11 @@ def build(
             assert outcome.rule is not None
             answers = []
             for question in outcome.questions:
-                console.print(f"\n[bold]{line}[/bold]")
-                console.print(question.text)
-                console.print(" → ".join(item.event for item in question.timeline))
+                console.print()
+                console.print(Text(line, style="bold"))
+                console.print(Text(question.text))
+                for index, item in enumerate(question.timeline, 1):
+                    console.print(Text(f"  {index}. {_timeline_label(item)}"))
                 answers.append(Answer(question=question, allowed=typer.confirm("Is this allowed?")))
             result = apply_answers(outcome.rule, answers)
             if result.mismatches:

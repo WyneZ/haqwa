@@ -7,10 +7,25 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+
 from ..adapters.agentproof import effects_to_events
+from ..core.errors import INVALID_RECORDING, HaqwaError, validation_errors
 from ..core.events import Event
 
 RECORDINGS_DIR = Path(__file__).with_name("recordings")
+
+
+class _RecordedEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = Field(min_length=1)
+    data: dict[str, Any]
+    committed_at: float = Field(ge=0, allow_inf_nan=False)
+    id: str = Field(min_length=1)
+
+
+_EFFECTS = TypeAdapter(list[_RecordedEffect])
 
 
 def save_effects(effects: Iterable[Any], path: str | Path) -> None:
@@ -30,18 +45,11 @@ def save_effects(effects: Iterable[Any], path: str | Path) -> None:
 
 
 def load_effects(path: str | Path) -> list[Event]:
-    """Load a saved list of effects and convert it to C2 events."""
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise ValueError("recording must be a JSON array")
-    for item in raw:
-        if not isinstance(item, dict) or set(item) != {"type", "data", "committed_at", "id"}:
-            raise ValueError("recording effect must have type, data, committed_at and id")
-        if not isinstance(item["type"], str) or not isinstance(item["data"], dict):
-            raise ValueError("recording effect has invalid type or data")
-        if not isinstance(item["id"], str):
-            raise ValueError("recording effect id must be a string")
-        if not isinstance(item["committed_at"], int | float):
-            raise ValueError("recording effect committed_at must be a number")
-    effects = [type("RecordedEffect", (), item) for item in raw]
-    return effects_to_events(effects)
+    """Load saved effects as C2 events, raising `invalid_recording` on bad input."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        effects = _EFFECTS.validate_python(raw)
+        return effects_to_events(effects)
+    except (OSError, json.JSONDecodeError, ValidationError, ValueError, OverflowError) as exc:
+        extra = {"errors": validation_errors(exc)} if isinstance(exc, ValidationError) else {}
+        raise HaqwaError(INVALID_RECORDING, str(exc), **extra) from exc
