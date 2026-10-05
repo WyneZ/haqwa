@@ -1,6 +1,6 @@
 # Haqwa Contracts
 
-**Status: LOCKED (2026-09-25, both developers agreed — see docs/decisions.md).**
+**Status: LOCKED — C1 and C2 on 2026-09-25, C3 on 2026-09-28 (both developers agreed — see docs/decisions.md).**
 Changes after lock: both agree + a line in `docs/decisions.md`.
 
 JSON Schemas generated from the code live in `docs/schemas/` (`spec`, `unsupported_rule`, `event`, `event_map`, `report`).
@@ -138,7 +138,7 @@ Canonical examples per pattern (confirmation cards; "Is this allowed?" Yes = `vi
 
 ## C3 — Web API (`web/`)
 
-**Status: DRAFT (2026-09-29, Track A proposal) — needs Track B agreement before lock.**
+**Status: LOCKED (2026-09-28, both developers agreed).**
 
 ### Principles
 
@@ -147,7 +147,7 @@ Canonical examples per pattern (confirmation cards; "Is this allowed?" Yes = `vi
 - **No business logic in `web/`.** Each endpoint calls one library function (`ai/` or `core/`) and returns its result.
 - **Shapes follow C1/C2.** Rules, confirmed examples, events and reports use the C1/C2 JSON shapes. Gemini's wire format (`data: [{key, value}]`) never leaves `ai/`.
 - **Gemini quota.** `clarify` and `explain` return cached answers for the demo rules (`"cached": true`). A Gemini 429 becomes HTTP 429 with code `gemini_quota`.
-- **Errors (proposal, see open question 2).** RFC 9457 Problem Details (`application/problem+json`: `type`, `title`, `status`, `detail`) plus a stable machine `code`. One code list in `core/errors.py`, shared by CLI and web.
+- **Errors (AGREED 2026-09-28).** RFC 9457 Problem Details (`application/problem+json`: `type`, `title`, `status`, `detail`) plus a stable machine `code`. One code list in `core/errors.py`, shared by CLI and web.
 - **Versioning (Track A).** All paths are under `/api/v1/` (shown below without the prefix).
 - **Types.** The React app generates its TypeScript types from FastAPI's OpenAPI schema (`/openapi.json`).
 - **Question wording.** Every owner question asks "Is this allowed?". Yes → `violation: false`, No → `violation: true`.
@@ -245,18 +245,18 @@ Canonical examples per pattern (confirmation cards; "Is this allowed?" Yes = `vi
 {"text": "The order was charged twice ...", "advisory": true, "cached": false}
 ```
 
-### Needed from the library API (to agree with Track B)
+### Needed from the library API (AGREED 2026-09-28)
 
 - `canonical_examples(rule) -> [(timeline, expected_violation, label)]` in `core/` (agreed 2026-09-27), incl. the `within_time` calendar-hours confirmation.
 - `list_scenarios()` and `run_scenario(scenario_id, spec) -> (events, Report)` in `demo/` or `adapters/`.
 
-### Open C3 questions
+### C3 questions (all resolved)
 
 1. ~~Who makes the rule `id` slug?~~ **Resolved 2026-09-29 (AGREED):** `core` suggests an id once for a new rule (`suggest_rule_id(text, existing_ids)`: keywords → `^[a-z0-9][a-z0-9-]*$`, `-2` suffix if taken); the owner may edit it; after that the id is stored in the spec and never regenerated (text edits keep the id).
-2. **Error shape — Track A proposal (2026-09-29), needs Track B agreement:** RFC 9457 + stable `code`, e.g.
+2. **Error shape — AGREED 2026-09-28:** RFC 9457 + stable `code`, e.g.
    `{"type": "https://haqwa.dev/errors/gemini-quota", "title": "Gemini quota exceeded", "status": 429, "detail": "...", "code": "gemini_quota"}`.
    Codes live in `core/errors.py` (Track B): `compile_failed`, `invalid_spec`, …; Track A adds `gemini_quota`, `unsupported_rule` by request. CLI maps the same codes to exit codes.
-3. **`/api/runs` — Track A proposal (2026-09-29), needs Track B agreement:** start **synchronous** (one request returns events + report). In week 3 add **SSE streaming** on the same endpoint so the timeline appears live; the response shape stays "events + report". Async jobs (202 + poll) only on the roadmap, because they need storage. Needs from Track B: measured AgentProof run time, and a runner that can yield events one by one.
+3. **`/api/runs` — AGREED 2026-09-28:** start **synchronous** (one request returns events + report). In week 3 add **SSE streaming** on the same endpoint so the timeline appears live; the response shape stays "events + report". Async jobs (202 + poll) only on the roadmap, because they need storage. Needs from Track B: measured AgentProof run time, and a runner that can yield events one by one.
 
 ### Who does what (C3)
 
@@ -283,7 +283,7 @@ To be drafted together; Track A writes it. Suggested inputs/outputs from the cor
 2. **`within_time` at end of trace.** PROPOSED by Track B (2026-09-30), option B: an open obligation is a violation only if the end of the checked trace (last event of any entity) is past its deadline; otherwise pass. No "pending" status.
 3. **Events missing the `per` key** are skipped silently. Add a warning count to the report?
 4. **Entity id types:** `"123"` and `123` are different entities today. Normalize to string?
-5. **ANSWERED (Track A, 2026-09-28) — proposal: close.** Gemini uses a plain `anyOf` union; `core/spec.py` validates with the discriminated union. Original question — **Gemini + discriminated union:** the spec schema uses `oneOf` + `discriminator`. Unverified whether Gemini structured output handles this well — Track A to test in the spike. Fallback: Gemini fills a flat draft model; `core/spec.py` validates it.
+5. ~~**Gemini + discriminated union.**~~ **Resolved 2026-09-28:** google-genai rejects `oneOf` + `discriminator`; Track A's Gemini wire schema uses a per-pattern `anyOf` union with C1 field names (spike v2), and `core/spec.py` still validates with its discriminated union. C1 unchanged.
 6. **Naming:** brief says `compile()`; code uses `compile_spec()` to avoid shadowing Python's built-in `compile`.
 7. **Stubs:** not needed any more — all 4 patterns are implemented (2026-09-30).
 
