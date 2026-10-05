@@ -15,6 +15,9 @@ dependencies = [
     "typer>=0.27.2",
 ]
 
+[project.scripts]
+haqwa = "haqwa.cli:app"
+
 [build-system]
 requires = ["uv_build>=0.12.18,<0.13.0"]
 build-backend = "uv_build"
@@ -36,6 +39,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["spikes", "docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

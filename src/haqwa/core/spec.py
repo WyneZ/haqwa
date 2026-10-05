@@ -1,4 +1,4 @@
-"""C1 Spec model: the human-confirmed meaning of policy rules (DRAFT, not locked)."""
+"""C1 Spec model: the human-confirmed meaning of policy rules (C1 locked 2026-09-25)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from .errors import INVALID_SPEC, HaqwaError, validation_errors
 
 
 class _Strict(BaseModel):
@@ -134,10 +136,115 @@ class UnsupportedRule(_Strict):
     reason: str
 
 
+def parse_spec(data: Any) -> Spec:
+    """Validate spec data (e.g. JSON from the web API). Raises HaqwaError `invalid_spec`."""
+    try:
+        return Spec.model_validate(data)
+    except ValidationError as e:
+        raise HaqwaError(
+            INVALID_SPEC, f"{e.error_count()} problem(s) in the spec", errors=validation_errors(e)
+        ) from e
+
+
 def load_spec(path: str | Path) -> Spec:
-    """Load and validate a rules.spec.yaml file."""
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    return Spec.model_validate(data)
+    """Load and validate a rules.spec.yaml file. Raises HaqwaError `invalid_spec`."""
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        raise HaqwaError(INVALID_SPEC, f"not valid YAML: {e}") from e
+    return parse_spec(data)
+
+
+# ---------- Deterministic dump (stable git diffs for every Seal) ----------
+_PATTERN_FIELDS: dict[str, tuple[str, ...]] = {
+    "at_most_once": ("event",),
+    "never_after": ("event", "after"),
+    "must_precede": ("event", "requires"),
+    "within_time": ("start", "event", "within"),
+}
+
+
+def iso_duration(d: timedelta) -> str:
+    """ISO 8601 duration in hours/minutes/seconds, as policies say it: PT48H, PT1H30M, PT0S."""
+    total_us = ((d.days * 86400 + d.seconds) * 1_000_000) + d.microseconds
+    h, rest = divmod(total_us, 3600 * 1_000_000)
+    m, rest = divmod(rest, 60 * 1_000_000)
+    sec, us = divmod(rest, 1_000_000)
+    seconds = f"{sec}.{us:06d}".rstrip("0") if us else str(sec)
+    out = "PT" + (f"{h}H" if h else "") + (f"{m}M" if m else "")
+    if sec or us:
+        out += f"{seconds}S"
+    return out if out != "PT" else "PT0S"
+
+
+class _Flow(dict):  # type: ignore[type-arg]
+    """Mapping written on one line: {event: charged}."""
+
+
+class _FlowList(list):  # type: ignore[type-arg]
+    """Sequence written on one line: [{event: a}, {event: b}]."""
+
+
+class _SpecDumper(yaml.SafeDumper):
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        # Indent list items under their key ("rules:\n  - id: ...").
+        super().increase_indent(flow, False)
+
+
+_SpecDumper.add_representer(
+    _Flow, lambda d, v: d.represent_mapping("tag:yaml.org,2002:map", v, flow_style=True)
+)
+_SpecDumper.add_representer(
+    _FlowList, lambda d, v: d.represent_sequence("tag:yaml.org,2002:seq", v, flow_style=True)
+)
+
+
+def _timeline_item(t: TimelineEvent) -> _Flow:
+    item = _Flow(event=t.event)
+    if t.data:
+        item["data"] = _Flow(t.data)
+    if t.at is not None:
+        item["at"] = iso_duration(t.at)
+    return item
+
+
+def _rule_dict(rule: Rule) -> dict[str, Any]:
+    d: dict[str, Any] = {"id": rule.id, "source": rule.source, "pattern": rule.pattern}
+    for name in _PATTERN_FIELDS[rule.pattern]:
+        value = getattr(rule, name)
+        d[name] = iso_duration(value) if isinstance(value, timedelta) else value
+    d["per"] = rule.per
+    if rule.exceptions:
+        d["except"] = [
+            {"reset_after": x.reset_after}
+            if isinstance(x, ResetAfter)
+            else {"allow_if": _Flow(x.allow_if.model_dump())}
+            for x in rule.exceptions
+        ]
+    if rule.confirmed_examples:
+        d["confirmed_examples"] = [
+            {
+                "timeline": _FlowList(_timeline_item(t) for t in ex.timeline),
+                "violation": ex.violation,
+            }
+            for ex in rule.confirmed_examples
+        ]
+    return d
+
+
+def dump_spec(spec: Spec) -> str:
+    """Deterministic YAML: fixed key order, the owner's rule order, no empty fields.
+
+    `load_spec` -> `dump_spec` -> `load_spec` gives an equal spec, and dumping twice gives
+    byte-identical text, so each Seal produces a clean git diff. Rule ids are never changed.
+    """
+    data = {"version": spec.version, "rules": [_rule_dict(r) for r in spec.rules]}
+    return yaml.dump(data, Dumper=_SpecDumper, sort_keys=False, allow_unicode=True, width=10_000)
+
+
+def save_spec(spec: Spec, path: str | Path) -> None:
+    """Write `dump_spec(spec)` to a file (UTF-8)."""
+    Path(path).write_text(dump_spec(spec), encoding="utf-8")
 
 
 # ---------- Rule ids (agreed 2026-09-29: suggest once, owner may edit, then frozen) ----------

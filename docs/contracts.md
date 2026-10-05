@@ -288,3 +288,7 @@ To be drafted together; Track A writes it. Suggested inputs/outputs from the cor
 7. **Stubs:** not needed any more — all 4 patterns are implemented (2026-09-30).
 
 Parking list (not in MVP): field renaming in the event map (e.g. `orderId` → `order_id`).
+
+### Track B library additions (2026-10-05)
+
+`core/errors.py` exposes stable error codes and `to_problem()` for RFC 9457 responses. The `https://haqwa.dev/errors/` type URI is a placeholder until an error documentation site exists. `compile_failed` retains `CompileError.problems` and `.failures`. `dump_spec()` and `save_spec()` write deterministic YAML in owner rule order. `demo.iter_scenario()` yields C2 events followed by a report for the agreed SSE integration. The C1 `at` offset and `within_time` end-of-trace behavior remain PROPOSED.

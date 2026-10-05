@@ -1,0 +1,5 @@
+[
+  {"type": "order_created", "data": {"order_id": "A-1"}, "committed_at": 0, "id": "sample-1"},
+  {"type": "charged", "data": {"order_id": "A-1"}, "committed_at": 1, "id": "sample-2"},
+  {"type": "charged", "data": {"order_id": "A-1"}, "committed_at": 2, "id": "sample-3"}
+]

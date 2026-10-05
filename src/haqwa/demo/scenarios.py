@@ -6,7 +6,8 @@ ledger to events and checks them with Haqwa. Deterministic, no Gemini, milliseco
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,10 +19,12 @@ from agentproof.mutations.tool_faults import TimeoutAfterCommit
 from ..adapters.agentproof import effects_to_events
 from ..core.checker import check
 from ..core.compiler import compile_spec
+from ..core.errors import UNKNOWN_SCENARIO, HaqwaError
 from ..core.events import Event, EventMap
 from ..core.report import Report
 from ..core.spec import Spec
 from . import agents
+from .recording import RECORDINGS_DIR, load_effects
 from .shop import setup_shop
 
 
@@ -89,14 +92,28 @@ _SCENARIOS: tuple[Scenario, ...] = (
 
 def list_scenarios() -> list[dict[str, str]]:
     """All demo scenarios, JSON-ready."""
-    return [s.to_dict() for s in _SCENARIOS]
+    scenarios = [s.to_dict() for s in _SCENARIOS]
+    for path in sorted(RECORDINGS_DIR.glob("gemini_*.json")):
+        date = path.stem.removeprefix("gemini_").replace("_", "-")
+        scenarios.append(
+            {
+                "id": f"recorded_{path.stem}",
+                "title": f"Recorded Gemini agent run ({date})",
+                "fault": "recorded",
+                "agent": "gemini",
+                "description": "Saved AgentProof effects; replay makes no Gemini request.",
+                "expected": "violation",
+            }
+        )
+    return scenarios
 
 
 def _get(scenario_id: str) -> Scenario:
     for s in _SCENARIOS:
         if s.id == scenario_id:
             return s
-    raise KeyError(f"unknown scenario: {scenario_id!r}")
+    known = ", ".join(s.id for s in _SCENARIOS)
+    raise HaqwaError(UNKNOWN_SCENARIO, f"unknown scenario {scenario_id!r} (known: {known})")
 
 
 def run_scenario(
@@ -104,10 +121,38 @@ def run_scenario(
 ) -> tuple[list[Event], Report]:
     """Run the scenario's agent under its fault, then check the effects against `spec`.
 
-    Raises KeyError (unknown id) or CompileError (bad spec). The effects use the rule
-    vocabulary of examples/shop (order_created, charged, refunded); pass `event_map`
+    Raises HaqwaError: `unknown_scenario`, or `compile_failed` (CompileError) for a bad spec.
+    The effects use the vocabulary of examples/shop (order_created, charged, refunded);
+    pass `event_map`
     only if the spec uses other names.
     """
+    stream = iter_scenario(scenario_id, spec, event_map)
+    events: list[Event] = []
+    report: Report | None = None
+    for kind, value in stream:
+        if kind == "event":
+            assert isinstance(value, Event)
+            events.append(value)
+        else:
+            assert isinstance(value, Report)
+            report = value
+    assert report is not None
+    return events, report
+
+
+def iter_scenario(
+    scenario_id: str, spec: Spec, event_map: EventMap | None = None
+) -> Iterator[tuple[str, Event | Report]]:
+    """Yield each effect as an event, then the final deterministic report."""
+    if re.fullmatch(r"recorded_gemini_\d{4}_\d{2}_\d{2}", scenario_id):
+        path = RECORDINGS_DIR / f"{scenario_id.removeprefix('recorded_')}.json"
+        if path.is_file():
+            compiled = compile_spec(spec, event_map)
+            events = load_effects(path)
+            for event in events:
+                yield "event", event
+            yield "report", check(compiled, events, event_map)
+            return
     scenario = _get(scenario_id)
     compiled = compile_spec(spec, event_map)
     suite = AgentTest(agent=scenario._agent_fn, name=scenario.id)
@@ -125,4 +170,6 @@ def run_scenario(
     if run.error_message:
         raise RuntimeError(f"scenario {scenario.id!r}: agent failed: {run.error_message}")
     events = effects_to_events(run.effects)
-    return events, check(compiled, events, event_map)
+    for event in events:
+        yield "event", event
+    yield "report", check(compiled, events, event_map)
