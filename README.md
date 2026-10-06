@@ -88,3 +88,14 @@ To record a Gemini agent run, run the ADK spike with your own environment key an
 The MVP supports four patterns, two exceptions, CLI checks, a demo, and a web flow. Future work may add event adapters, monitoring, and broader policy shapes. See [`CODEX_TASKS.md`](CODEX_TASKS.md) for the current task list.
 
 ## Web app
+
+### Run the web API
+
+From the repository root, run:
+
+```sh
+uv sync
+uv run uvicorn web.api.main:app --reload
+```
+
+Open `http://localhost:8000/docs` for the API schema. The React build is served at `/` when `web/frontend/dist/` exists. Set `HAQWA_DEV_CORS=1` to allow a separate Vite server at `http://localhost:5173`. `GEMINI_API_KEY` is needed only for `/api/v1/clarify` and `/api/v1/explain`.
