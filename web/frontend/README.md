@@ -15,7 +15,7 @@ npm run lint
 
 All server calls go through `src/api/client.ts`.
 
-- Default: **mock mode**. The answers are the real Gemini outputs from spike v2.1 (`src/api/fixtures.ts`), so no API key or quota is needed.
+- Default: **mock mode**. Screen 1 uses the real Gemini outputs from spike v2.1 (`src/api/fixtures.ts`). Screens 2-3 use real `demo.run_scenario()` reports and one real `ai.explain` answer (`src/api/runFixtures.ts`). No API key or quota is needed.
 - To use the FastAPI app, create `web/frontend/.env.local` with `VITE_USE_MOCK=false`.
 
 ## Layout
@@ -23,8 +23,15 @@ All server calls go through `src/api/client.ts`.
 | Path | What |
 |---|---|
 | `src/api/` | C3 types, API client, mock data |
-| `src/components/` | Header, policy panel, question card, review card, technical details |
+| `src/components/` | Header, policy panel, question/review cards, timeline, verdicts, AI explanation box |
 | `src/screens/DefineScreen.tsx` | Screen 1: the AI interviews the policy owner |
+| `src/screens/TestScreen.tsx` | Screen 2: pick a scenario, run it, see core's verdict |
+| `src/screens/ResultsScreen.tsx` | Screen 3: which event broke which rule, plus an AI suggestion |
 | `src/lib/words.ts` | Event names -> plain words (presentation only) |
+| `src/lib/persist.ts` | Keeps progress across a refresh (sessionStorage) |
+
+## Navigation and refresh
+
+No router: `App.tsx` keeps the current step, the confirmed spec and the last run in React state, saved in `sessionStorage`. A refresh keeps the owner where they were; a new tab starts clean; **Start over** clears it. If a saved shape changes, bump `VERSION` in `src/lib/persist.ts`.
 
 The web holds no business logic: rules are parsed and updated by the Python library through the API.
