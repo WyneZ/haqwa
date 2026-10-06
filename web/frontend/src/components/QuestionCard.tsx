@@ -9,6 +9,7 @@ interface Props {
   per: string // the rule's entity key, e.g. "order_id"
   onAnswer: (allowed: boolean) => void
   onBack?: () => void
+  backLabel?: string // default "← Previous question"
 }
 
 /**
@@ -17,7 +18,16 @@ interface Props {
  * When the timeline involves two different orders, the lead says so and each step
  * names its order ("order A", "order B").
  */
-export function QuestionCard({ question, index, total, noun, per, onAnswer, onBack }: Props) {
+export function QuestionCard({
+  question,
+  index,
+  total,
+  noun,
+  per,
+  onAnswer,
+  onBack,
+  backLabel = '← Previous question',
+}: Props) {
   const labels = timelineLabels(question.timeline, per)
   const entities = entityCount(question.timeline, per)
   return (
@@ -68,7 +78,7 @@ export function QuestionCard({ question, index, total, noun, per, onAnswer, onBa
 
       {onBack && (
         <button type="button" className="btn btn--link" onClick={onBack}>
-          ← Previous question
+          {backLabel}
         </button>
       )}
     </section>

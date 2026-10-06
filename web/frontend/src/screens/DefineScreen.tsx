@@ -41,6 +41,8 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const [current, setCurrent] = usePersistentState<number | null>('define.current', null)
   const [step, setStep] = usePersistentState('define.question', 0)
   const [answers, setAnswers] = usePersistentState<boolean[]>('define.answers', [])
+  // Question being re-asked from the review card ("Fix this answer"), or null.
+  const [fixing, setFixing] = usePersistentState<number | null>('define.fixing', null)
   const [confirmed, setConfirmed] = usePersistentState<Record<number, Rule>>('define.confirmed', {})
 
   const [saving, setSaving] = useState(false)
@@ -71,6 +73,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
 
   function resetAnswers() {
     setStep(0)
+    setFixing(null)
     setAnswers([])
     setMismatches([])
     setSaveError(null)
@@ -123,8 +126,30 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const rule = active?.status === 'supported' ? active : null
 
   function answer(allowed: boolean) {
+    if (fixing !== null && rule) {
+      // Replace only this answer and go straight back to the review card.
+      setAnswers((prev) => prev.map((a, i) => (i === fixing ? allowed : a)))
+      setMismatches([])
+      setFixing(null)
+      setStep(rule.questions.length)
+      return
+    }
     setAnswers((prev) => [...prev.slice(0, step), allowed])
     setStep((s) => s + 1)
+  }
+
+  /** "Fix this answer" on the review card: re-ask one question. */
+  function fixAnswer(index: number) {
+    setFixing(index)
+    setStep(index)
+    setSaveError(null)
+  }
+
+  /** Leave a fix without changing the answer. */
+  function cancelFix() {
+    if (!rule) return
+    setFixing(null)
+    setStep(rule.questions.length)
   }
 
   async function confirm() {
@@ -211,7 +236,10 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 noun={entityNoun(rule.rule.per)}
                 per={rule.rule.per}
                 onAnswer={answer}
-                onBack={step > 0 ? () => setStep((s) => s - 1) : undefined}
+                onBack={
+                  fixing !== null ? cancelFix : step > 0 ? () => setStep((s) => s - 1) : undefined
+                }
+                backLabel={fixing !== null ? '← Back to my answers' : undefined}
               />
             ) : (
               <ReviewCard
@@ -223,6 +251,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 per={rule.rule.per}
                 onConfirm={confirm}
                 onRestart={resetAnswers}
+                onFix={fixAnswer}
               />
             )}
 
