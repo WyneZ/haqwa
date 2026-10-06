@@ -10,6 +10,8 @@ export type Scalar = string | number | boolean
 export interface TimelineEvent {
   event: string
   data: Record<string, Scalar>
+  /** Offset from the first event, ISO 8601 duration (e.g. "P1DT1H"). Set by core for time rules. */
+  at?: string
 }
 
 export interface Condition {
@@ -127,6 +129,21 @@ export interface Explanation {
   cached: boolean
 }
 
+/** C3 endpoint 3 (200): the spec passed core's self-test. */
+export interface SealResponse {
+  ok: true
+  spec_yaml: string
+}
+
+/** One confirmed example where core disagrees with the owner (C3 seal 422 `failures`). */
+export interface SelfTestFailure {
+  rule_id: string
+  example_index: number
+  timeline: TimelineEvent[]
+  expected: boolean
+  got: boolean
+}
+
 /** RFC 9457 problem details + stable `code` (C3 errors). */
 export interface ApiProblem {
   type?: string
@@ -134,4 +151,5 @@ export interface ApiProblem {
   status?: number
   detail?: string
   code?: string
+  failures?: SelfTestFailure[] // compile_failed only
 }

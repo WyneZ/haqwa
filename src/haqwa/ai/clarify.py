@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from haqwa.core.canonical import canonical_examples
+from haqwa.core.compiler import violates
 from haqwa.core.spec import (
     AllowIf,
     Condition,
@@ -247,7 +248,7 @@ def clarify(
     rule = to_rule(wire.parse, rule_id=rule_id, source=rule_text, vocab=vocab)
     assert not isinstance(rule, UnsupportedRule)  # handled above
 
-    decisions, dropped = decision_questions(wire.ambiguities, per=rule.per, vocab=vocab)
+    decisions, dropped = decision_questions(wire.ambiguities, rule=rule, vocab=vocab)
     return ClarifyOutcome(
         source=rule_text,
         status="supported",
@@ -259,12 +260,14 @@ def clarify(
 
 
 def decision_questions(
-    ambiguities: list[WireAmbiguity], *, per: str, vocab: Vocabulary
+    ambiguities: list[WireAmbiguity], *, rule: C1Rule, vocab: Vocabulary
 ) -> tuple[list[Question], list[DroppedQuestion]]:
     """Turn Gemini's ambiguities into decision cards; drop the ones code cannot trust.
 
     Only the FIRST example timeline is used: C3 has one timeline per question, and
     asking the owner the same thing twice makes the UI heavier (wireframe decision).
+    A question is also dropped when core could not honour either answer
+    (`_core_problems`), so an owner answer can never fail the self-test at seal.
     """
     kept: list[Question] = []
     dropped: list[DroppedQuestion] = []
@@ -275,20 +278,56 @@ def decision_questions(
             if_yes, reason = _to_exception(amb.spec_change_if_yes)
             if reason:
                 reasons.append(reason)
+        timeline: list[TimelineEvent] = []
+        if not reasons and if_yes is not None:
+            timeline = [_to_timeline_event(e, rule.per) for e in amb.examples[0].events]
+            reasons += _core_problems(rule, timeline, if_yes)
         if reasons:
             dropped.append(DroppedQuestion(gemini_id=amb.id, reasons=reasons))
             continue
-        example = amb.examples[0]
         kept.append(
             Question(
                 id=f"d{len(kept) + 1}",
                 kind="decision",
-                text=example.question,
-                timeline=[_to_timeline_event(e, per) for e in example.events],
+                text=amb.examples[0].question,
+                timeline=timeline,
                 if_yes=if_yes,
             )
         )
     return kept, dropped
+
+
+def _core_problems(rule: C1Rule, timeline: list[TimelineEvent], if_yes: RuleException) -> list[str]:
+    """Reasons core could not honour the owner's answer to this decision question.
+
+    AI interprets, code verifies: before the owner sees a decision card, core checks that
+    1. "No" is a real violation today: the timeline breaks the rule as it stands
+       (otherwise a "No" answer fails the self-test, e.g. a within_time timeline with
+       no times cannot show "too late");
+    2. "Yes" really allows it: with `if_yes` added, the same timeline passes;
+    3. "Yes" changes nothing else: every canonical example keeps core's verdict
+       (e.g. `reset_after` on the rule's own start event would cancel every deadline).
+    """
+    with_yes = type(rule).model_validate(
+        {**rule.model_dump(by_alias=True), "except": [*rule.exceptions, if_yes]}
+    )
+    problems: list[str] = []
+    if not violates(rule, timeline):
+        problems.append(
+            "core: the example timeline does not break the rule, so 'No' cannot be checked"
+        )
+    elif violates(with_yes, timeline):
+        problems.append("core: a 'Yes' answer would not make the example timeline pass")
+    changed = [
+        ex.label
+        for ex in canonical_examples(rule)
+        if violates(with_yes, list(ex.timeline)) != ex.violation
+    ]
+    if changed:
+        problems.append(
+            f"core: a 'Yes' answer would change the rule's basic cases ({'; '.join(changed)})"
+        )
+    return problems
 
 
 def _ambiguity_problems(amb: WireAmbiguity, vocab: Vocabulary) -> list[str]:

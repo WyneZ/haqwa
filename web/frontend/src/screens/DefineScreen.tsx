@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { applyAnswers, clarifyRules, friendlyError } from '../api/client'
+import {
+  applyAnswers,
+  clarifyRules,
+  friendlyError,
+  sealSpec,
+  selfTestFailures,
+} from '../api/client'
 import type { ClarifyResult, Rule } from '../api/types'
 import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
 import { QuestionCard } from '../components/QuestionCard'
@@ -22,7 +28,7 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
 
 /**
  * Screen 1 (Define): the AI interviews the policy owner, one question at a time.
- * All meaning changes come from the API (`clarify`, `answers`); this screen only keeps
+ * All meaning changes come from the API (`clarify`, `answers`, `seal`); this screen only keeps
  * track of where the owner is. Progress is saved for this tab, so a refresh keeps the
  * answers and does not call the AI again.
  */
@@ -40,6 +46,11 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
+
+  // Seal: core replays every answer before the owner moves on (C3 endpoint 3).
+  const [sealing, setSealing] = useState(false)
+  const [sealError, setSealError] = useState<string | null>(null)
+  const [redo, setRedo] = useState<number[]>([]) // rules whose answers core rejected
 
   async function understand() {
     const rules = text.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -63,6 +74,42 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
     setAnswers([])
     setMismatches([])
     setSaveError(null)
+  }
+
+  /**
+   * Ask core to compile the confirmed rules and replay every owner answer (self-test).
+   * Only a spec core accepts goes to the Test screen; otherwise the owner re-answers the
+   * rules core named, so a bad spec can never reach a test run.
+   */
+  async function finish() {
+    const rules = Object.values(confirmed)
+    setSealing(true)
+    setSealError(null)
+    setRedo([])
+    try {
+      await sealSpec({ version: 1, rules })
+      onDone(rules)
+    } catch (e) {
+      const failedIds = new Set(selfTestFailures(e).map((f) => f.rule_id))
+      const indexes = Object.entries(confirmed)
+        .filter(([, r]) => failedIds.has(r.id))
+        .map(([i]) => Number(i))
+      setRedo(indexes)
+      setSealError(friendlyError(e))
+    } finally {
+      setSealing(false)
+    }
+  }
+
+  /** Re-open one confirmed rule so the owner answers its questions again. */
+  function answerAgain(index: number) {
+    const rest = { ...confirmed }
+    delete rest[index]
+    setConfirmed(rest)
+    setCurrent(index)
+    setRedo([])
+    setSealError(null)
+    resetAnswers()
   }
 
   function editRules() {
@@ -199,13 +246,31 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 </ul>
               </div>
             )}
+            {sealError && (
+              <div className="notice notice--error" role="alert">
+                <p>{sealError}</p>
+                {redo.map((i) => {
+                  const r = results[i]
+                  return r.status === 'supported' ? (
+                    <button
+                      key={i}
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => answerAgain(i)}
+                    >
+                      Answer “{ruleTitle(r.rule)}” again
+                    </button>
+                  ) : null
+                })}
+              </div>
+            )}
             <button
               type="button"
               className="btn btn--primary"
-              onClick={() => onDone(Object.values(confirmed))}
-              disabled={Object.keys(confirmed).length === 0}
+              onClick={finish}
+              disabled={sealing || Object.keys(confirmed).length === 0}
             >
-              Next: test an agent →
+              {sealing ? 'Checking your answers…' : 'Next: test an agent →'}
             </button>
           </section>
         )}

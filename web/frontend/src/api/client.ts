@@ -6,7 +6,14 @@
  * web/frontend/.env.local) to call the real `/api/v1` endpoints. Screens never know
  * which one they are using.
  */
-import { mockApplyAnswers, mockClarify, mockExplain, mockListScenarios, mockRun } from './mocks'
+import {
+  mockApplyAnswers,
+  mockClarify,
+  mockExplain,
+  mockListScenarios,
+  mockRun,
+  mockSeal,
+} from './mocks'
 import type {
   Answer,
   AnswersResponse,
@@ -16,6 +23,8 @@ import type {
   Rule,
   RunResponse,
   Scenario,
+  SealResponse,
+  SelfTestFailure,
   Spec,
   Violation,
 } from './types'
@@ -26,13 +35,22 @@ const BASE = '/api/v1'
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
+  readonly problem: ApiProblem
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, problem: ApiProblem = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
-    this.code = code
+    this.code = problem.code
+    this.problem = problem
   }
+}
+
+/** The self-test failures of a `compile_failed` error, or [] for any other error. */
+export function selfTestFailures(error: unknown): SelfTestFailure[] {
+  return error instanceof ApiError && error.code === 'compile_failed'
+    ? (error.problem.failures ?? [])
+    : []
 }
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -48,7 +66,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
     } catch {
       // body was not JSON; keep the HTTP status text
     }
-    throw new ApiError(problem.detail ?? problem.title ?? res.statusText, res.status, problem.code)
+    throw new ApiError(problem.detail ?? problem.title ?? res.statusText, res.status, problem)
   }
   return (await res.json()) as T
 }
@@ -63,6 +81,14 @@ export function applyAnswers(rule: Rule, answers: Answer[]): Promise<AnswersResp
   return USE_MOCK
     ? mockApplyAnswers(rule, answers)
     : request<AnswersResponse>('/answers', { rule, answers })
+}
+
+/**
+ * C3 endpoint 3: core compiles the confirmed rules and replays every owner answer
+ * (self-test). Throws ApiError `compile_failed` with `failures` if core disagrees.
+ */
+export function sealSpec(spec: Spec): Promise<SealResponse> {
+  return USE_MOCK ? mockSeal(spec) : request<SealResponse>('/seal', { spec })
 }
 
 /** C3 endpoint 4: the demo scenarios (agents + faults). */
@@ -87,6 +113,9 @@ export function explainViolation(rule: Rule, violation: Violation): Promise<Expl
 /** Plain-English message for the owner. Never shows stack traces or raw JSON. */
 export function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.code === 'compile_failed') {
+      return 'Some answers don’t match how Haqwa checks these rules. Please answer them again.'
+    }
     if (error.code === 'gemini_quota') {
       return 'The AI has reached its free limit for now. Please try again in a little while.'
     }
