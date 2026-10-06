@@ -145,7 +145,7 @@ def build(
                 console.print(Text(question.text))
                 for index, item in enumerate(question.timeline, 1):
                     console.print(Text(f"  {index}. {_timeline_label(item)}"))
-                answers.append(Answer(question=question, allowed=typer.confirm("Is this allowed?")))
+                answers.append(Answer(question=question, allowed=typer.confirm("Allowed?")))
             result = apply_answers(outcome.rule, answers)
             if result.mismatches:
                 for mismatch in result.mismatches:
