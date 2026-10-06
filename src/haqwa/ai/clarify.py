@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from haqwa.core.canonical import canonical_examples
+from haqwa.core.compiler import distinguishes
 from haqwa.core.spec import (
     AllowIf,
     Condition,
@@ -247,7 +248,7 @@ def clarify(
     rule = to_rule(wire.parse, rule_id=rule_id, source=rule_text, vocab=vocab)
     assert not isinstance(rule, UnsupportedRule)  # handled above
 
-    decisions, dropped = decision_questions(wire.ambiguities, per=rule.per, vocab=vocab)
+    decisions, dropped = decision_questions(wire.ambiguities, per=rule.per, vocab=vocab, rule=rule)
     return ClarifyOutcome(
         source=rule_text,
         status="supported",
@@ -258,13 +259,25 @@ def clarify(
     )
 
 
+UNTESTABLE = "Yes and No give the same verdict on this timeline, so the answer cannot be tested"
+
+
 def decision_questions(
-    ambiguities: list[WireAmbiguity], *, per: str, vocab: Vocabulary
+    ambiguities: list[WireAmbiguity],
+    *,
+    per: str,
+    vocab: Vocabulary,
+    rule: C1Rule | None = None,
 ) -> tuple[list[Question], list[DroppedQuestion]]:
     """Turn Gemini's ambiguities into decision cards; drop the ones code cannot trust.
 
     Only the FIRST example timeline is used: C3 has one timeline per question, and
     asking the owner the same thing twice makes the UI heavier (wireframe decision).
+
+    With `rule`, a question is also dropped when core says Yes and No give the same
+    verdict on its timeline (`distinguishes`): the answer could not be tested, and a
+    "No" would fail the compile self-test at seal (e.g. a within_time timeline with no
+    time in it, so the deadline never passes).
     """
     kept: list[Question] = []
     dropped: list[DroppedQuestion] = []
@@ -279,12 +292,17 @@ def decision_questions(
             dropped.append(DroppedQuestion(gemini_id=amb.id, reasons=reasons))
             continue
         example = amb.examples[0]
+        timeline = [_to_timeline_event(e, per) for e in example.events]
+        assert if_yes is not None  # set whenever there are no reasons
+        if rule is not None and not distinguishes(rule, if_yes, timeline):
+            dropped.append(DroppedQuestion(gemini_id=amb.id, reasons=[UNTESTABLE]))
+            continue
         kept.append(
             Question(
                 id=f"d{len(kept) + 1}",
                 kind="decision",
                 text=example.question,
-                timeline=[_to_timeline_event(e, per) for e in example.events],
+                timeline=timeline,
                 if_yes=if_yes,
             )
         )

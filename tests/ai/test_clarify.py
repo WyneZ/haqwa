@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from haqwa.ai.clarify import (
+    UNTESTABLE,
     Answer,
     ClarifyOutcome,
     Question,
@@ -121,10 +122,14 @@ def test_r2_never_after_with_reset_question() -> None:
     assert [q.if_yes for q in decisions(outcome)] == [ResetAfter(reset_after="order_created")]
 
 
-def test_r3_within_time_has_three_questions() -> None:
+def test_r3_untestable_within_time_questions_are_dropped() -> None:
+    # Gemini's three R3 timelines carry no time (`at`), so the 24h deadline never passes
+    # and Yes/No give the same verdict: core's distinguishes() drops all three.
     outcome, _ = run_clarify(spike_raw("R3"))
     assert outcome.rule is not None and outcome.rule.pattern == "within_time"
-    assert len(decisions(outcome)) == 3
+    assert decisions(outcome) == []
+    assert len(outcome.dropped) == 3
+    assert all(d.reasons == [UNTESTABLE] for d in outcome.dropped)
 
 
 def test_prompt_uses_the_callers_vocabulary() -> None:
@@ -203,6 +208,17 @@ def test_allow_if_in_becomes_a_list() -> None:
     assert kept[0].if_yes == AllowIf(
         allow_if=Condition(field="payment_type", op="in", value=["card", "installment"])
     )
+
+
+def test_untestable_question_is_dropped_when_rule_is_given() -> None:
+    # Timeline is a single "charged": no double charge, so a refund reset changes nothing.
+    item = ambiguity(kind="reset_after", event="refunded")
+    parsed = [WireAmbiguity.model_validate(item)]
+    rule = AtMostOnce.model_validate(
+        {"id": "r", "source": "s", "pattern": "at_most_once", "event": "charged", "per": "order_id"}
+    )
+    kept, dropped = decision_questions(parsed, per="order_id", vocab=SHOP, rule=rule)
+    assert kept == [] and dropped[0].reasons == [UNTESTABLE]
 
 
 def test_ids_stay_consecutive_after_a_drop() -> None:
@@ -335,20 +351,10 @@ def answer_all(outcome: ClarifyOutcome, decision_allowed: bool) -> Rule:
     return result.rule
 
 
-@pytest.mark.parametrize("rule", ["R1", "R2"])
+@pytest.mark.parametrize("rule", ["R1", "R2", "R3"])
 @pytest.mark.parametrize("decision_allowed", [True, False])
 def test_answered_rule_passes_core_self_test(rule: str, decision_allowed: bool) -> None:
     # End to end: Gemini's real questions + core's confirmations + owner answers -> the
     # sealed rule must pass core's self-test (AI meaning and core semantics agree).
     outcome, _ = run_clarify(spike_raw(rule))
     compile_spec(Spec(rules=[answer_all(outcome, decision_allowed)]))
-
-
-@pytest.mark.xfail(
-    reason="R3: Gemini's within_time timelines carry no time (`at`), and 'second request "
-    "restarts the clock' maps to reset_after=start, which core treats as cancel",
-    strict=True,
-)
-def test_r3_answered_rule_passes_core_self_test() -> None:
-    outcome, _ = run_clarify(spike_raw("R3"))
-    compile_spec(Spec(rules=[answer_all(outcome, decision_allowed=True)]))
