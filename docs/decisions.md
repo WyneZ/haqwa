@@ -29,6 +29,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-09-28 · Gemini: free tier only, no paid billing plan · Hazel + Wyne · Keeps cost at zero; quota limits handled by caching and pacing (see ai/client.py).
 - 2026-09-28 · Track owners: Track A = Hazel (ai/, web/, deploy), Track B = Wyne (core/, cli, adapters, demo, tests) · Hazel + Wyne · Confirms the brief's split.
 - 2026-09-29 · AGREED · Rule ids: code suggests an id once for a new rule (`core/spec.py` `suggest_rule_id(text, existing_ids)`), the owner may edit it, then it is frozen in the spec and never regenerated · Track A + Track B · ids appear in reports, CI output and spec diffs, so they must be stable; Gemini output varies run to run and text-derived ids change on every edit
+- 2026-10-06 · PROPOSED (needs Hazel) · Un-park the `distinguish` gate: `core.compiler.distinguishes(rule, exception, timeline)`; `ai.clarify.decision_questions` drops a Gemini decision question when Yes and No give the same verdict on its timeline (reason recorded in `dropped`) · Wyne · first E2E test: R3 (within_time) questions had no `at`, so a "No" answer made `/runs` fail with compile_failed; the gate stops untestable questions before the owner sees them. Follow-up for Track A: prompt Gemini to add `at` and a closing event for within_time questions so they become testable again
 
 ## Track A (Hazel — ai/, web/, deploy)
 
