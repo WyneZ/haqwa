@@ -70,6 +70,63 @@ export interface AnswersResponse {
   mismatches: string[]
 }
 
+/** C1 spec: what screen 1 hands to screen 2. */
+export interface Spec {
+  version: 1
+  rules: Rule[]
+}
+
+/** C3 endpoint 4: one demo scenario (Track B `demo.list_scenarios()`). */
+export interface Scenario {
+  id: string
+  title: string
+  fault: string
+  agent: 'naive' | 'fixed'
+  description: string
+  expected: 'violation' | 'pass'
+}
+
+/** C2 event: what the agent did, in rule names. `ts` is ISO 8601 with a timezone. */
+export interface LogEvent {
+  event: string
+  ts: string
+  data: Record<string, Scalar>
+  source_id?: string
+}
+
+/** core Report: decided by core only. The web shows it and never changes it. */
+export interface Violation {
+  rule_id: string
+  entity: string
+  message: string
+  timeline: LogEvent[]
+  offending_index: number
+}
+
+export interface RuleResult {
+  rule_id: string
+  source: string
+  status: 'pass' | 'violation'
+  violations: Violation[]
+}
+
+export interface Report {
+  results: RuleResult[]
+}
+
+/** C3 endpoint 5. */
+export interface RunResponse {
+  events: LogEvent[]
+  report: Report
+}
+
+/** C3 endpoint 6. Always advisory: it never changes the verdict. */
+export interface Explanation {
+  text: string
+  advisory: boolean
+  cached: boolean
+}
+
 /** RFC 9457 problem details + stable `code` (C3 errors). */
 export interface ApiProblem {
   type?: string

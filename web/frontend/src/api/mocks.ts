@@ -6,7 +6,19 @@
  * Python (`POST /api/v1/answers`). The web never decides anything in production.
  */
 import { DEMO_RESULTS } from './fixtures'
-import type { Answer, AnswersResponse, ClarifyResponse, ClarifyResult, Rule } from './types'
+import { DEMO_EXPLANATIONS, DEMO_RUNS, DEMO_SCENARIOS } from './runFixtures'
+import type {
+  Answer,
+  AnswersResponse,
+  ClarifyResponse,
+  ClarifyResult,
+  Explanation,
+  Rule,
+  RunResponse,
+  Scenario,
+  Spec,
+  Violation,
+} from './types'
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -45,4 +57,32 @@ export async function mockApplyAnswers(rule: Rule, answers: Answer[]): Promise<A
     if (!examples.some((e) => same(e, example))) examples.push(example)
   }
   return { rule: { ...rule, except, confirmed_examples: examples }, mismatches }
+}
+
+export async function mockListScenarios(): Promise<Scenario[]> {
+  await delay(200)
+  return DEMO_SCENARIOS
+}
+
+/**
+ * Returns the recorded run of the demo rules. It does NOT check `spec`: it only keeps
+ * the results of rules that are in `spec`, so the screens match what the owner confirmed.
+ * The real check (`POST /api/v1/runs`) runs core against the exact spec.
+ */
+export async function mockRun(spec: Spec, scenarioId: string): Promise<RunResponse> {
+  await delay(600)
+  const run = DEMO_RUNS[scenarioId]
+  if (!run) throw new Error(`Mock mode does not know scenario ${scenarioId}.`)
+  const ids = new Set(spec.rules.map((r) => r.id))
+  return { ...run, report: { results: run.report.results.filter((r) => ids.has(r.rule_id)) } }
+}
+
+export async function mockExplain(rule: Rule, violation: Violation): Promise<Explanation> {
+  await delay(900)
+  const text = DEMO_EXPLANATIONS[`${rule.id}|${violation.entity}|${violation.message}`]
+  return {
+    text: text ?? 'Mock mode has no AI explanation for this case. Start the API to ask the AI.',
+    advisory: true,
+    cached: true,
+  }
 }
