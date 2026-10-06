@@ -284,7 +284,8 @@ def test_confirmations_come_first_and_follow_core() -> None:
     outcome, _ = run_clarify(spike_raw("R1"))
     assert [q.id for q in outcome.questions] == ["c1", "c2", "c3", "d1", "d2"]
     conf = confirmations(outcome)
-    assert all(q.text == "Is this allowed?" and q.if_yes is None for q in conf)
+    assert all(q.text.endswith(". Is this allowed?") and q.if_yes is None for q in conf)
+    assert conf[1].text == "Charged twice for the same order. Is this allowed?"
     # at_most_once: once (ok), twice (violation), once each for two orders (ok)
     assert [q.expected_violation for q in conf] == [False, True, False]
 

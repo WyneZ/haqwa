@@ -1,18 +1,25 @@
 import type { Question } from '../api/types'
-import { timelineLabels } from '../lib/words'
+import { entityCount, timelineLabels } from '../lib/words'
 
 interface Props {
   question: Question
   index: number // 0-based
   total: number
   noun: string // "order"
+  per: string // the rule's entity key, e.g. "order_id"
   onAnswer: (allowed: boolean) => void
   onBack?: () => void
 }
 
-/** One Yes/No card: "If this happens to one order: A -> B -> C. Is this allowed?" */
-export function QuestionCard({ question, index, total, noun, onAnswer, onBack }: Props) {
-  const labels = timelineLabels(question.timeline)
+/**
+ * One Yes/No card: "If this happens to one order: A -> B -> C", then the question
+ * (`question.text`) as the heading, then Yes / No.
+ * When the timeline involves two different orders, the lead says so and each step
+ * names its order ("order A", "order B").
+ */
+export function QuestionCard({ question, index, total, noun, per, onAnswer, onBack }: Props) {
+  const labels = timelineLabels(question.timeline, per)
+  const entities = entityCount(question.timeline, per)
   return (
     <section className="card" aria-labelledby="q-title">
       <div className="card__meta">
@@ -26,7 +33,11 @@ export function QuestionCard({ question, index, total, noun, onAnswer, onBack }:
         </span>
       </div>
 
-      <p className="card__lead">If this happens to one {noun}:</p>
+      <p className="card__lead">
+        {entities > 1
+          ? `If this happens to ${entities === 2 ? 'two' : entities} different ${noun}s:`
+          : `If this happens to one ${noun}:`}
+      </p>
       <ol className="chips">
         {labels.map((label, i) => (
           <li key={i} className="chips__item">
@@ -40,10 +51,11 @@ export function QuestionCard({ question, index, total, noun, onAnswer, onBack }:
         ))}
       </ol>
 
+      {/* The question itself is the heading: Gemini's decision question, or core's
+          plain-English situation + "Is this allowed?" for a confirmation card. */}
       <h2 id="q-title" className="card__question">
-        Is this allowed?
+        {question.text}
       </h2>
-      <p className="card__context">{question.text}</p>
 
       <div className="card__actions">
         <button type="button" className="btn btn--yes" onClick={() => onAnswer(true)}>

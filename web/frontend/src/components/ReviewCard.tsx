@@ -6,13 +6,33 @@ interface Props {
   answers: boolean[]
   busy: boolean
   error: string | null
-  mismatches: string[]
+  mismatches: string[] // e.g. "c3: owner answered the opposite of 'allowed'"
+  per: string // the rule's entity key, e.g. "order_id"
   onConfirm: () => void
   onRestart: () => void
 }
 
-/** "Here's what you decided" + Confirm. Shown after the last question of a rule. */
-export function ReviewCard({ questions, answers, busy, error, mismatches, onConfirm, onRestart }: Props) {
+/** The question ids named in `mismatches` ("c3: …" -> "c3"). */
+function mismatchIds(mismatches: string[]): Set<string> {
+  return new Set(mismatches.map((m) => m.split(':')[0].trim()))
+}
+
+/**
+ * "Here's what you decided" + Confirm. Shown after the last question of a rule.
+ * Answers that disagree with how the rule works are highlighted one by one, so the
+ * owner knows which card to look at again.
+ */
+export function ReviewCard({
+  questions,
+  answers,
+  busy,
+  error,
+  mismatches,
+  per,
+  onConfirm,
+  onRestart,
+}: Props) {
+  const wrong = mismatchIds(mismatches)
   return (
     <section className="card" aria-labelledby="review-title">
       <h2 id="review-title" className="card__title">
@@ -22,11 +42,22 @@ export function ReviewCard({ questions, answers, busy, error, mismatches, onConf
       {questions.length > 0 && (
         <ul className="summary">
           {questions.map((q, i) => (
-            <li key={q.id} className="summary__row">
+            <li
+              key={q.id}
+              className={wrong.has(q.id) ? 'summary__row summary__row--warn' : 'summary__row'}
+            >
               <span className={answers[i] ? 'badge badge--ok' : 'badge badge--bad'}>
                 {answers[i] ? 'Allowed' : 'Not allowed'}
               </span>
-              <span>{timelineLabels(q.timeline).join(' → ')}</span>
+              <span className="summary__text">
+                {timelineLabels(q.timeline, per).join(' → ')}
+                {wrong.has(q.id) && q.expected_violation !== undefined && (
+                  <span className="summary__hint">
+                    You said “{answers[i] ? 'Allowed' : 'Not allowed'}”, but as the rule is
+                    written this is {q.expected_violation ? 'not allowed' : 'allowed'}.
+                  </span>
+                )}
+              </span>
             </li>
           ))}
         </ul>
@@ -34,8 +65,9 @@ export function ReviewCard({ questions, answers, busy, error, mismatches, onConf
 
       {mismatches.length > 0 && (
         <p className="notice notice--warn" role="alert">
-          Some answers don’t match how this rule works. Please rewrite the rule or change your
-          answers.
+          {wrong.size === 1 ? 'One answer doesn’t' : 'Some answers don’t'} match how this rule
+          works (highlighted above). Check that card again, or rewrite the rule if it says
+          something different from what you mean.
         </p>
       )}
       {error && (
