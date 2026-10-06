@@ -10,13 +10,46 @@ export function humanize(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/** One label per event; repeats say "again", field values go in brackets. */
-export function timelineLabels(timeline: TimelineEvent[]): string[] {
+/**
+ * The entities (e.g. orders) in one timeline, in order of first appearance.
+ * An event without `data[per]` belongs to the main entity (core's canonical examples
+ * only set `data[per]` on the "different entity" event).
+ */
+function entityKeys(timeline: TimelineEvent[], per?: string): string[] {
+  const keys: string[] = []
+  for (const { data } of timeline) {
+    const key = per && data[per] !== undefined ? String(data[per]) : ''
+    if (!keys.includes(key)) keys.push(key)
+  }
+  return keys
+}
+
+/** How many different entities (e.g. orders) a timeline talks about. */
+export function entityCount(timeline: TimelineEvent[], per?: string): number {
+  return per ? entityKeys(timeline, per).length : 1
+}
+
+/**
+ * One label per event; repeats say "again", other field values go in brackets.
+ *
+ * With `per` (the rule's entity key) and more than one entity, each label names its
+ * entity as a letter ("Charged (order A)", "Charged (order B)") instead of showing the
+ * raw id, and "again" only counts repeats for the same entity.
+ */
+export function timelineLabels(timeline: TimelineEvent[], per?: string): string[] {
+  const keys = entityKeys(timeline, per)
+  const many = per !== undefined && keys.length > 1
+  const noun = per ? entityNoun(per) : ''
   const seen = new Map<string, number>()
   return timeline.map(({ event, data }) => {
-    const count = (seen.get(event) ?? 0) + 1
-    seen.set(event, count)
-    const values = Object.values(data).map(String)
+    const key = per && data[per] !== undefined ? String(data[per]) : ''
+    const countKey = many ? `${key}\u0000${event}` : event
+    const count = (seen.get(countKey) ?? 0) + 1
+    seen.set(countKey, count)
+    const values = Object.entries(data)
+      .filter(([field]) => !(many && field === per))
+      .map(([, value]) => String(value))
+    if (many) values.push(`${noun} ${String.fromCharCode(65 + keys.indexOf(key))}`)
     const extra = values.length ? ` (${values.join(', ')})` : ''
     return `${humanize(event)}${count > 1 ? ' again' : ''}${extra}`
   })

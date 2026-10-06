@@ -55,18 +55,47 @@ def _t(
     return TimelineEvent(event=event, data=data, at=at)
 
 
+def _words(name: str) -> str:
+    """Event or field name as plain words: "refund_requested" -> "refund requested"."""
+    return name.replace("_", " ").strip()
+
+
+def _sentence(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _noun(per: str) -> str:
+    """Entity key as a noun: "order_id" -> "order"."""
+    return _words(per.removesuffix("_id")) or "item"
+
+
+def _duration(d: timedelta) -> str:
+    """Owner-facing duration: "24 hours", "1 hour"; falls back to "1h30m"."""
+    seconds = int(d.total_seconds())
+    if seconds and seconds % 3600 == 0:
+        hours = seconds // 3600
+        return f"{hours} hour" if hours == 1 else f"{hours} hours"
+    return fmt_duration(d)
+
+
 def canonical_examples(rule: Rule) -> list[CanonicalExample]:
-    """Minimum set per pattern: core case, reversed order (two-event patterns), other entity."""
+    """Minimum set per pattern: core case, reversed order (two-event patterns), other entity.
+
+    Labels are short plain-English situations for the policy owner (the confirmation
+    card asks "<label>. Is this allowed?"), so they use words, not raw event names.
+    """
     p = rule.per
-    other = f"a different {p}"
+    noun = _noun(p)
+    other = f"a different {noun}"
 
     if isinstance(rule, AtMostOnce):
         e = rule.event
+        we = _words(e)
         return [
-            CanonicalExample(f"'{e}' once", (_t(e),), False),
-            CanonicalExample(f"'{e}' twice for the same {p}", (_t(e), _t(e)), True),
+            CanonicalExample(_sentence(f"{we} once"), (_t(e),), False),
+            CanonicalExample(_sentence(f"{we} twice for the same {noun}"), (_t(e), _t(e)), True),
             CanonicalExample(
-                f"'{e}' once each for two different {p}s",
+                _sentence(f"{we} once each for two different {noun}s"),
                 (_t(e), _t(e, entity=OTHER_ENTITY, per=p)),
                 False,
             ),
@@ -74,11 +103,12 @@ def canonical_examples(rule: Rule) -> list[CanonicalExample]:
 
     if isinstance(rule, NeverAfter):
         e, a = rule.event, rule.after
+        we, wa = _words(e), _words(a)
         return [
-            CanonicalExample(f"'{e}' after '{a}'", (_t(a), _t(e)), True),
-            CanonicalExample(f"'{e}' before '{a}'", (_t(e), _t(a)), False),
+            CanonicalExample(_sentence(f"{we} after {wa}"), (_t(a), _t(e)), True),
+            CanonicalExample(_sentence(f"{we} before {wa}"), (_t(e), _t(a)), False),
             CanonicalExample(
-                f"'{a}' for one {p}, then '{e}' for {other}",
+                _sentence(f"{wa} for one {noun}, then {we} for {other}"),
                 (_t(a), _t(e, entity=OTHER_ENTITY, per=p)),
                 False,
             ),
@@ -86,11 +116,12 @@ def canonical_examples(rule: Rule) -> list[CanonicalExample]:
 
     if isinstance(rule, MustPrecede):
         e, r = rule.event, rule.requires
+        we, wr = _words(e), _words(r)
         return [
-            CanonicalExample(f"'{r}' then '{e}'", (_t(r), _t(e)), False),
-            CanonicalExample(f"'{e}' before '{r}'", (_t(e), _t(r)), True),
+            CanonicalExample(_sentence(f"{wr}, then {we}"), (_t(r), _t(e)), False),
+            CanonicalExample(_sentence(f"{we} before {wr}"), (_t(e), _t(r)), True),
             CanonicalExample(
-                f"'{r}' for one {p}, then '{e}' for {other}",
+                _sentence(f"{wr} for one {noun}, but {we} for {other}"),
                 (_t(r), _t(e, entity=OTHER_ENTITY, per=p)),
                 True,
             ),
@@ -98,21 +129,27 @@ def canonical_examples(rule: Rule) -> list[CanonicalExample]:
 
     if isinstance(rule, WithinTime):
         s, e, w = rule.start, rule.event, rule.within
+        ws, we = _words(s), _words(e)
         zero, hour = timedelta(0), timedelta(hours=1)
+        late = _duration(w + hour)
         examples = [
             CanonicalExample(
-                f"'{e}' exactly {fmt_duration(w)} after '{s}'", (_t(s, zero), _t(e, w)), False
+                _sentence(f"{we} exactly {_duration(w)} after {ws}"),
+                (_t(s, zero), _t(e, w)),
+                False,
             ),
             CanonicalExample(
-                f"'{e}' {fmt_duration(w + hour)} after '{s}'",
+                _sentence(f"{we} {late} after {ws} (1 hour too late)"),
                 (_t(s, zero), _t(e, w + hour)),
                 True,
             ),
             CanonicalExample(
-                f"'{e}' before '{s}'", (_t(e, zero), _t(s, timedelta(seconds=1))), False
+                _sentence(f"{we} before {ws}"),
+                (_t(e, zero), _t(s, timedelta(seconds=1))),
+                False,
             ),
             CanonicalExample(
-                f"'{s}' for one {p}, '{e}' only for {other} ({fmt_duration(w + hour)} later)",
+                _sentence(f"{ws} for one {noun}; {we} only for {other}, {late} later"),
                 (_t(s, zero), _t(e, w + hour, entity=OTHER_ENTITY, per=p)),
                 True,
             ),
@@ -121,7 +158,7 @@ def canonical_examples(rule: Rule) -> list[CanonicalExample]:
             # Owner decision (golden G3.1): calendar hours, weekends included.
             examples.append(
                 CanonicalExample(
-                    f"'{s}' Fri 17:00, '{e}' Mon 10:00 (weekend counts)",
+                    _sentence(f"{ws} on Fri 17:00, {we} on Mon 10:00 (the weekend counts)"),
                     (_t(s, zero), _t(e, _CALENDAR_GAP)),
                     True,
                 )
