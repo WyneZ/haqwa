@@ -162,6 +162,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 index={step}
                 total={rule.questions.length}
                 noun={entityNoun(rule.rule.per)}
+                per={rule.rule.per}
                 onAnswer={answer}
                 onBack={step > 0 ? () => setStep((s) => s - 1) : undefined}
               />
@@ -172,6 +173,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 busy={saving}
                 error={saveError}
                 mismatches={mismatches}
+                per={rule.rule.per}
                 onConfirm={confirm}
                 onRestart={resetAnswers}
               />

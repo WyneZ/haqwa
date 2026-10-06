@@ -367,7 +367,7 @@ def confirmation_questions(rule: C1Rule) -> list[Question]:
         Question(
             id=f"c{i}",
             kind="confirmation",
-            text="Is this allowed?",
+            text=f"{example.label}. Is this allowed?",
             timeline=list(example.timeline),
             expected_violation=example.violation,
         )
