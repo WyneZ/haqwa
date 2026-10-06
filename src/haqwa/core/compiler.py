@@ -9,7 +9,7 @@ from typing import Any
 from .errors import COMPILE_FAILED, PATTERN_NOT_IMPLEMENTED, UNKNOWN_EVENT, HaqwaError
 from .events import EventMap, group_by, sort_events, synthetic_timeline
 from .patterns import REGISTRY, Evaluator, Finding
-from .spec import ConfirmedExample, Rule, Spec, TimelineEvent
+from .spec import ConfirmedExample, Rule, RuleException, Spec, TimelineEvent
 
 
 @dataclass(frozen=True)
@@ -106,9 +106,22 @@ def run_timeline(
 def violates(rule: Rule, timeline: Sequence[TimelineEvent]) -> bool:
     """True if the rule reports a violation on this example timeline.
 
-    Shared by the compile self-test, canonical examples and (later) question checks.
+    Shared by the compile self-test, canonical examples and question checks.
     """
     return bool(run_timeline(rule, timeline))
+
+
+def distinguishes(rule: Rule, exception: RuleException, timeline: Sequence[TimelineEvent]) -> bool:
+    """True if adding `exception` to `rule` changes the verdict on `timeline`.
+
+    A Yes/No decision question ("Yes" adds `exception`, "No" keeps the rule) is only
+    testable if this is True: otherwise both answers give the same verdict, and the
+    owner's answer could not be checked by the compile self-test. Exceptions only relax
+    a rule, so a testable timeline violates the rule without the exception and passes
+    with it.
+    """
+    relaxed = rule.model_copy(update={"exceptions": [*rule.exceptions, exception]})
+    return violates(rule, timeline) != violates(relaxed, timeline)
 
 
 def validate_rule_events(rule: Rule, event_map: EventMap) -> None:
