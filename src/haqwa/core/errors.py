@@ -30,6 +30,10 @@ INVALID_EVENT_MAP = ErrorCode("invalid_event_map", "The event map is not valid",
 UNKNOWN_SCENARIO = ErrorCode("unknown_scenario", "Unknown demo scenario", 404, 3)
 PATTERN_NOT_IMPLEMENTED = ErrorCode("pattern_not_implemented", "Pattern not implemented", 422, 2)
 UNKNOWN_EVENT = ErrorCode("unknown_event", "Unknown event", 422, 2)
+INVALID_REQUEST = ErrorCode("invalid_request", "Invalid request", 422, 3)
+GEMINI_QUOTA = ErrorCode("gemini_quota", "Gemini quota exceeded", 429, 4)
+GEMINI_UNAVAILABLE = ErrorCode("gemini_unavailable", "Gemini unavailable", 503, 4)
+INTERNAL_ERROR = ErrorCode("internal_error", "Internal server error", 500, 3)
 
 CODES: dict[str, ErrorCode] = {
     c.code: c
@@ -42,6 +46,10 @@ CODES: dict[str, ErrorCode] = {
         UNKNOWN_SCENARIO,
         PATTERN_NOT_IMPLEMENTED,
         UNKNOWN_EVENT,
+        INVALID_REQUEST,
+        GEMINI_QUOTA,
+        GEMINI_UNAVAILABLE,
+        INTERNAL_ERROR,
     )
 }
 

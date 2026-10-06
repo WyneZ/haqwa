@@ -294,3 +294,10 @@ Parking list (not in MVP): field renaming in the event map (e.g. `orderId` → `
 `core/errors.py` exposes stable error codes and `to_problem()` for RFC 9457 responses. The `https://haqwa.dev/errors/` type URI is a placeholder until an error documentation site exists. `compile_failed` retains `CompileError.problems` and `.failures`. `dump_spec()` and `save_spec()` write deterministic YAML in owner rule order. `demo.iter_scenario()` yields C2 events followed by a report for the agreed SSE integration. The C1 `at` offset and `within_time` end-of-trace behavior remain PROPOSED.
 
 Recorded demo files with invalid JSON or effect data raise `HaqwaError` with code `invalid_recording` (HTTP 422). `list_scenarios()` reports `expected: unknown` for recordings unless a spec is supplied, in which case it derives the expected verdict with the core checker.
+
+### C3 implementation notes (2026-10-05)
+
+- The API adds `invalid_request` (422), `gemini_quota` (429), `gemini_unavailable` (503), and `internal_error` (500) to the stable error codes.
+- A Seal self-test failure returns the RFC 9457 problem body with `code: compile_failed`, `ok: false`, `problems`, and `failures` (HTTP 422).
+- Fetch actual demo identifiers from `GET /api/v1/scenarios`; recorded runs report `expected: unknown` without a spec.
+- `GET /healthz` is outside `/api/v1` for Cloud Run health checks.
