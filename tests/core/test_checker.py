@@ -17,7 +17,9 @@ def run_shop(shop_dir):
 def test_double_charge_caught_with_timeline(shop_dir):
     report = run_shop(shop_dir)
     assert not report.passed
-    (result,) = report.results
+    result = next(r for r in report.results if r.rule_id == "no-double-charge")
+    shipping_rule = next(r for r in report.results if r.rule_id == "never-ship-after-cancel")
+    assert shipping_rule.status == "pass"
     (v,) = result.violations  # only A-1; B-2 was refunded in between
     assert v.entity == "A-1"
     assert [e.event for e in v.timeline] == ["order_created", "charged", "charged"]
