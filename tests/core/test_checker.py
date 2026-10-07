@@ -100,7 +100,7 @@ def test_checked_events_counts_only_pattern_events():
 
 
 def test_checked_events_use_translated_names(shop_dir):
-    (r,) = run_shop(shop_dir).results
+    r = next(x for x in run_shop(shop_dir).results if x.rule_id == "no-double-charge")
     assert r.checked_events > 0 and r.tested
 
 
