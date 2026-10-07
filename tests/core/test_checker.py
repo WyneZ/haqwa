@@ -71,3 +71,40 @@ def test_requires_of_one_entity_does_not_enable_another():
     events = [ev("approved", 0, "o1"), ev("shipped", 1, "o2"), ev("shipped", 2, "o1")]
     (result,) = check(compile_spec(spec), events).results
     assert [v.entity for v in result.violations] == ["o2"]
+
+
+# ---- coverage: was the rule exercised at all? --------------------------------------------
+
+
+def test_rule_with_none_of_its_events_is_not_tested():
+    from .helpers import nav
+
+    compiled = compile_spec(Spec(rules=[nav()]))  # shipped never after cancelled
+    report = check(compiled, [ev("order_created", 0), ev("charged", 1)])
+    (r,) = report.results
+    assert r.status == "pass" and r.checked_events == 0 and not r.tested
+    assert "[NOT TESTED]" in format_text(report)
+
+
+def test_checked_events_counts_only_pattern_events():
+    from .helpers import amo
+
+    rule = amo(**{"except": [{"reset_after": "refunded"}]})
+    report = check(compile_spec(Spec(rules=[rule])), [ev("refunded", 0), ev("charged", 1)])
+    (r,) = report.results
+    # "refunded" is only the reset event; one "charged" is what the rule is about.
+    assert r.checked_events == 1 and r.tested
+    assert "[PASS]" in format_text(report)
+
+
+def test_checked_events_use_translated_names(shop_dir):
+    (r,) = run_shop(shop_dir).results
+    assert r.checked_events > 0 and r.tested
+
+
+def test_violation_is_always_tested():
+    from .helpers import amo
+
+    report = check(compile_spec(Spec(rules=[amo()])), [ev("charged", 0), ev("charged", 1)])
+    (r,) = report.results
+    assert r.status == "violation" and r.checked_events == 2 and r.tested

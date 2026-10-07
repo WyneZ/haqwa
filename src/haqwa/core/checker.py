@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .compiler import CompiledSpec
+from .compiler import CompiledSpec, pattern_event_names
 from .events import Event, EventMap, group_by, sort_events
 from .report import Report, RuleResult, Violation
 
@@ -19,6 +19,8 @@ def check(
 
     results: list[RuleResult] = []
     for cr in compiled.rules:
+        names = pattern_event_names(cr.rule)
+        checked = sum(1 for e in evs if e.event in names)
         violations: list[Violation] = []
         for entity, stream in group_by(evs, cr.rule.per).items():
             for f in cr.evaluate(cr.rule, stream, trace_end):
@@ -37,6 +39,7 @@ def check(
                 source=cr.rule.source,
                 status="violation" if violations else "pass",
                 violations=violations,
+                checked_events=checked,
             )
         )
     return Report(results=results)
