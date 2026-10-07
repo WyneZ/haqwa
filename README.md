@@ -9,13 +9,31 @@ Python 3.12 and [uv](https://docs.astral.sh/uv/) are required for development.
 ```sh
 uv sync
 uv run python -m haqwa.demo
-uv run haqwa init my-policies
-uv run haqwa build my-policies/rules.haqwa --map my-policies/events.map.yaml --field order_id --field payment_type -o my-policies/rules.spec.yaml
 uv run haqwa check examples/shop/rules.spec.yaml examples/shop/events.json --map examples/shop/events.map.yaml
-uv run haqwa check examples/shop/rules.spec.yaml examples/shop/events.json --map examples/shop/events.map.yaml --json
 ```
 
-`init` creates an English rules file and an event map. `build` calls Gemini to propose a rule, asks the policy owner whether example timelines are allowed, then compiles and saves the confirmed spec. The terminal shows each timeline's event names, data values and time offsets before asking for an answer. Set `GEMINI_API_KEY` in the environment for `build`; `check` and the demo need no key. Use `--field` for each data field Gemini may mention. The event map supplies event names but does not define data fields. `check` exits 0 for pass, 1 for violation, 2 for a spec or compile error, and 3 for a bad input file. `build` exits 4 when Gemini quota is exhausted or the service is unavailable.
+These commands need no API key. To build the frontend and start the API on port 8000, run `scripts/dev.sh` from the repository root.
+
+### Write your own policies (needs a Gemini key)
+
+Set `GEMINI_API_KEY` in your environment, then run:
+
+```sh
+uv run haqwa init my-policies
+uv run haqwa build my-policies/rules.haqwa --map my-policies/events.map.yaml --field order_id --field payment_type -o my-policies/rules.spec.yaml
+```
+
+`init` creates an English rules file and an event map. `build` calls Gemini to propose a rule, asks the policy owner about example timelines, then saves the confirmed spec. Use `--field` for each data field Gemini may mention. The event map supplies event names, not data fields. `build` exits 4 when Gemini quota is exhausted or the service is unavailable.
+
+`check` exits 0 when no rule is violated, 1 for a violation, 2 for a spec or compile error, and 3 for a bad input file. Each rule result has status `pass` or `violation`. A `pass` with `checked_events == 0` appears as `[NOT TESTED]`: no event relevant to that rule occurred, and it still exits 0 if there are no violations. For example, a check of the shop events with an additional `must_precede` rule produces these report lines (excerpt):
+
+```text
+[VIOLATION] no-double-charge: A customer must not be charged twice for the same order.
+  entity A-1: 'charged' happened 2 times with no refunded in between
+[NOT TESTED] never-ship-after-cancel: Never ship an order after it was cancelled.
+[PASS] charge-after-order: Charge only after an order exists.
+RESULT: VIOLATION
+```
 
 ## Spec format
 
@@ -68,6 +86,19 @@ examples = canonical_examples(spec.rules[0])
 
 `compile_spec` self-tests every owner-confirmed timeline and raises `CompileError` on disagreement. `assert_policies` is available for pytest checks. `dump_spec` and `save_spec` write deterministic YAML while preserving the owner's rule order.
 
+The demo includes six native scenarios:
+
+| ID | Fault | Expected |
+| --- | --- | --- |
+| `payment_timeout_naive` | `timeout_after_commit` | violation |
+| `payment_timeout_fixed` | `timeout_after_commit` | pass |
+| `duplicate_webhook_naive` | `duplicate_event` | violation |
+| `duplicate_webhook_fixed` | `duplicate_event` | pass |
+| `stale_status_naive` | `stale_state` | violation |
+| `stale_status_fixed` | `stale_state` | pass |
+
+Recorded Gemini runs also appear in the demo when their files are present; replay does not call Gemini.
+
 ## Architecture
 
 ```text
@@ -81,11 +112,18 @@ JSON events -> optional event map -> core/ compiler + checker -> report
 
 The `core/` package is pure deterministic code and never imports `ai/`. The CLI and web API call library functions. The demo uses AgentProof faults and native agents to show a failing and corrected payment flow.
 
-To record a Gemini agent run, run the ADK spike with your own environment key and `--save-effects src/haqwa/demo/recordings/gemini_YYYY_MM_DD.json`. The demo discovers files with that name and replays only their AgentProof effects. A recorded scenario's expected verdict is calculated from the spec when one is supplied; otherwise it is `unknown`. The committed `sample_native.json` is an offline test fixture, not a Gemini run.
+To record a Gemini run using your own `GEMINI_API_KEY`:
+
+```sh
+uv run --group demo python spikes/agentproof/record_stale.py --runs 1
+```
+
+Each trial makes a baseline and a faulted agent run (about twice the requests of one run). Only AgentProof effects are saved, without prompts or model outputs, as `gemini_<scenario>_run_<n>_<YYYY_MM_DD>.json`; the older `gemini_YYYY_MM_DD.json` name still works. The demo calculates a recording's expected verdict when a spec is supplied; otherwise it is `unknown`. `sample_native.json` is an offline fixture.
 
 ## Roadmap
 
-The MVP supports four patterns, two exceptions, CLI checks, a demo, and a web flow. Future work may add event adapters, monitoring, and broader policy shapes. See [`CODEX_TASKS.md`](CODEX_TASKS.md) for the current task list.
+Next steps include uploading event logs for checks and adding more demo scenarios, including one for `within_time`.
+CI integration could run policy checks on saved traces.
 
 ## Web app
 
