@@ -71,6 +71,29 @@ def test_recorded_scenario_from_saved_file(tmp_path, monkeypatch):
     assert not report.passed
 
 
+def test_named_recordings_are_listed_and_replayed(tmp_path, monkeypatch):
+    from haqwa import load_spec
+    from haqwa.demo import list_scenarios, run_scenario, scenarios
+
+    sample = Path(__file__).parents[2] / "src/haqwa/demo/recordings/sample_native.json"
+    name = "gemini_stale_order_status_run_1_2026_10_07"
+    (tmp_path / f"{name}.json").write_bytes(sample.read_bytes())
+    monkeypatch.setattr(scenarios, "RECORDINGS_DIR", tmp_path)
+    listed = list_scenarios()
+    assert len(listed) == 7
+    recorded = next(s for s in listed if s["id"] == f"recorded_{name}")
+    assert recorded["title"] == ("Recorded Gemini agent — Stale order status — run 1 (2026-10-07)")
+    assert recorded["expected"] == "unknown"
+    spec = load_spec(Path(__file__).parents[2] / "examples/shop/rules.spec.yaml")
+    assert (
+        next(s for s in list_scenarios(spec) if s["id"] == recorded["id"])["expected"]
+        == "violation"
+    )
+    events, report = run_scenario(recorded["id"], spec)
+    assert len(events) == 3
+    assert not report.passed
+
+
 def test_passing_recording_is_not_labeled_violation(tmp_path, monkeypatch):
     from haqwa import load_spec
     from haqwa.demo import list_scenarios, run_scenario, scenarios

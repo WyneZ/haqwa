@@ -1,12 +1,16 @@
+import asyncio
 import time
 
 import pytest
 
 pytest.importorskip("agentproof")
 
+from agentproof.core.world import World  # noqa: E402
+
 from haqwa import load_spec  # noqa: E402
 from haqwa.core.errors import HaqwaError  # noqa: E402
 from haqwa.demo import iter_scenario, list_scenarios, run_scenario  # noqa: E402
+from haqwa.demo.shop import setup_shop  # noqa: E402
 
 
 @pytest.fixture
@@ -20,8 +24,49 @@ def spec(shop_dir):
 def test_scenario_gives_expected_verdict(scenario, spec):
     events, report = run_scenario(scenario["id"], spec)
     assert ("pass" if report.passed else "violation") == scenario["expected"]
-    charges = [e for e in events if e.event == "charged"]
-    assert len(charges) == (1 if scenario["expected"] == "pass" else 2)
+    if scenario["fault"] != "stale_state":
+        charges = [e for e in events if e.event == "charged"]
+        assert len(charges) == (1 if scenario["expected"] == "pass" else 2)
+
+
+def test_stale_status_naive_violates_never_ship_after_cancel(spec):
+    events, report = run_scenario("stale_status_naive", spec)
+    assert [event.event for event in events] == ["order_created", "charged", "cancelled", "shipped"]
+    rule = next(result for result in report.results if result.rule_id == "never-ship-after-cancel")
+    assert rule.status == "violation"
+    assert len(rule.violations) == 1
+    assert [event.event for event in rule.violations[0].timeline][-2:] == ["cancelled", "shipped"]
+
+
+def test_stale_status_fixed_checks_rule_without_shipping(spec):
+    events, report = run_scenario("stale_status_fixed", spec)
+    checked_events = [event for event in events if event.event in {"cancelled", "shipped"}]
+    assert len(checked_events) > 0
+    assert [event.event for event in checked_events] == ["cancelled"]
+    rule = next(result for result in report.results if result.rule_id == "never-ship-after-cancel")
+    assert rule.status == "pass"
+    assert report.passed
+
+
+def test_ship_precondition_rejects_cancelled_order_without_effect():
+    world = World()
+    setup_shop(world)
+
+    async def exercise():
+        await world.tools.invoke("create_order", {"order_id": "A-1", "amount": 50})
+        await world.tools.invoke("charge_payment", {"order_id": "A-1", "amount": 50})
+        await world.tools.invoke("cancel_order", {"order_id": "A-1"})
+        before = world.effects.snapshot()
+        result = await world.tools.invoke("ship_order", {"order_id": "A-1", "if_status": "paid"})
+        assert result == {"status": "rejected"}
+        assert world.effects.snapshot() == before
+        assert await world.tools.invoke("get_order", {"order_id": "A-1"}) == {
+            "order_id": "A-1",
+            "status": "cancelled",
+        }
+        assert world.effects.snapshot() == before
+
+    asyncio.run(exercise())
 
 
 def test_every_fault_has_a_naive_and_a_fixed_agent():

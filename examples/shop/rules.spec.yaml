@@ -17,3 +17,9 @@ rules:
         violation: false
       - timeline: [{event: charged}, {event: charged}]
         violation: true
+  - id: never-ship-after-cancel
+    source: "Never ship an order after it was cancelled."
+    pattern: never_after
+    event: shipped
+    after: cancelled
+    per: order_id

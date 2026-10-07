@@ -14,6 +14,7 @@ from typing import Any
 from agentproof import AgentTest
 from agentproof.mutations.base import Mutation
 from agentproof.mutations.duplication import DuplicateEvent
+from agentproof.mutations.state import StaleState
 from agentproof.mutations.tool_faults import TimeoutAfterCommit
 
 from ..adapters.agentproof import effects_to_events
@@ -87,7 +88,52 @@ _SCENARIOS: tuple[Scenario, ...] = (
         agents.fixed_queue_checkout,
         lambda: DuplicateEvent(target="charge_requested"),
     ),
+    Scenario(
+        "stale_status_naive",
+        "Stale order status — naive agent",
+        "stale_state",
+        "naive",
+        "A cancelled order looks paid in a stale read; the agent ships it.",
+        "violation",
+        agents.naive_fulfilment,
+        lambda: StaleState(
+            target="get_order", params={"value": {"order_id": agents.ORDER_ID, "status": "paid"}}
+        ),
+    ),
+    Scenario(
+        "stale_status_fixed",
+        "Stale order status — fixed agent",
+        "stale_state",
+        "fixed",
+        "The same stale read; shipping checks the real order status.",
+        "pass",
+        agents.fixed_fulfilment,
+        lambda: StaleState(
+            target="get_order", params={"value": {"order_id": agents.ORDER_ID, "status": "paid"}}
+        ),
+    ),
 )
+
+_RECORDING_NAME = re.compile(
+    r"gemini_(?:(?P<scenario>[a-z][a-z0-9_]*?)_)?(?P<date>\d{4}_\d{2}_\d{2})"
+)
+
+
+def _recording_title(stem: str) -> str | None:
+    match = _RECORDING_NAME.fullmatch(stem)
+    if match is None:
+        return None
+    date = match.group("date").replace("_", "-")
+    scenario = match.group("scenario")
+    if scenario is None:
+        return f"Recorded Gemini agent run ({date})"
+    run_number = re.search(r"_run_?(\d+)$", scenario)
+    scenario_id = scenario[: run_number.start()] if run_number else scenario
+    known = next((s.title for s in _SCENARIOS if s.id == scenario_id), None)
+    scenario_title = known or scenario_id.replace("_", " ").capitalize()
+    if run_number:
+        scenario_title += f" — run {run_number.group(1)}"
+    return f"Recorded Gemini agent — {scenario_title} ({date})"
 
 
 def list_scenarios(
@@ -96,9 +142,9 @@ def list_scenarios(
     """All scenarios; recorded verdicts are known only when checked against a spec."""
     scenarios = [s.to_dict() for s in _SCENARIOS]
     for path in sorted(RECORDINGS_DIR.glob("gemini_*.json")):
-        if not re.fullmatch(r"gemini_\d{4}_\d{2}_\d{2}", path.stem):
+        title = _recording_title(path.stem)
+        if title is None:
             continue
-        date = path.stem.removeprefix("gemini_").replace("_", "-")
         expected = "unknown"
         if spec is not None:
             compiled = compile_spec(spec, event_map)
@@ -108,7 +154,7 @@ def list_scenarios(
         scenarios.append(
             {
                 "id": f"recorded_{path.stem}",
-                "title": f"Recorded Gemini agent run ({date})",
+                "title": title,
                 "fault": "recorded",
                 "agent": "gemini",
                 "description": "Saved AgentProof effects; replay makes no Gemini request.",
@@ -132,7 +178,8 @@ def run_scenario(
     """Run the scenario's agent under its fault, then check the effects against `spec`.
 
     Raises HaqwaError: `unknown_scenario`, or `compile_failed` (CompileError) for a bad spec.
-    The effects use the vocabulary of examples/shop (order_created, charged, refunded);
+    The effects use the vocabulary of examples/shop (order_created, charged, refunded,
+    cancelled, shipped);
     pass `event_map`
     only if the spec uses other names.
     """
@@ -154,8 +201,9 @@ def iter_scenario(
     scenario_id: str, spec: Spec, event_map: EventMap | None = None
 ) -> Iterator[tuple[str, Event | Report]]:
     """Yield each effect as an event, then the final deterministic report."""
-    if re.fullmatch(r"recorded_gemini_\d{4}_\d{2}_\d{2}", scenario_id):
-        path = RECORDINGS_DIR / f"{scenario_id.removeprefix('recorded_')}.json"
+    stem = scenario_id.removeprefix("recorded_")
+    if scenario_id.startswith("recorded_") and _recording_title(stem) is not None:
+        path = RECORDINGS_DIR / f"{stem}.json"
         if path.is_file():
             compiled = compile_spec(spec, event_map)
             events = load_effects(path)

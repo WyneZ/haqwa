@@ -3,3 +3,5 @@ events:
   charged: PAYMENT_CAPTURED
   refunded: REFUND_ISSUED
   order_created: ORDER_CREATED
+  cancelled: ORDER_CANCELLED
+  shipped: ORDER_SHIPPED
