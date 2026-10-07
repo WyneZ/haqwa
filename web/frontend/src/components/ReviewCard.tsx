@@ -10,6 +10,7 @@ interface Props {
   per: string // the rule's entity key, e.g. "order_id"
   onConfirm: () => void
   onRestart: () => void
+  onFix: (index: number) => void // re-ask one question, keep the other answers
 }
 
 /** The question ids named in `mismatches` ("c3: …" -> "c3"). */
@@ -19,8 +20,8 @@ function mismatchIds(mismatches: string[]): Set<string> {
 
 /**
  * "Here's what you decided" + Confirm. Shown after the last question of a rule.
- * Answers that disagree with how the rule works are highlighted one by one, so the
- * owner knows which card to look at again.
+ * Answers that disagree with how the rule works are highlighted one by one, each with
+ * "Fix this answer", which re-asks only that card and keeps the other answers.
  */
 export function ReviewCard({
   questions,
@@ -31,6 +32,7 @@ export function ReviewCard({
   per,
   onConfirm,
   onRestart,
+  onFix,
 }: Props) {
   const wrong = mismatchIds(mismatches)
   return (
@@ -52,10 +54,20 @@ export function ReviewCard({
               <span className="summary__text">
                 {timelineLabels(q.timeline, per).join(' → ')}
                 {wrong.has(q.id) && q.expected_violation !== undefined && (
-                  <span className="summary__hint">
-                    You said “{answers[i] ? 'Allowed' : 'Not allowed'}”, but as the rule is
-                    written this is {q.expected_violation ? 'not allowed' : 'allowed'}.
-                  </span>
+                  <>
+                    <span className="summary__hint">
+                      You said “{answers[i] ? 'Allowed' : 'Not allowed'}”, but as the rule is
+                      written this is {q.expected_violation ? 'not allowed' : 'allowed'}.
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn--link"
+                      onClick={() => onFix(i)}
+                      disabled={busy}
+                    >
+                      Fix this answer
+                    </button>
+                  </>
                 )}
               </span>
             </li>
@@ -66,7 +78,7 @@ export function ReviewCard({
       {mismatches.length > 0 && (
         <p className="notice notice--warn" role="alert">
           {wrong.size === 1 ? 'One answer doesn’t' : 'Some answers don’t'} match how this rule
-          works (highlighted above). Check that card again, or rewrite the rule if it says
+          works (highlighted above). Fix that answer, or rewrite the rule if it says
           something different from what you mean.
         </p>
       )}

@@ -34,6 +34,7 @@ from haqwa.core.spec import (
     Rule,
     Spec,
     TimelineEvent,
+    WithinTime,
     suggest_rule_id,
 )
 
@@ -121,10 +122,23 @@ def test_r2_never_after_with_reset_question() -> None:
     assert [q.if_yes for q in decisions(outcome)] == [ResetAfter(reset_after="order_created")]
 
 
-def test_r3_within_time_has_three_questions() -> None:
+def test_r3_decisions_without_times_are_dropped_by_core() -> None:
+    # Gemini's R3 timelines carry no `at`, so "too late" cannot be shown: core cannot
+    # check a "No" answer. The confirmation cards (with times, from core) still come.
     outcome, _ = run_clarify(spike_raw("R3"))
     assert outcome.rule is not None and outcome.rule.pattern == "within_time"
-    assert len(decisions(outcome)) == 3
+    assert decisions(outcome) == []
+    assert len(confirmations(outcome)) == 5
+    assert len(outcome.dropped) == 3
+    assert all("'No' cannot be checked" in d.reasons[0] for d in outcome.dropped)
+
+
+def test_restart_the_clock_question_is_dropped() -> None:
+    # Bug 2026-10-06: Yes -> reset_after on the rule's own start event, which core reads
+    # as "cancel", so every deadline vanished and seal failed. Core now refuses it.
+    outcome, _ = run_clarify(spike_raw("R3"))
+    restart = [d for d in outcome.dropped if "restart" in d.gemini_id]
+    assert restart and "basic cases" in restart[0].reasons[-1]
 
 
 def test_prompt_uses_the_callers_vocabulary() -> None:
@@ -165,18 +179,32 @@ def test_prompt_is_stable_for_the_cache() -> None:
 # ---- noise filter (spike v2.1 rule C) -----------------------------------------------------
 
 
-def ambiguity(**change: Any) -> dict[str, Any]:
+def _charge(**data: str) -> dict[str, Any]:
+    return {"event": "charged", "data": [{"key": k, "value": v} for k, v in data.items()]}
+
+
+def ambiguity(events: list[dict[str, Any]] | None = None, **change: Any) -> dict[str, Any]:
+    """One Gemini question. By default its timeline breaks AMO_RULE and a Yes fixes it."""
+    if events is None:
+        if change.get("kind") == "reset_after":
+            reset = {"event": change["event"], "data": []}
+            events = [_charge(), reset, _charge()]
+        else:
+            events = [_charge(payment_type="installment"), _charge(payment_type="installment")]
     return {
         "id": "q",
         "description": "d",
-        "examples": [{"events": [{"event": "charged", "data": []}], "question": "Allowed?"}],
+        "examples": [{"events": events, "question": "Allowed?"}],
         "spec_change_if_yes": change,
     }
 
 
-def decide(*items: dict[str, Any]):
+AMO_RULE = AtMostOnce(id="r1", source="s", pattern="at_most_once", event="charged", per="order_id")
+
+
+def decide(*items: dict[str, Any], rule: Any = AMO_RULE):
     parsed = [WireAmbiguity.model_validate(i) for i in items]
-    return decision_questions(parsed, per="order_id", vocab=SHOP)
+    return decision_questions(parsed, rule=rule, vocab=SHOP)
 
 
 def test_invented_value_is_dropped() -> None:
@@ -203,6 +231,32 @@ def test_allow_if_in_becomes_a_list() -> None:
     assert kept[0].if_yes == AllowIf(
         allow_if=Condition(field="payment_type", op="in", value=["card", "installment"])
     )
+
+
+def test_timeline_that_does_not_break_the_rule_is_dropped() -> None:
+    # One charge never breaks at_most_once: a "No" answer could not be checked by core.
+    kept, dropped = decide(ambiguity(events=[_charge()], kind="reset_after", event="refunded"))
+    assert kept == [] and "'No' cannot be checked" in dropped[0].reasons[0]
+
+
+def test_yes_that_does_not_allow_the_timeline_is_dropped() -> None:
+    # allow_if installment, but the charges are by card: a Yes would still be a violation.
+    cond = {"field": "payment_type", "op": "eq", "value": "installment"}
+    item = ambiguity(events=[_charge(payment_type="card")] * 2, kind="allow_if", condition=cond)
+    kept, dropped = decide(item)
+    assert kept == [] and "would not make the example timeline pass" in dropped[0].reasons[0]
+
+
+def test_reset_after_the_start_event_of_within_time_is_dropped() -> None:
+    rule = WithinTime(
+        id="r3", source="s", pattern="within_time", start="refund_requested",
+        event="refund_completed", within=timedelta(hours=24), per="order_id",
+    )  # fmt: skip
+    # Even with a timeline core can check, the Yes would cancel every deadline.
+    events = [{"event": "refund_requested", "data": []}]
+    item = ambiguity(events=events, kind="reset_after", event="refund_requested")
+    kept, dropped = decide(item, rule=rule)
+    assert kept == [] and any("basic cases" in r for r in dropped[0].reasons)
 
 
 def test_ids_stay_consecutive_after_a_drop() -> None:
@@ -335,20 +389,10 @@ def answer_all(outcome: ClarifyOutcome, decision_allowed: bool) -> Rule:
     return result.rule
 
 
-@pytest.mark.parametrize("rule", ["R1", "R2"])
+@pytest.mark.parametrize("rule", ["R1", "R2", "R3"])
 @pytest.mark.parametrize("decision_allowed", [True, False])
 def test_answered_rule_passes_core_self_test(rule: str, decision_allowed: bool) -> None:
     # End to end: Gemini's real questions + core's confirmations + owner answers -> the
     # sealed rule must pass core's self-test (AI meaning and core semantics agree).
     outcome, _ = run_clarify(spike_raw(rule))
     compile_spec(Spec(rules=[answer_all(outcome, decision_allowed)]))
-
-
-@pytest.mark.xfail(
-    reason="R3: Gemini's within_time timelines carry no time (`at`), and 'second request "
-    "restarts the clock' maps to reset_after=start, which core treats as cancel",
-    strict=True,
-)
-def test_r3_answered_rule_passes_core_self_test() -> None:
-    outcome, _ = run_clarify(spike_raw("R3"))
-    compile_spec(Spec(rules=[answer_all(outcome, decision_allowed=True)]))
