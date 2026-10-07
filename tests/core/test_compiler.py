@@ -19,7 +19,10 @@ def rule(**kw):
 
 def test_example_spec_compiles_and_self_tests(shop_dir):
     compiled = compile_spec(load_spec(shop_dir / "rules.spec.yaml"))
-    assert [c.rule.id for c in compiled.rules] == ["no-double-charge"]
+    assert [c.rule.id for c in compiled.rules] == [
+        "no-double-charge",
+        "never-ship-after-cancel",
+    ]
 
 
 def test_self_test_catches_missing_exception():

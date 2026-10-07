@@ -51,3 +51,26 @@ async def fixed_queue_checkout(user_input: str, tools: Any) -> str:
     await tools.call("request_charge", order_id=ORDER_ID, amount=AMOUNT)
     await tools.call("process_queue", dedupe=True)
     return "paid"
+
+
+async def naive_fulfilment(user_input: str, tools: Any) -> str:
+    """Trusts a stale status read and ships an order that was already cancelled."""
+    await tools.call("create_order", order_id=ORDER_ID, amount=AMOUNT)
+    await tools.call("charge_payment", order_id=ORDER_ID, amount=AMOUNT)
+    await tools.call("cancel_order", order_id=ORDER_ID)
+    order = await tools.call("get_order", order_id=ORDER_ID)
+    if order["status"] == "paid":
+        await tools.call("ship_order", order_id=ORDER_ID)
+    return "done"
+
+
+async def fixed_fulfilment(user_input: str, tools: Any) -> str:
+    """Checks the real status atomically when shipping despite a stale read."""
+    await tools.call("create_order", order_id=ORDER_ID, amount=AMOUNT)
+    await tools.call("charge_payment", order_id=ORDER_ID, amount=AMOUNT)
+    await tools.call("cancel_order", order_id=ORDER_ID)
+    order = await tools.call("get_order", order_id=ORDER_ID)
+    if order["status"] == "paid":
+        result = await tools.call("ship_order", order_id=ORDER_ID, if_status="paid")
+        return result["status"]
+    return "done"
