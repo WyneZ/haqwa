@@ -16,6 +16,7 @@ import type {
   Rule,
   RunResponse,
   Scenario,
+  SealResponse,
   Spec,
   Violation,
 } from './types'
@@ -57,6 +58,12 @@ export async function mockApplyAnswers(rule: Rule, answers: Answer[]): Promise<A
     if (!examples.some((e) => same(e, example))) examples.push(example)
   }
   return { rule: { ...rule, except, confirmed_examples: examples }, mismatches }
+}
+
+/** Mock mode cannot run core's self-test: it always says the spec is fine. */
+export async function mockSeal(spec: Spec): Promise<SealResponse> {
+  await delay(300)
+  return { ok: true, spec_yaml: `# mock mode: ${spec.rules.length} rule(s), not checked by core\n` }
 }
 
 export async function mockListScenarios(): Promise<Scenario[]> {

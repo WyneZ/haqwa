@@ -11,6 +11,22 @@ export function humanize(name: string): string {
 }
 
 /**
+ * "P2DT17H" -> "+65h", "P1DT1H" -> "+25h", "PT1H30M" -> "+1h30m"; under a minute, "PT0S"
+ * or no offset -> "".
+ * Same short form as core's `fmt_duration`, so cards and core messages read alike.
+ */
+export function offsetText(at?: string): string {
+  if (!at) return ''
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)(?:\.\d+)?S)?)?$/.exec(at)
+  if (!m) return ''
+  const [d, h, min] = m.slice(1).map((v) => Number(v ?? 0))
+  const hours = d * 24 + h
+  // Under a minute only orders the events (core uses +1s); it is not a time to decide on.
+  const text = `${hours ? `${hours}h` : ''}${min ? `${min}m` : ''}`
+  return text ? `+${text}` : ''
+}
+
+/**
  * The entities (e.g. orders) in one timeline, in order of first appearance.
  * An event without `data[per]` belongs to the main entity (core's canonical examples
  * only set `data[per]` on the "different entity" event).
@@ -30,7 +46,9 @@ export function entityCount(timeline: TimelineEvent[], per?: string): number {
 }
 
 /**
- * One label per event; repeats say "again", other field values go in brackets.
+ * One label per event; repeats say "again", other field values go in brackets, and a
+ * time offset from core (`at`) is shown as "+25h" so cards that differ only in time
+ * look different.
  *
  * With `per` (the rule's entity key) and more than one entity, each label names its
  * entity as a letter ("Charged (order A)", "Charged (order B)") instead of showing the
@@ -41,7 +59,8 @@ export function timelineLabels(timeline: TimelineEvent[], per?: string): string[
   const many = per !== undefined && keys.length > 1
   const noun = per ? entityNoun(per) : ''
   const seen = new Map<string, number>()
-  return timeline.map(({ event, data }) => {
+  return timeline.map((item) => {
+    const { event, data } = item
     const key = per && data[per] !== undefined ? String(data[per]) : ''
     const countKey = many ? `${key}\u0000${event}` : event
     const count = (seen.get(countKey) ?? 0) + 1
@@ -51,7 +70,8 @@ export function timelineLabels(timeline: TimelineEvent[], per?: string): string[
       .map(([, value]) => String(value))
     if (many) values.push(`${noun} ${String.fromCharCode(65 + keys.indexOf(key))}`)
     const extra = values.length ? ` (${values.join(', ')})` : ''
-    return `${humanize(event)}${count > 1 ? ' again' : ''}${extra}`
+    const offset = offsetText(item.at)
+    return `${humanize(event)}${count > 1 ? ' again' : ''}${extra}${offset ? ` ${offset}` : ''}`
   })
 }
 

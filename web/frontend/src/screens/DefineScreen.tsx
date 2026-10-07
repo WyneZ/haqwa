@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { applyAnswers, clarifyRules, friendlyError } from '../api/client'
+import {
+  applyAnswers,
+  clarifyRules,
+  friendlyError,
+  sealSpec,
+  selfTestFailures,
+} from '../api/client'
 import type { ClarifyResult, Rule } from '../api/types'
 import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
 import { QuestionCard } from '../components/QuestionCard'
@@ -22,7 +28,7 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
 
 /**
  * Screen 1 (Define): the AI interviews the policy owner, one question at a time.
- * All meaning changes come from the API (`clarify`, `answers`); this screen only keeps
+ * All meaning changes come from the API (`clarify`, `answers`, `seal`); this screen only keeps
  * track of where the owner is. Progress is saved for this tab, so a refresh keeps the
  * answers and does not call the AI again.
  */
@@ -35,11 +41,18 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const [current, setCurrent] = usePersistentState<number | null>('define.current', null)
   const [step, setStep] = usePersistentState('define.question', 0)
   const [answers, setAnswers] = usePersistentState<boolean[]>('define.answers', [])
+  // Question being re-asked from the review card ("Fix this answer"), or null.
+  const [fixing, setFixing] = usePersistentState<number | null>('define.fixing', null)
   const [confirmed, setConfirmed] = usePersistentState<Record<number, Rule>>('define.confirmed', {})
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
+
+  // Seal: core replays every answer before the owner moves on (C3 endpoint 3).
+  const [sealing, setSealing] = useState(false)
+  const [sealError, setSealError] = useState<string | null>(null)
+  const [redo, setRedo] = useState<number[]>([]) // rules whose answers core rejected
 
   async function understand() {
     const rules = text.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -60,9 +73,46 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
 
   function resetAnswers() {
     setStep(0)
+    setFixing(null)
     setAnswers([])
     setMismatches([])
     setSaveError(null)
+  }
+
+  /**
+   * Ask core to compile the confirmed rules and replay every owner answer (self-test).
+   * Only a spec core accepts goes to the Test screen; otherwise the owner re-answers the
+   * rules core named, so a bad spec can never reach a test run.
+   */
+  async function finish() {
+    const rules = Object.values(confirmed)
+    setSealing(true)
+    setSealError(null)
+    setRedo([])
+    try {
+      await sealSpec({ version: 1, rules })
+      onDone(rules)
+    } catch (e) {
+      const failedIds = new Set(selfTestFailures(e).map((f) => f.rule_id))
+      const indexes = Object.entries(confirmed)
+        .filter(([, r]) => failedIds.has(r.id))
+        .map(([i]) => Number(i))
+      setRedo(indexes)
+      setSealError(friendlyError(e))
+    } finally {
+      setSealing(false)
+    }
+  }
+
+  /** Re-open one confirmed rule so the owner answers its questions again. */
+  function answerAgain(index: number) {
+    const rest = { ...confirmed }
+    delete rest[index]
+    setConfirmed(rest)
+    setCurrent(index)
+    setRedo([])
+    setSealError(null)
+    resetAnswers()
   }
 
   function editRules() {
@@ -76,8 +126,30 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const rule = active?.status === 'supported' ? active : null
 
   function answer(allowed: boolean) {
+    if (fixing !== null && rule) {
+      // Replace only this answer and go straight back to the review card.
+      setAnswers((prev) => prev.map((a, i) => (i === fixing ? allowed : a)))
+      setMismatches([])
+      setFixing(null)
+      setStep(rule.questions.length)
+      return
+    }
     setAnswers((prev) => [...prev.slice(0, step), allowed])
     setStep((s) => s + 1)
+  }
+
+  /** "Fix this answer" on the review card: re-ask one question. */
+  function fixAnswer(index: number) {
+    setFixing(index)
+    setStep(index)
+    setSaveError(null)
+  }
+
+  /** Leave a fix without changing the answer. */
+  function cancelFix() {
+    if (!rule) return
+    setFixing(null)
+    setStep(rule.questions.length)
   }
 
   async function confirm() {
@@ -164,7 +236,10 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 noun={entityNoun(rule.rule.per)}
                 per={rule.rule.per}
                 onAnswer={answer}
-                onBack={step > 0 ? () => setStep((s) => s - 1) : undefined}
+                onBack={
+                  fixing !== null ? cancelFix : step > 0 ? () => setStep((s) => s - 1) : undefined
+                }
+                backLabel={fixing !== null ? '← Back to my answers' : undefined}
               />
             ) : (
               <ReviewCard
@@ -176,6 +251,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 per={rule.rule.per}
                 onConfirm={confirm}
                 onRestart={resetAnswers}
+                onFix={fixAnswer}
               />
             )}
 
@@ -199,13 +275,31 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
                 </ul>
               </div>
             )}
+            {sealError && (
+              <div className="notice notice--error" role="alert">
+                <p>{sealError}</p>
+                {redo.map((i) => {
+                  const r = results[i]
+                  return r.status === 'supported' ? (
+                    <button
+                      key={i}
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => answerAgain(i)}
+                    >
+                      Answer “{ruleTitle(r.rule)}” again
+                    </button>
+                  ) : null
+                })}
+              </div>
+            )}
             <button
               type="button"
               className="btn btn--primary"
-              onClick={() => onDone(Object.values(confirmed))}
-              disabled={Object.keys(confirmed).length === 0}
+              onClick={finish}
+              disabled={sealing || Object.keys(confirmed).length === 0}
             >
-              Next: test an agent →
+              {sealing ? 'Checking your answers…' : 'Next: test an agent →'}
             </button>
           </section>
         )}
