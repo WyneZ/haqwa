@@ -5,6 +5,7 @@ import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
 import { usePersistentState } from '../lib/persist'
 import type { Run } from '../lib/run'
+import { verdictKind } from '../lib/verdict'
 import { ruleTitle } from '../lib/words'
 
 interface Props {
@@ -32,7 +33,9 @@ export function TestScreen({ spec, run, onRun, onBack, onSeeResults }: Props) {
 
   const chosen = scenarios?.find((s) => s.id === selected) ?? scenarios?.[0] ?? null
   const shown = run && chosen && run.scenario.id === chosen.id ? run : null
-  const broken = shown?.response.report.results.filter((r) => r.status === 'violation').length ?? 0
+  const kinds = shown?.response.report.results.map(verdictKind) ?? []
+  const broken = kinds.filter((k) => k === 'broken').length
+  const untested = kinds.filter((k) => k === 'untested').length
 
   async function start() {
     if (!chosen) return
@@ -116,8 +119,18 @@ export function TestScreen({ spec, run, onRun, onBack, onSeeResults }: Props) {
         {shown && (
           <section className="card" aria-labelledby="ran-title">
             <h2 id="ran-title" className="card__title">
-              {broken ? `${broken} rule${broken > 1 ? 's' : ''} broken` : 'All rules held'}
+              {broken
+                ? `${broken} rule${broken > 1 ? 's' : ''} broken`
+                : untested
+                  ? 'No rule broken'
+                  : 'All rules held'}
             </h2>
+            {untested > 0 && (
+              <p className="card__lead">
+                {untested} rule{untested > 1 ? 's were' : ' was'} not tested: nothing they are
+                about happened in this scenario.
+              </p>
+            )}
             <p className="card__lead">What the agent did:</p>
             <Timeline events={shown.response.events} />
             <Verdicts results={shown.response.report.results} />

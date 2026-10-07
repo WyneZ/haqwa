@@ -73,12 +73,22 @@ class CompileError(HaqwaError):
         )
 
 
-def rule_event_names(rule: Rule) -> set[str]:
-    """Every event name a rule refers to (pattern fields + reset_after)."""
+def pattern_event_names(rule: Rule) -> set[str]:
+    """The event names the rule's pattern is about (event, after, requires, start).
+
+    Exception events (`reset_after`) are left out: a trace with only a reset event says
+    nothing about whether the rule holds.
+    """
     names = {rule.event}
     for attr in ("after", "requires", "start"):
         if hasattr(rule, attr):
             names.add(getattr(rule, attr))
+    return names
+
+
+def rule_event_names(rule: Rule) -> set[str]:
+    """Every event name a rule refers to (pattern fields + reset_after)."""
+    names = pattern_event_names(rule)
     names |= {x.reset_after for x in rule.exceptions if hasattr(x, "reset_after")}
     return names
 

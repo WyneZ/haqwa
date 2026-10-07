@@ -28,6 +28,14 @@ class RuleResult(BaseModel):
     source: str
     status: Literal["pass", "violation"]
     violations: list[Violation] = []
+    # How many events in the trace the rule's pattern is about (after event-map
+    # translation). 0 with status "pass" means the rule was never exercised: nothing it
+    # talks about happened, so the pass says nothing. UIs should show "not tested".
+    checked_events: int = 0
+
+    @property
+    def tested(self) -> bool:
+        return self.status == "violation" or self.checked_events > 0
 
 
 class Report(BaseModel):
@@ -44,7 +52,8 @@ def format_text(report: Report) -> str:
     """Plain-text report for terminals and logs."""
     lines: list[str] = []
     for r in report.results:
-        lines.append(f"[{'PASS' if r.status == 'pass' else 'VIOLATION'}] {r.rule_id}: {r.source}")
+        label = "VIOLATION" if r.status == "violation" else "PASS" if r.tested else "NOT TESTED"
+        lines.append(f"[{label}] {r.rule_id}: {r.source}")
         for v in r.violations:
             lines.append(f"  entity {v.entity}: {v.message}")
             for i, e in enumerate(v.timeline):

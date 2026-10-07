@@ -579,6 +579,21 @@ button {
   align-items: center;
 }
 
+.verdicts__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.verdicts__hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.badge--muted {
+  background: var(--muted);
+}
+
 /* ---- screen 3: results ---- */
 .stage--wide {
   margin: 0 auto;

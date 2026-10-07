@@ -110,6 +110,8 @@ export interface RuleResult {
   source: string
   status: 'pass' | 'violation'
   violations: Violation[]
+  /** Events in the run this rule is about; 0 with "pass" means it was not tested. */
+  checked_events?: number
 }
 
 export interface Report {
