@@ -49,3 +49,24 @@ def test_stream_matches_run_scenario(spec):
         events, report = run_scenario(scenario["id"], spec)
         assert [value for kind, value in items if kind == "event"] == events
         assert items[-1] == ("report", report)
+
+
+def test_rules_the_scenario_never_touches_are_not_tested(spec):
+    # The demo shop only creates orders and charges; a "never ship after cancel" rule
+    # passes trivially and must be reported as not tested, not as a real pass.
+    from haqwa.core.spec import NeverAfter, Spec
+
+    ship_rule = NeverAfter.model_validate(
+        {
+            "id": "no-ship-after-cancel",
+            "source": "A cancelled order must never be shipped.",
+            "pattern": "never_after",
+            "event": "shipped",
+            "after": "cancelled",
+            "per": "order_id",
+        }
+    )
+    _, report = run_scenario("payment_timeout_naive", Spec(rules=[*spec.rules, ship_rule]))
+    by_id = {r.rule_id: r for r in report.results}
+    assert by_id[spec.rules[0].id].tested
+    assert not by_id["no-ship-after-cancel"].tested

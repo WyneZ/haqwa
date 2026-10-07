@@ -29,6 +29,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-09-28 · Gemini: free tier only, no paid billing plan · Hazel + Wyne · Keeps cost at zero; quota limits handled by caching and pacing (see ai/client.py).
 - 2026-09-28 · Track owners: Track A = Hazel (ai/, web/, deploy), Track B = Wyne (core/, cli, adapters, demo, tests) · Hazel + Wyne · Confirms the brief's split.
 - 2026-09-29 · AGREED · Rule ids: code suggests an id once for a new rule (`core/spec.py` `suggest_rule_id(text, existing_ids)`), the owner may edit it, then it is frozen in the spec and never regenerated · Track A + Track B · ids appear in reports, CI output and spec diffs, so they must be stable; Gemini output varies run to run and text-derived ids change on every edit
+- 2026-10-07 · PROPOSED (needs Hazel) · Report: each `RuleResult` gets `checked_events` (how many trace events the rule's pattern is about, after event-map translation; reset events not counted). `status` stays pass/violation (C3 additive, no breaking change); `pass` with `checked_events == 0` is shown as "Not tested" (CLI text `[NOT TESTED]`, exit code unchanged) · Wyne · E2E test: demo agents only create orders and charge, so ship/refund rules passed without ever being exercised — a misleading green
 
 ## Track A (Hazel — ai/, web/, deploy)
 
