@@ -14,3 +14,18 @@ jobs:
       - run: uv run ruff check src tests web
       - run: uv run ruff format --check src tests web
       - run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Cloud Run image
+        run: docker build -t haqwa:ci .
+      - name: Smoke test the container
+        run: |
+          docker run -d --name haqwa -p 8080:8080 -e PORT=8080 haqwa:ci
+          for i in $(seq 1 20); do curl -fs localhost:8080/healthz && break; sleep 1; done
+          curl -fs localhost:8080/healthz
+          curl -fs localhost:8080/api/v1/scenarios > /dev/null
+          curl -fs localhost:8080/ | grep -q '<div id="root">'
+          docker logs haqwa
