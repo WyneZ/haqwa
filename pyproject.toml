@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "agentproof-sim==0.1.1",
     "fastapi>=0.115",
     "google-genai>=2.25.0",
     "pydantic>=2.13.5",
@@ -26,11 +27,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 demo = [
-    "agentproof-sim==0.1.1",
     "google-adk==2.9.2",
 ]
 dev = [
-    "agentproof-sim==0.1.1",
     "httpx>=0.28",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
