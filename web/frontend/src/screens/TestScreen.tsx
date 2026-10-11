@@ -24,6 +24,18 @@ interface Props {
   onSeeResults: () => void
 }
 
+const SCENARIO_BADGES: Record<Scenario['kind'], string> = {
+  scripted: 'Scripted agent',
+  live: 'Live Gemini run · recorded',
+  recorded: 'Gemini run · recorded',
+}
+
+const SCENARIO_ORDER: Record<Scenario['kind'], number> = {
+  live: 0,
+  scripted: 1,
+  recorded: 2,
+}
+
 /**
  * Screen 2 (Test): pick a demo agent + fault, run it, see what it did and core's verdict.
  * The run and the verdict come from the API; this screen only displays them.
@@ -51,7 +63,13 @@ export function TestScreen({
 
   useEffect(() => {
     if (source.kind === 'shop') {
-      listScenarios().then(setScenarios, (e: unknown) => setLoadError(friendlyError(e)))
+      listScenarios().then(
+        (items) =>
+          setScenarios(
+            [...items].sort((a, b) => SCENARIO_ORDER[a.kind] - SCENARIO_ORDER[b.kind]),
+          ),
+        (e: unknown) => setLoadError(friendlyError(e)),
+      )
     }
   }, [source.kind])
 
@@ -146,7 +164,7 @@ export function TestScreen({
           <p>
             {source.kind === 'trace'
               ? "I'll check every event in your log against your rules. The checker decides; the AI only explains."
-              : 'Pick an AI agent and a problem to throw at it. I’ll check what it did against your rules.'}
+              : 'Pick a run to check. Scripted agents show the classic mistakes; live runs are a real Gemini agent that we recorded.'}
           </p>
         </div>
 
@@ -219,6 +237,9 @@ export function TestScreen({
                   onClick={() => setSelected(s.id)}
                 >
                   <span className="scenario__title">{s.title}</span>
+                  <span className={`scenario__badge scenario__badge--${s.kind}`}>
+                    {SCENARIO_BADGES[s.kind]}
+                  </span>
                   <span className="scenario__desc">{s.description}</span>
                 </button>
               ))}

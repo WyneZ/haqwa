@@ -562,6 +562,29 @@ button {
   font-weight: 600;
 }
 
+.scenario__badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scenario__badge--scripted {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+
+.scenario__badge--live {
+  background: var(--brand);
+  color: #fff;
+}
+
+.scenario__badge--recorded {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
 .scenario__desc {
   font-size: 13px;
   color: var(--muted);
