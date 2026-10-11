@@ -1,17 +1,21 @@
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import {
   applyAnswers,
   clarifyRules,
   friendlyError,
   sealSpec,
   selfTestFailures,
+  summarizeTrace,
 } from '../api/client'
-import type { ClarifyResult, Rule } from '../api/types'
+import type { ClarifyResult, LogEvent, Rule } from '../api/types'
 import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
 import { QuestionCard } from '../components/QuestionCard'
 import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
+import { TraceSummaryCard } from '../components/TraceSummaryCard'
 import { usePersistentState } from '../lib/persist'
+import { HR_NAME, HR_RULES, type Source } from '../lib/source'
+import { readEventsFile, readHrSample } from '../lib/traceFile'
 import { entityNoun, ruleTitle } from '../lib/words'
 
 const DEMO_POLICY = [
@@ -32,7 +36,19 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
  * track of where the owner is. Progress is saved for this tab, so a refresh keeps the
  * answers and does not call the AI again.
  */
-export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
+interface Props {
+  source: Source
+  onSourceChange: (source: Source, events: LogEvent[] | null) => void
+  onDone: (rules: Rule[]) => void
+}
+
+export function DefineScreen({ source, onSourceChange, onDone }: Props) {
+  const [choice, setChoice] = useState<'shop' | 'hr' | 'upload'>(
+    source.kind === 'shop' ? 'shop' : source.name === HR_NAME ? 'hr' : 'upload',
+  )
+  const [sourceBusy, setSourceBusy] = useState(false)
+  const [sourceError, setSourceError] = useState<string | null>(null)
+  const choiceRequest = useRef(0)
   const [text, setText] = usePersistentState('define.text', DEMO_POLICY)
   const [results, setResults] = usePersistentState<ClarifyResult[] | null>('define.results', null)
   const [loading, setLoading] = useState(false)
@@ -55,17 +71,22 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const [redo, setRedo] = useState<number[]>([]) // rules whose answers core rejected
 
   async function understand() {
+    const requestId = choiceRequest.current
     const rules = text.split('\n').map((l) => l.trim()).filter(Boolean)
     setLoading(true)
     setLoadError(null)
     try {
-      const res = await clarifyRules(rules)
+      const res = await clarifyRules(
+        rules,
+        source.kind === 'trace' ? source.summary.vocabulary : undefined,
+      )
+      if (requestId !== choiceRequest.current) return
       setResults(res.results)
       setConfirmed({})
       setCurrent(nextRule(res.results, {}))
       resetAnswers()
     } catch (e) {
-      setLoadError(friendlyError(e))
+      if (requestId === choiceRequest.current) setLoadError(friendlyError(e))
     } finally {
       setLoading(false)
     }
@@ -85,14 +106,17 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
    * rules core named, so a bad spec can never reach a test run.
    */
   async function finish() {
+    const requestId = choiceRequest.current
     const rules = Object.values(confirmed)
     setSealing(true)
     setSealError(null)
     setRedo([])
     try {
       await sealSpec({ version: 1, rules })
+      if (requestId !== choiceRequest.current) return
       onDone(rules)
     } catch (e) {
+      if (requestId !== choiceRequest.current) return
       const failedIds = new Set(selfTestFailures(e).map((f) => f.rule_id))
       const indexes = Object.entries(confirmed)
         .filter(([, r]) => failedIds.has(r.id))
@@ -120,6 +144,71 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
     setCurrent(null)
     setConfirmed({})
     resetAnswers()
+  }
+
+  function clearInterview() {
+    setResults(null)
+    setCurrent(null)
+    setConfirmed({})
+    resetAnswers()
+    setLoadError(null)
+    setSealError(null)
+    setRedo([])
+  }
+
+  async function loadTrace(name: string, log: LogEvent[], extraEvents: string[], requestId: number) {
+    const summary = await summarizeTrace(log, extraEvents)
+    if (requestId !== choiceRequest.current) return
+    onSourceChange({ kind: 'trace', name, summary, extraEvents }, log)
+    setText(name === HR_NAME ? HR_RULES : '')
+  }
+
+  async function choose(next: 'shop' | 'hr' | 'upload') {
+    const requestId = ++choiceRequest.current
+    setChoice(next)
+    setSourceBusy(false)
+    setSourceError(null)
+    clearInterview()
+    onSourceChange({ kind: 'shop' }, null)
+    if (next === 'shop') {
+      setText(DEMO_POLICY)
+      return
+    }
+    if (next === 'upload') {
+      setText('')
+      return
+    }
+    setText('')
+    setSourceBusy(true)
+    try {
+      await loadTrace(HR_NAME, await readHrSample(), ['payroll_run'], requestId)
+    } catch (error) {
+      if (requestId === choiceRequest.current) {
+        setSourceError(error instanceof Error ? error.message : friendlyError(error))
+      }
+    } finally {
+      if (requestId === choiceRequest.current) setSourceBusy(false)
+    }
+  }
+
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const requestId = ++choiceRequest.current
+    setSourceBusy(true)
+    setSourceError(null)
+    clearInterview()
+    onSourceChange({ kind: 'shop' }, null)
+    try {
+      await loadTrace(file.name, await readEventsFile(file), [], requestId)
+    } catch (error) {
+      if (requestId === choiceRequest.current) {
+        setSourceError(error instanceof Error ? error.message : friendlyError(error))
+      }
+    } finally {
+      if (requestId === choiceRequest.current) setSourceBusy(false)
+    }
   }
 
   const active = results && current !== null ? results[current] : null
@@ -154,6 +243,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
 
   async function confirm() {
     if (!rule || current === null || !results) return
+    const requestId = choiceRequest.current
     setSaving(true)
     setSaveError(null)
     try {
@@ -161,6 +251,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
         rule.rule,
         rule.questions.map((question, i) => ({ question, allowed: answers[i] })),
       )
+      if (requestId !== choiceRequest.current) return
       if (res.mismatches.length) {
         setMismatches(res.mismatches)
         return
@@ -170,7 +261,7 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
       setCurrent(nextRule(results, done))
       resetAnswers()
     } catch (e) {
-      setSaveError(friendlyError(e))
+      if (requestId === choiceRequest.current) setSaveError(friendlyError(e))
     } finally {
       setSaving(false)
     }
@@ -189,7 +280,40 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
   const unsupported = results?.filter((r) => r.status === 'unsupported') ?? []
 
   return (
-    <div className="layout">
+    <div className="layout layout--define">
+      <section className="card source-picker" aria-labelledby="source-title">
+        <h2 id="source-title" className="card__title card__title--small">
+          What should Haqwa check?
+        </h2>
+        <label>
+          <input type="radio" name="source" checked={choice === 'shop'} onChange={() => void choose('shop')} />
+          Online shop demo
+        </label>
+        <label>
+          <input type="radio" name="source" checked={choice === 'hr'} onChange={() => void choose('hr')} />
+          HR leave sample
+        </label>
+        <label>
+          <input type="radio" name="source" checked={choice === 'upload'} onChange={() => void choose('upload')} />
+          Your own events (JSON)
+        </label>
+        {choice === 'upload' && (
+          <input
+            type="file"
+            accept=".json,application/json"
+            aria-label="Choose events file"
+            onChange={(event) => void upload(event)}
+          />
+        )}
+        {choice !== 'shop' && (
+          <details>
+            <summary>Event JSON format</summary>
+            <code>{'[{"event": "leave_requested", "ts": "2026-09-01T09:00:00Z", "data": {"leave_id": "L-1"}}]'}</code>
+          </details>
+        )}
+        {sourceBusy && <p className="card__lead">Reading events…</p>}
+        {sourceError && <p className="notice notice--error" role="alert">{sourceError}</p>}
+      </section>
       <PolicyPanel
         text={text}
         onTextChange={setText}
@@ -197,9 +321,16 @@ export function DefineScreen({ onDone }: { onDone: (rules: Rule[]) => void }) {
         onEdit={editRules}
         busy={loading}
         rows={rows}
+        placeholder={
+          choice === 'upload'
+            ? 'One rule per line, e.g. Never approve leave after it was cancelled.'
+            : undefined
+        }
+        canSubmit={choice === 'shop' || source.kind === 'trace'}
       />
 
       <main className="stage">
+        {source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
         {!results && (
           <div className="empty">
             {loadError ? (
