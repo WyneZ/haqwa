@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -11,7 +12,7 @@ from haqwa import check, compile_spec, load_spec
 from haqwa.adapters.agentproof import effects_to_events
 
 ROOT = Path(__file__).resolve().parents[2]
-URL = "http://127.0.0.1:8765/mcp"
+URL = os.environ.get("HAQWA_MCP_URL", "http://127.0.0.1:8765/mcp")
 
 
 def value(result: Any) -> Any:

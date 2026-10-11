@@ -27,7 +27,9 @@ async def scenario(session: ClientSession, *, key: str | None) -> None:
     if key:
         args["idempotency_key"] = key
     first = await call(session, "charge_payment", **args)
-    assert "timeout_after_commit" in first.get("error", ""), first
+    assert isinstance(first, dict) and "error" in first, first
+    after_first = await call(session, "list_effects")
+    assert sum(effect["type"] == "charged" for effect in after_first) == 1, after_first
     second = await call(session, "charge_payment", **args)
     assert second.get("status") == "captured", second
     effects = await call(session, "list_effects")

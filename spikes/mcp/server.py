@@ -8,6 +8,8 @@ The fault lives in this MCP layer, after AgentProof records the effect.
 
 from __future__ import annotations
 
+import os
+
 from agentproof import World
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -15,7 +17,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from haqwa.demo.shop import setup_shop
 
 HOST = "127.0.0.1"
-PORT = 8765
+PORT = int(os.environ.get("HAQWA_MCP_PORT", "8765"))
 mcp = FastMCP("Haqwa shop spike", host=HOST, port=PORT, json_response=True)
 world: World
 fault_pending: bool
@@ -39,7 +41,7 @@ async def create_order(order_id: str, amount: int) -> dict:
 
 @mcp.tool()
 async def charge_payment(order_id: str, amount: int, idempotency_key: str | None = None) -> dict:
-    """Charge an order. An idempotency key makes a retry safe."""
+    """Charge an order. Optional idempotency_key."""
     global fault_pending
     arguments = {"order_id": order_id, "amount": amount}
     if idempotency_key is not None:
@@ -47,7 +49,8 @@ async def charge_payment(order_id: str, amount: int, idempotency_key: str | None
     result = await world.tools.invoke("charge_payment", arguments)
     if fault_pending:
         fault_pending = False
-        raise ToolError("timeout_after_commit: payment committed; response timed out")
+        print("[fault] timeout_after_commit injected after commit", flush=True)
+        raise ToolError("Request timed out")
     return result
 
 
