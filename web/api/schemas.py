@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from haqwa.ai.clarify import Answer, Question
 from haqwa.core.events import Event
 from haqwa.core.report import Report, Violation
 from haqwa.core.spec import Rule
+from haqwa.core.trace import TraceSummary
 
 
 class ClarifyRequest(BaseModel):
@@ -67,13 +68,29 @@ class ScenarioResponse(BaseModel):
 
 class RunRequest(BaseModel):
     spec: Any
-    scenario_id: str
+    scenario_id: str | None = None
+    events: Any | None = None
     event_map: Any | None = None
+
+    @model_validator(mode="after")
+    def one_source(self) -> RunRequest:
+        if (self.scenario_id is None) == (self.events is None):
+            raise ValueError("provide exactly one of scenario_id or events")
+        return self
 
 
 class RunResponse(BaseModel):
     events: list[Event]
     report: Report
+
+
+class TraceRequest(BaseModel):
+    events: Any
+    extra_events: list[str] = Field(default_factory=list)
+
+
+class TraceResponse(BaseModel):
+    summary: TraceSummary
 
 
 class ExplainRequest(BaseModel):

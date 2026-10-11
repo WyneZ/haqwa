@@ -1,0 +1,11 @@
+version: 1
+events:
+  employee_onboarded: employee_onboarded
+  leave_approved: leave_approved
+  leave_cancelled: leave_cancelled
+  leave_decided: leave_decided
+  leave_requested: leave_requested
+  payroll_run: payroll_run
+  salary_paid: salary_paid
+  shift_started: shift_started
+  timesheet_approved: timesheet_approved
