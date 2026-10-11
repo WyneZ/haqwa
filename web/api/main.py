@@ -23,6 +23,7 @@ from haqwa.core.errors import (
 )
 
 from .config import get_settings
+from .rate_limit import RateLimiter, client_ip
 from .routes import router
 from .schemas import HealthResponse
 
@@ -47,6 +48,19 @@ def create_app() -> FastAPI:
     api = FastAPI(title="Haqwa API", version="1.0.0")
     api.state.settings = settings
     api.state.gemini_client = GeminiClient(cache_dir=settings.cache_dir)
+    api.state.rate_limiter = RateLimiter(settings.rate_per_min, settings.rate_per_day)
+
+    @api.middleware("http")
+    async def limit_gemini_routes(request: Request, call_next):
+        if request.method == "POST" and request.url.path in (
+            "/api/v1/clarify",
+            "/api/v1/explain",
+        ):
+            try:
+                api.state.rate_limiter.check(client_ip(request))
+            except HaqwaError as exc:
+                return _problem(exc)
+        return await call_next(request)
 
     @api.middleware("http")
     async def trace_body_limit(request: Request, call_next):

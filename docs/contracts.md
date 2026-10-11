@@ -301,6 +301,12 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
 - A Seal self-test failure returns the RFC 9457 problem body with `code: compile_failed`, `ok: false`, `problems`, and `failures` (HTTP 422).
 - Fetch actual demo identifiers from `GET /api/v1/scenarios`; recorded runs report `expected: unknown` without a spec.
 - `GET /healthz` is outside `/api/v1` for Cloud Run health checks.
+- `POST /api/v1/clarify` and `POST /api/v1/explain` share an in-memory rate limiter:
+  10 requests per client IP per rolling minute and 200 requests globally per rolling day
+  by default. `HAQWA_RATE_PER_MIN` and `HAQWA_RATE_PER_DAY` configure the limits.
+  Cloud Run's first `X-Forwarded-For` address identifies the client, falling back to the
+  socket address. Excess requests return HTTP 429 RFC 9457 with stable code
+  `rate_limited` and a retry delay in `detail`; this is distinct from `gemini_quota`.
 
 ### C3 trace additions (AGREED, 2026-10-11)
 
