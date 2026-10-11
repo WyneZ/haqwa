@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { friendlyError, listScenarios, runScenario } from '../api/client'
 import type { Spec } from '../api/types'
 import { ExplainBox } from '../components/ExplainBox'
+import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
 import type { Run } from '../lib/run'
@@ -9,6 +10,7 @@ import { entityNoun, humanize } from '../lib/words'
 
 interface Props {
   spec: Spec
+  specYaml: string
   run: Run
   onRun: (run: Run) => void
   onBack: () => void
@@ -18,7 +20,7 @@ interface Props {
  * Screen 3 (Results): which rule broke, for which entity, at which event — all from
  * core's report. The AI explanation sits apart and is labelled as a suggestion.
  */
-export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
+export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { source, response } = run
@@ -91,6 +93,7 @@ export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
       <section className="card">
         <h2 className="card__title card__title--small">All rules</h2>
         <Verdicts results={response.report.results} />
+        <SpecDownload specYaml={specYaml} />
       </section>
 
       {error && (

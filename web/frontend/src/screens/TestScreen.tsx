@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { checkEvents, friendlyError, listScenarios, runScenario, summarizeTrace } from '../api/client'
 import type { LogEvent, Scenario, Spec } from '../api/types'
+import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
 import { usePersistentState } from '../lib/persist'
@@ -13,6 +14,7 @@ import { ruleTitle } from '../lib/words'
 
 interface Props {
   spec: Spec
+  specYaml: string
   source: Source
   events: LogEvent[] | null
   onTraceLoaded: (source: Source, events: LogEvent[]) => void
@@ -28,6 +30,7 @@ interface Props {
  */
 export function TestScreen({
   spec,
+  specYaml,
   source,
   events,
   onTraceLoaded,
@@ -129,6 +132,7 @@ export function TestScreen({
             </li>
           ))}
         </ol>
+        <SpecDownload specYaml={specYaml} />
         <button type="button" className="btn btn--link" onClick={onBack}>
           ← Change my rules
         </button>

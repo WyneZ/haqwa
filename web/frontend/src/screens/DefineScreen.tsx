@@ -39,7 +39,7 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
 interface Props {
   source: Source
   onSourceChange: (source: Source, events: LogEvent[] | null) => void
-  onDone: (rules: Rule[]) => void
+  onDone: (rules: Rule[], specYaml: string) => void
 }
 
 export function DefineScreen({ source, onSourceChange, onDone }: Props) {
@@ -112,9 +112,9 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
     setSealError(null)
     setRedo([])
     try {
-      await sealSpec({ version: 1, rules })
+      const sealed = await sealSpec({ version: 1, rules })
       if (requestId !== choiceRequest.current) return
-      onDone(rules)
+      onDone(rules, sealed.spec_yaml)
     } catch (e) {
       if (requestId !== choiceRequest.current) return
       const failedIds = new Set(selfTestFailures(e).map((f) => f.rule_id))
