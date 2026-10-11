@@ -5,7 +5,25 @@ from types import SimpleNamespace
 import pytest
 
 from haqwa.core.errors import HaqwaError, to_problem
-from haqwa.demo.recording import load_effects, save_effects
+from haqwa.core.events import load_event_map
+from haqwa.demo.recording import RECORDINGS_DIR, load_effects, save_effects
+
+
+def test_committed_gemini_recordings_are_listed_and_replay():
+    from haqwa import load_spec
+    from haqwa.demo import list_scenarios, run_scenario
+
+    root = Path(__file__).parents[2]
+    spec = load_spec(root / "examples/shop/rules.spec.yaml")
+    vocabulary = load_event_map(root / "examples/shop/events.map.yaml").vocabulary
+    listed = {scenario["id"]: scenario for scenario in list_scenarios()}
+
+    for path in sorted(RECORDINGS_DIR.glob("gemini_*.json")):
+        scenario_id = f"recorded_{path.stem}"
+        assert scenario_id in listed, path.name
+        assert listed[scenario_id]["title"], path.name
+        events, _report = run_scenario(scenario_id, spec)
+        assert all(event.event in vocabulary for event in events), path.name
 
 
 def test_sample_recording_replays_without_network():
