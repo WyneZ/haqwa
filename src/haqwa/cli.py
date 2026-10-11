@@ -17,8 +17,10 @@ from .core.events import load_event_map, load_events
 from .core.report import format_text
 from .core.spec import Spec, TimelineEvent, load_spec, save_spec, suggest_rule_id
 from .core.trace import summarize_trace
+from .live.cli import app as live_app
 
 app = typer.Typer(help="Build and check executable business policies.")
+app.add_typer(live_app, name="live")
 console = Console()
 
 _SHOP_RULE = "A customer must not be charged twice for the same order.\n"

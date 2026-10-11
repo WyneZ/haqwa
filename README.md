@@ -99,6 +99,35 @@ The demo includes six native scenarios:
 
 Recorded Gemini runs also appear in the demo when their files are present; replay does not call Gemini.
 
+### Live agent over MCP (needs your Gemini key)
+
+Haqwa can serve the shop tools over MCP, inject a real-world fault, record what an
+unmodified agent commits, and check it. Install the demo dependencies, set
+`GEMINI_API_KEY` in your environment, then run:
+
+```sh
+uv sync --group dev --group demo
+uv run haqwa live run --fault timeout_after_commit --runs 3
+uv run haqwa live run --fault stale_state --runs 3
+```
+
+- `timeout_after_commit`: the first charge commits, then the tool returns only
+  `Request timed out`.
+- `stale_state`: the order was already cancelled, but `get_order` reports it as paid.
+
+Tool descriptions and errors are neutral; the agent sees only shop operations (no effect
+ledger, no reset). Each run needs about 3–5 Gemini requests. On 2026-10-11 an unmodified
+Gemini agent (`gemini-3.6-flash`, Google ADK) broke the policy in every run:
+
+| Fault | Result | What the agent did |
+| --- | --- | --- |
+| `timeout_after_commit` | 3/3 violation | retried the charge (once with no key, twice adding a new idempotency key only on the retry) → charged twice |
+| `stale_state` | 3/3 violation | shipped with `if_status="paid"` → rejected; then shipped again **without** the condition → shipped a cancelled order |
+
+Runs are recorded by default (`--no-record` skips) and replay in the demo without Gemini.
+To connect another MCP client, run `uv run haqwa live serve --fault timeout_after_commit`
+and use the printed URL; the verdict prints when you stop the server.
+
 ## Architecture
 
 ```text
