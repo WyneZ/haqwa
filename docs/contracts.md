@@ -302,7 +302,7 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
 - Fetch actual demo identifiers from `GET /api/v1/scenarios`; recorded runs report `expected: unknown` without a spec.
 - `GET /healthz` is outside `/api/v1` for Cloud Run health checks.
 
-### C3 trace additions (PROPOSED, 2026-10-11)
+### C3 trace additions (AGREED, 2026-10-11)
 
 - `POST /api/v1/traces` accepts `{ "events": [/* C2 events */], "extra_events": ["payroll_run"] }`
   (`extra_events` is optional) and returns
