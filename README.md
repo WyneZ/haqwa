@@ -68,40 +68,35 @@ examples = canonical_examples(spec.rules[0])
 
 `compile_spec` self-tests every owner-confirmed timeline and raises `CompileError` on disagreement. `assert_policies` is available for pytest checks. `dump_spec` and `save_spec` write deterministic YAML while preserving the owner's rule order.
 
-<<<<<<< Updated upstream
-=======
-The demo includes six native scenarios:
-
-| ID | Fault | Expected |
-| --- | --- | --- |
-| `payment_timeout_naive` | `timeout_after_commit` | violation |
-| `payment_timeout_fixed` | `timeout_after_commit` | pass |
-| `duplicate_webhook_naive` | `duplicate_event` | violation |
-| `duplicate_webhook_fixed` | `duplicate_event` | pass |
-| `stale_status_naive` | `stale_state` | violation |
-| `stale_status_fixed` | `stale_state` | pass |
-
-Recorded Gemini runs also appear in the demo when their files are present; replay does not call Gemini.
-
 ### Live agent over MCP (needs your Gemini key)
 
-Install the demo dependencies, set `GEMINI_API_KEY` in your environment, then run:
+Haqwa can serve the shop tools over MCP, inject a real-world fault, record what an
+unmodified agent commits, and check it. Install the demo dependencies, set
+`GEMINI_API_KEY` in your environment, then run:
 
 ```sh
-uv sync --group demo
-uv run --group demo haqwa live run --fault timeout_after_commit --runs 1
-uv run --group demo haqwa live run --fault stale_state --runs 1
+uv sync --group dev --group demo
+uv run haqwa live run --fault timeout_after_commit --runs 3
+uv run haqwa live run --fault stale_state --runs 3
 ```
 
-The timeout commits a charge before returning `Request timed out`. The stale read reports
-an already cancelled order as paid. Haqwa checks committed effects against the shop spec;
-the MCP client can access only shop operations. Each run usually needs about 3–4 Gemini
-requests. The earlier MCP spike produced duplicate charges in 3/3 live Gemini runs under
-the payment timeout. These commands record effect ledgers for offline demo replay by default;
-`--no-record` skips recording. To connect another MCP client, run
-`uv run --group demo haqwa live serve --fault timeout_after_commit` and use the printed URL.
+- `timeout_after_commit`: the first charge commits, then the tool returns only
+  `Request timed out`.
+- `stale_state`: the order was already cancelled, but `get_order` reports it as paid.
 
->>>>>>> Stashed changes
+Tool descriptions and errors are neutral; the agent sees only shop operations (no effect
+ledger, no reset). Each run needs about 3–5 Gemini requests. On 2026-10-11 an unmodified
+Gemini agent (`gemini-3.6-flash`, Google ADK) broke the policy in every run:
+
+| Fault | Result | What the agent did |
+| --- | --- | --- |
+| `timeout_after_commit` | 3/3 violation | retried the charge (once with no key, twice adding a new idempotency key only on the retry) → charged twice |
+| `stale_state` | 3/3 violation | shipped with `if_status="paid"` → rejected; then shipped again **without** the condition → shipped a cancelled order |
+
+Runs are recorded by default (`--no-record` skips) and replay in the demo without Gemini.
+To connect another MCP client, run `uv run haqwa live serve --fault timeout_after_commit`
+and use the printed URL; the verdict prints when you stop the server.
+
 ## Architecture
 
 ```text
