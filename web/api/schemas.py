@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from haqwa.ai.clarify import Answer, Question
 from haqwa.core.events import Event
@@ -12,9 +12,24 @@ from haqwa.core.report import Report, Violation
 from haqwa.core.spec import Rule
 from haqwa.core.trace import TraceSummary
 
+NAME = r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+
+
+class VocabularyIn(BaseModel):
+    events: list[Annotated[str, StringConstraints(pattern=NAME)]] = Field(
+        min_length=1, max_length=100
+    )
+    fields: list[Annotated[str, StringConstraints(pattern=NAME)]] = Field(
+        default_factory=list, max_length=100
+    )
+    field_values: dict[
+        str, Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=50)]
+    ] = Field(default_factory=dict, max_length=100)
+
 
 class ClarifyRequest(BaseModel):
     rules: list[str] = Field(min_length=1, max_length=10)
+    vocabulary: VocabularyIn | None = None
 
     @field_validator("rules")
     @classmethod
@@ -64,6 +79,7 @@ class ScenarioResponse(BaseModel):
     fault: str
     description: str
     expected: str
+    kind: str
 
 
 class RunRequest(BaseModel):
