@@ -31,8 +31,6 @@ class Settings:
     vocab: Vocabulary
     cache_dir: Path
     dev_cors: bool
-    rate_per_min: int = 10
-    rate_per_day: int = 200
 
 
 def get_settings() -> Settings:
@@ -41,6 +39,4 @@ def get_settings() -> Settings:
         vocab=SHOP_VOCAB,
         cache_dir=Path(os.getenv("HAQWA_CACHE_DIR", ".haqwa_cache")),
         dev_cors=os.getenv("HAQWA_DEV_CORS") == "1",
-        rate_per_min=int(os.getenv("HAQWA_RATE_PER_MIN", "10")),
-        rate_per_day=int(os.getenv("HAQWA_RATE_PER_DAY", "200")),
     )
