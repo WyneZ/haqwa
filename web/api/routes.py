@@ -8,9 +8,11 @@ from fastapi import APIRouter, Depends, Request
 
 from haqwa.ai import GeminiBadOutput, GeminiClient, ParseError, apply_answers, clarify
 from haqwa.ai.explain import explain_violation
+from haqwa.core.checker import check
 from haqwa.core.compiler import compile_spec
-from haqwa.core.events import parse_event_map
+from haqwa.core.events import parse_event_map, parse_events
 from haqwa.core.spec import dump_spec, parse_spec, suggest_rule_id
+from haqwa.core.trace import summarize_trace
 from haqwa.demo import list_scenarios, run_scenario
 
 from .config import Settings
@@ -27,6 +29,8 @@ from .schemas import (
     ScenarioResponse,
     SealRequest,
     SealResponse,
+    TraceRequest,
+    TraceResponse,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -100,11 +104,25 @@ def scenarios() -> list[dict[str, str]]:
 
 @router.post("/runs", response_model=RunResponse)
 def runs(request: RunRequest) -> RunResponse:
-    """Run one deterministic scenario and return its events and checker report."""
+    """Check uploaded events or run one deterministic demo scenario."""
     spec = parse_spec(request.spec)
     event_map = parse_event_map(request.event_map) if request.event_map is not None else None
-    events, report = run_scenario(request.scenario_id, spec, event_map)
+    if request.events is not None:
+        events = parse_events(request.events)
+        summarize_trace(events)  # enforce the trace event limit
+        report = check(compile_spec(spec, event_map), events, event_map)
+    else:
+        assert request.scenario_id is not None
+        events, report = run_scenario(request.scenario_id, spec, event_map)
     return RunResponse(events=events, report=report)
+
+
+@router.post("/traces", response_model=TraceResponse)
+def traces(request: TraceRequest) -> TraceResponse:
+    """Summarize an uploaded trace without storing it."""
+    return TraceResponse(
+        summary=summarize_trace(parse_events(request.events), extra_events=request.extra_events)
+    )
 
 
 @router.post("/explain", response_model=ExplainResponse)

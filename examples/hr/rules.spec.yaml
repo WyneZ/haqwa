@@ -1,0 +1,26 @@
+version: 1
+rules:
+  - id: decide-leave-within-48-hours
+    source: "Decide every leave request within 48 hours."
+    pattern: within_time
+    start: leave_requested
+    event: leave_decided
+    within: PT48H
+    per: leave_id
+  - id: no-approval-after-cancellation
+    source: "Never approve leave after it has been cancelled."
+    pattern: never_after
+    event: leave_approved
+    after: leave_cancelled
+    per: leave_id
+  - id: approve-timesheet-before-pay
+    source: "Approve the timesheet before paying salary for that employee and period."
+    pattern: must_precede
+    event: salary_paid
+    requires: timesheet_approved
+    per: employee_period
+  - id: one-payroll-run
+    source: "Run payroll at most once per employee and period."
+    pattern: at_most_once
+    event: payroll_run
+    per: employee_period

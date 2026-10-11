@@ -192,3 +192,45 @@ def test_static_spa_does_not_shadow_api(tmp_path, monkeypatch) -> None:
     assert browser.get("/nested/route").text == "frontend"
     assert browser.get("/api/v1/scenarios").status_code == 200
     assert browser.get("/api/v1/missing").status_code == 404
+
+
+def test_traces_summary_and_invalid_upload(client: TestClient) -> None:
+    events = [
+        {
+            "event": "charged",
+            "ts": "2026-01-01T00:00:00Z",
+            "data": {"order_id": "A", "kind": "card"},
+        }
+    ]
+    response = client.post(
+        "/api/v1/traces", json={"events": events, "extra_events": ["payroll_run", "charged"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["summary"]["vocabulary"] == {
+        "events": ["charged", "payroll_run"],
+        "fields": ["kind", "order_id"],
+        "field_values": {"kind": ["card"]},
+    }
+    assert response.json()["summary"]["event_counts"] == {"charged": 1}
+    assert_problem(client.post("/api/v1/traces", json={"events": [{}]}), "invalid_events", 422)
+    oversized = client.post("/api/v1/traces", content=b" " * 5_000_001)
+    assert_problem(oversized, "invalid_request", 422)
+
+
+def test_runs_uploaded_events_and_exactly_one_source(client: TestClient) -> None:
+    events = [
+        {"event": "charged", "ts": "2026-01-01T00:00:00Z", "data": {"order_id": "A"}},
+        {"event": "charged", "ts": "2026-01-01T00:00:01Z", "data": {"order_id": "A"}},
+    ]
+    response = client.post("/api/v1/runs", json={"spec": SPEC, "events": events})
+    assert response.status_code == 200
+    assert response.json()["report"]["results"][0]["status"] == "violation"
+    for payload in ({"spec": SPEC}, {"spec": SPEC, "events": events, "scenario_id": "x"}):
+        assert_problem(client.post("/api/v1/runs", json=payload), "invalid_request", 422)
+    assert_problem(
+        client.post("/api/v1/runs", json={"spec": SPEC, "events": [{}]}),
+        "invalid_events",
+        422,
+    )
+    oversized = client.post("/api/v1/runs", content=b" " * 5_000_001)
+    assert_problem(oversized, "invalid_request", 422)

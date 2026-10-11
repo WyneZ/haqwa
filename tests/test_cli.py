@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -126,3 +127,130 @@ def test_build_quota_exit_code(shop_dir, tmp_path, monkeypatch):
     result = runner.invoke(app, ["build", str(rules), "--map", str(shop_dir / "events.map.yaml")])
     assert result.exit_code == 4
     assert "daily limit" in result.output
+
+
+def test_inspect_json_map_and_bad_input(shop_dir, tmp_path):
+    path = shop_dir / "events.json"
+    result = runner.invoke(app, ["inspect", str(path), "--json"])
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.output)
+    assert summary["event_count"] > 0
+    assert "events" in summary["vocabulary"]
+    mapped = runner.invoke(
+        app, ["inspect", str(path), "--map", str(shop_dir / "events.map.yaml"), "--json"]
+    )
+    assert mapped.exit_code == 0, mapped.output
+    assert set(json.loads(mapped.output)["event_counts"]) <= {
+        "charged",
+        "refunded",
+        "order_created",
+    }
+    assert runner.invoke(app, ["inspect", str(tmp_path / "missing.json")]).exit_code == 3
+
+
+def test_build_trace_vocabulary_and_field_conflict(tmp_path, monkeypatch):
+    from haqwa.ai import ClarifyOutcome
+
+    seen = []
+
+    def fake_clarify(text, *, rule_id, vocab, client):
+        seen.append(vocab.model_dump())
+        return ClarifyOutcome(source=text, status="unsupported", reason="test", questions=[])
+
+    monkeypatch.setattr("haqwa.ai.clarify", fake_clarify)
+    rules = tmp_path / "rules.txt"
+    rules.write_text("A rule\n")
+    events = tmp_path / "events.json"
+    events.write_text(
+        json.dumps(
+            [
+                {
+                    "event": "paid",
+                    "ts": "2026-01-01T00:00:00Z",
+                    "data": {"employee_id": "E1", "state": "done"},
+                }
+            ]
+        )
+    )
+    result = runner.invoke(app, ["build", str(rules), "--trace", str(events)])
+    assert result.exit_code == 2  # fake clarify marks the only rule unsupported
+    assert seen == [
+        {
+            "events": ["paid"],
+            "fields": ["employee_id", "state"],
+            "field_values": {"state": ["done"]},
+        }
+    ]
+    conflict = runner.invoke(app, ["build", str(rules), "--trace", str(events), "--field", "state"])
+    assert conflict.exit_code == 3
+
+
+def test_build_trace_accepts_event_declared_only_in_map(tmp_path, monkeypatch):
+    from haqwa.ai import ClarifyOutcome
+    from haqwa.core.spec import AtMostOnce
+
+    def fake_clarify(text, *, rule_id, vocab, client):
+        assert "payroll_run" in vocab.events
+        assert vocab.event_problem("payroll_run", "rule") is None
+        return ClarifyOutcome(
+            source=text,
+            status="supported",
+            rule=AtMostOnce(
+                id=rule_id,
+                source=text,
+                pattern="at_most_once",
+                event="payroll_run",
+                per="employee_period",
+            ),
+            questions=[],
+        )
+
+    monkeypatch.setattr("haqwa.ai.clarify", fake_clarify)
+    rules = tmp_path / "rules.txt"
+    rules.write_text("Run payroll once per employee and period.\n")
+    output = tmp_path / "rules.spec.yaml"
+    hr = Path(__file__).resolve().parents[1] / "examples" / "hr"
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            str(rules),
+            "--trace",
+            str(hr / "events.json"),
+            "--map",
+            str(hr / "events.map.yaml"),
+            "-o",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "event: payroll_run" in output.read_text()
+
+
+def test_build_trace_map_uses_only_rule_names(shop_dir, tmp_path, monkeypatch):
+    from haqwa.ai import ClarifyOutcome
+
+    seen = []
+
+    def fake_clarify(text, *, rule_id, vocab, client):
+        seen.append(vocab.events)
+        return ClarifyOutcome(source=text, status="unsupported", reason="test", questions=[])
+
+    monkeypatch.setattr("haqwa.ai.clarify", fake_clarify)
+    rules = tmp_path / "rules.txt"
+    rules.write_text("A rule\n")
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            str(rules),
+            "--trace",
+            str(shop_dir / "events.json"),
+            "--map",
+            str(shop_dir / "events.map.yaml"),
+        ],
+    )
+    assert result.exit_code == 2  # fake clarify marks the only rule unsupported
+    assert seen == [["cancelled", "charged", "order_created", "refunded", "shipped"]]
+    assert "PAYMENT_CAPTURED" not in seen[0]
+    assert "EMAIL_SENT" not in seen[0]
