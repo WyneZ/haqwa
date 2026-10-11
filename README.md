@@ -68,6 +68,40 @@ examples = canonical_examples(spec.rules[0])
 
 `compile_spec` self-tests every owner-confirmed timeline and raises `CompileError` on disagreement. `assert_policies` is available for pytest checks. `dump_spec` and `save_spec` write deterministic YAML while preserving the owner's rule order.
 
+<<<<<<< Updated upstream
+=======
+The demo includes six native scenarios:
+
+| ID | Fault | Expected |
+| --- | --- | --- |
+| `payment_timeout_naive` | `timeout_after_commit` | violation |
+| `payment_timeout_fixed` | `timeout_after_commit` | pass |
+| `duplicate_webhook_naive` | `duplicate_event` | violation |
+| `duplicate_webhook_fixed` | `duplicate_event` | pass |
+| `stale_status_naive` | `stale_state` | violation |
+| `stale_status_fixed` | `stale_state` | pass |
+
+Recorded Gemini runs also appear in the demo when their files are present; replay does not call Gemini.
+
+### Live agent over MCP (needs your Gemini key)
+
+Install the demo dependencies, set `GEMINI_API_KEY` in your environment, then run:
+
+```sh
+uv sync --group demo
+uv run --group demo haqwa live run --fault timeout_after_commit --runs 1
+uv run --group demo haqwa live run --fault stale_state --runs 1
+```
+
+The timeout commits a charge before returning `Request timed out`. The stale read reports
+an already cancelled order as paid. Haqwa checks committed effects against the shop spec;
+the MCP client can access only shop operations. Each run usually needs about 3–4 Gemini
+requests. The earlier MCP spike produced duplicate charges in 3/3 live Gemini runs under
+the payment timeout. These commands record effect ledgers for offline demo replay by default;
+`--no-record` skips recording. To connect another MCP client, run
+`uv run --group demo haqwa live serve --fault timeout_after_commit` and use the printed URL.
+
+>>>>>>> Stashed changes
 ## Architecture
 
 ```text
