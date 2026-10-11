@@ -28,6 +28,7 @@ build-backend = "uv_build"
 [dependency-groups]
 demo = [
     "google-adk==2.9.2",
+    "mcp==1.30.0",
 ]
 dev = [
     "httpx>=0.28",
