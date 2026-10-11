@@ -301,3 +301,23 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
 - A Seal self-test failure returns the RFC 9457 problem body with `code: compile_failed`, `ok: false`, `problems`, and `failures` (HTTP 422).
 - Fetch actual demo identifiers from `GET /api/v1/scenarios`; recorded runs report `expected: unknown` without a spec.
 - `GET /healthz` is outside `/api/v1` for Cloud Run health checks.
+
+### C3 trace additions (AGREED, 2026-10-11)
+
+- `POST /api/v1/traces` accepts `{ "events": [/* C2 events */], "extra_events": ["payroll_run"] }`
+  (`extra_events` is optional) and returns
+  `{ "summary": TraceSummary }`. The summary contains the observed vocabulary,
+  counts, time span, closed string values and likely `_id` entity fields.
+  `summary.vocabulary.events` is the sorted union of observed event names and
+  `extra_events`; `summary.event_counts` counts observed events only. The
+  endpoint stores nothing. Requests over 5 MB return an `invalid_request` problem;
+  traces over 10,000 events return `invalid_events`.
+- `haqwa build RULES --trace EVENTS [--map MAP]` translates events through the
+  optional map first, then uses the sorted union of the resulting rule-side names
+  and declared map names for its vocabulary. This permits rules for declared
+  events absent from the trace without exposing system-side event names.
+- `POST /api/v1/runs` accepts exactly one of `scenario_id` or `events` with the
+  existing `spec` and optional `event_map`. Uploaded events are parsed and checked
+  by the core library; the response remains `{ "events": [...], "report": {...} }`.
+  Existing scenario requests keep the same behavior.
+  The same 5 MB request body limit applies to `/runs`.

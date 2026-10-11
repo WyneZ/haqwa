@@ -16,6 +16,7 @@ from .core.errors import HaqwaError
 from .core.events import load_event_map, load_events
 from .core.report import format_text
 from .core.spec import Spec, TimelineEvent, load_spec, save_spec, suggest_rule_id
+from .core.trace import summarize_trace
 
 app = typer.Typer(help="Build and check executable business policies.")
 console = Console()
@@ -94,13 +95,45 @@ def check_command(
 
 
 @app.command()
+def inspect(
+    events: Annotated[Path, typer.Argument(metavar="EVENTS")],
+    event_map: Annotated[Path | None, typer.Option("--map", metavar="MAP")] = None,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show the vocabulary and structure of a C2 event trace."""
+    try:
+        loaded = load_events(events)
+        if event_map is not None:
+            loaded = load_event_map(event_map).translate(loaded)
+        summary = summarize_trace(loaded)
+    except HaqwaError as exc:
+        _fail(f"{exc.code}: {exc.detail}", exc.exit_code)
+    except OSError as exc:
+        _fail(f"Cannot read input file: {exc}", 3)
+    if json_output:
+        typer.echo(summary.model_dump_json())
+        return
+    typer.echo(f"Events: {summary.event_count}")
+    for name, count in summary.event_counts.items():
+        typer.echo(f"  {name}: {count}")
+    typer.echo(f"First: {summary.first_ts.isoformat() if summary.first_ts else 'none'}")
+    typer.echo(f"Last: {summary.last_ts.isoformat() if summary.last_ts else 'none'}")
+    typer.echo(f"Fields: {', '.join(summary.fields) or 'none'}")
+    typer.echo("Closed values:")
+    for field, values in summary.field_values.items():
+        typer.echo(f"  {field}: {', '.join(values)}")
+    typer.echo(f"Entity candidates: {', '.join(summary.entity_candidates) or 'none'}")
+
+
+@app.command()
 def build(
     rules: Annotated[Path, typer.Argument(metavar="RULES")],
-    event_map: Annotated[Path, typer.Option("--map", metavar="MAP")],
+    event_map: Annotated[Path | None, typer.Option("--map", metavar="MAP")] = None,
     output: Annotated[Path, typer.Option("-o", "--output")] = Path("rules.spec.yaml"),
     fields: Annotated[
         list[str] | None, typer.Option("--field", help="Event data field; repeat as needed.")
     ] = None,
+    trace: Annotated[Path | None, typer.Option("--trace", metavar="EVENTS")] = None,
 ) -> None:
     """Ask the owner about each rule, self-test it, and save a sealed spec."""
     from .ai import (
@@ -115,9 +148,17 @@ def build(
         clarify,
     )
 
+    if trace is not None and fields:
+        _fail("--trace and --field cannot be used together", 3)
+    if trace is None and event_map is None:
+        _fail("Provide --map or --trace", 3)
     try:
-        mapping = load_event_map(event_map)
+        mapping = load_event_map(event_map) if event_map else None
         lines = [s.strip() for s in rules.read_text(encoding="utf-8").splitlines()]
+        if trace is not None:
+            events = load_events(trace)
+            events = mapping.translate(events) if mapping else events
+            summary = summarize_trace(events, extra_events=mapping.vocabulary if mapping else ())
     except HaqwaError as exc:
         _fail(f"{exc.code}: {exc.detail}", exc.exit_code)
     except OSError as exc:
@@ -125,7 +166,13 @@ def build(
     lines = [s for s in lines if s and not s.startswith("#")]
     if not lines:
         _fail("No rules found", 3)
-    vocab = Vocabulary(events=sorted(mapping.vocabulary), fields=fields or ["order_id"])
+    if trace is not None:
+        if not summary.vocabulary.events:
+            _fail("Trace has no events in the rule vocabulary", 3)
+        vocab = Vocabulary.model_validate(summary.vocabulary.model_dump())
+    else:
+        assert mapping is not None
+        vocab = Vocabulary(events=sorted(mapping.vocabulary), fields=fields or ["order_id"])
     client = GeminiClient()
     accepted = []
     unsupported = []
