@@ -32,6 +32,7 @@ PATTERN_NOT_IMPLEMENTED = ErrorCode("pattern_not_implemented", "Pattern not impl
 UNKNOWN_EVENT = ErrorCode("unknown_event", "Unknown event", 422, 2)
 INVALID_REQUEST = ErrorCode("invalid_request", "Invalid request", 422, 3)
 GEMINI_QUOTA = ErrorCode("gemini_quota", "Gemini quota exceeded", 429, 4)
+RATE_LIMITED = ErrorCode("rate_limited", "Rate limit exceeded", 429, 3)
 GEMINI_UNAVAILABLE = ErrorCode("gemini_unavailable", "Gemini unavailable", 503, 4)
 INTERNAL_ERROR = ErrorCode("internal_error", "Internal server error", 500, 3)
 
@@ -48,6 +49,7 @@ CODES: dict[str, ErrorCode] = {
         UNKNOWN_EVENT,
         INVALID_REQUEST,
         GEMINI_QUOTA,
+        RATE_LIMITED,
         GEMINI_UNAVAILABLE,
         INTERNAL_ERROR,
     )
