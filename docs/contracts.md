@@ -307,3 +307,23 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
   Cloud Run's first `X-Forwarded-For` address identifies the client, falling back to the
   socket address. Excess requests return HTTP 429 RFC 9457 with stable code
   `rate_limited` and a retry delay in `detail`; this is distinct from `gemini_quota`.
+
+### C3 trace additions (AGREED, 2026-10-11)
+
+- `POST /api/v1/traces` accepts `{ "events": [/* C2 events */], "extra_events": ["payroll_run"] }`
+  (`extra_events` is optional) and returns
+  `{ "summary": TraceSummary }`. The summary contains the observed vocabulary,
+  counts, time span, closed string values and likely `_id` entity fields.
+  `summary.vocabulary.events` is the sorted union of observed event names and
+  `extra_events`; `summary.event_counts` counts observed events only. The
+  endpoint stores nothing. Requests over 5 MB return an `invalid_request` problem;
+  traces over 10,000 events return `invalid_events`.
+- `haqwa build RULES --trace EVENTS [--map MAP]` translates events through the
+  optional map first, then uses the sorted union of the resulting rule-side names
+  and declared map names for its vocabulary. This permits rules for declared
+  events absent from the trace without exposing system-side event names.
+- `POST /api/v1/runs` accepts exactly one of `scenario_id` or `events` with the
+  existing `spec` and optional `event_map`. Uploaded events are parsed and checked
+  by the core library; the response remains `{ "events": [...], "report": {...} }`.
+  Existing scenario requests keep the same behavior.
+  The same 5 MB request body limit applies to `/runs`.

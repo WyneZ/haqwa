@@ -29,6 +29,7 @@ from .schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
 DIST_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+MAX_TRACE_BODY_BYTES = 5_000_000
 
 
 def _problem(error: HaqwaError, **extra: object) -> JSONResponse:
@@ -59,6 +60,21 @@ def create_app() -> FastAPI:
                 api.state.rate_limiter.check(client_ip(request))
             except HaqwaError as exc:
                 return _problem(exc)
+        return await call_next(request)
+
+    @api.middleware("http")
+    async def trace_body_limit(request: Request, call_next):
+        if request.method == "POST" and request.url.path in {"/api/v1/traces", "/api/v1/runs"}:
+            length = request.headers.get("content-length")
+            if length is not None:
+                try:
+                    too_large = int(length) > MAX_TRACE_BODY_BYTES
+                except ValueError:
+                    too_large = False
+                if too_large:
+                    return _problem(HaqwaError(INVALID_REQUEST, "Request body exceeds 5 MB"))
+            if len(await request.body()) > MAX_TRACE_BODY_BYTES:
+                return _problem(HaqwaError(INVALID_REQUEST, "Request body exceeds 5 MB"))
         return await call_next(request)
 
     if settings.dev_cors:
