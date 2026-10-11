@@ -31,6 +31,7 @@ export default function App() {
 function Wizard({ onStartOver }: { onStartOver: () => void }) {
   const [step, setStep] = usePersistentState<Step>('step', 'define')
   const [spec, setSpec] = usePersistentState<Spec | null>('spec', null)
+  const [specYaml, setSpecYaml] = usePersistentState<string | null>('specYaml', null)
   const [savedRun, setSavedRun] = usePersistentState<Run | null>('run', null)
   const [traceRun, setTraceRun] = useState<Run | null>(null)
   const [source, setSource] = usePersistentState<Source>('source', { kind: 'shop' })
@@ -51,15 +52,17 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
     setSource(next)
     setEvents(log)
     setSpec(null)
+    setSpecYaml(null)
     setRun(null)
   }
 
   // Never show a screen without its data (e.g. saved data from an older version).
   let view: Step = 'define'
-  if (spec && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
+  if (spec && specYaml && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
 
-  function rulesConfirmed(rules: Rule[]) {
+  function rulesConfirmed(rules: Rule[], yaml: string) {
     setSpec({ version: 1, rules })
+    setSpecYaml(yaml)
     setRun(null)
     setStep('test')
   }
@@ -70,9 +73,10 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
       {view === 'define' && (
         <DefineScreen source={source} onSourceChange={changeSource} onDone={rulesConfirmed} />
       )}
-      {view === 'test' && spec && (
+      {view === 'test' && spec && specYaml && (
         <TestScreen
           spec={spec}
+          specYaml={specYaml}
           source={source}
           events={events}
           onTraceLoaded={(next, log) => {
@@ -86,8 +90,14 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
           onSeeResults={() => setStep('results')}
         />
       )}
-      {view === 'results' && spec && run && (
-        <ResultsScreen spec={spec} run={run} onRun={setRun} onBack={() => setStep('test')} />
+      {view === 'results' && spec && specYaml && run && (
+        <ResultsScreen
+          spec={spec}
+          specYaml={specYaml}
+          run={run}
+          onRun={setRun}
+          onBack={() => setStep('test')}
+        />
       )}
     </div>
   )
