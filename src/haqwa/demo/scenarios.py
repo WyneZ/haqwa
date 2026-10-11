@@ -120,6 +120,11 @@ _RECORDING_NAME = re.compile(
 
 
 def _recording_title(stem: str) -> str | None:
+    live = re.fullmatch(r"gemini_live_(timeout|stale)_run_(\d+)_(\d{4}_\d{2}_\d{2})", stem)
+    if live:
+        fault, number, date = live.groups()
+        label = "payment timeout" if fault == "timeout" else "stale order status"
+        return f"Live Gemini agent over MCP — {label} — run {number} ({date.replace('_', '-')})"
     match = _RECORDING_NAME.fullmatch(stem)
     if match is None:
         return None
