@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { checkEvents, friendlyError, listScenarios, runScenario, summarizeTrace } from '../api/client'
 import type { LogEvent, Scenario, Spec } from '../api/types'
+import { AgentConnectCard } from '../components/AgentConnectCard'
 import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
@@ -257,6 +258,8 @@ export function TestScreen({
             )}
           </section>
         )}
+
+        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
 
         {shown && (
           <section className="card" aria-labelledby="ran-title">

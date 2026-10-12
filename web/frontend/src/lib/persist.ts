@@ -3,7 +3,8 @@
  * no router).
  *
  * sessionStorage lives as long as the browser tab: refresh keeps the owner's progress,
- * a new tab starts clean. It holds only policy text, rules and run results, never secrets.
+ * a new tab starts clean. It also holds the current agent session URL, which is a secret
+ * limited to this tab's lifetime.
  * Bump VERSION when a saved shape changes, so old saved data is ignored instead of
  * breaking the app.
  */
