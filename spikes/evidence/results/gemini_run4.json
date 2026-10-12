@@ -1,0 +1,30 @@
+{
+  "run": 4,
+  "model": "gemini-3.6-flash",
+  "seconds": 6.78,
+  "input_tokens": 3189,
+  "output_tokens": 117,
+  "found": [
+    "A-2",
+    "A-8"
+  ],
+  "caught": [
+    "A-2",
+    "A-8"
+  ],
+  "missed": [],
+  "false_alarms": [],
+  "exact": true,
+  "raw": {
+    "violations": [
+      {
+        "order_id": "A-2",
+        "explanation": "Order A-2 received two card payment capture events (evt_004 and evt_005) without any refund in between."
+      },
+      {
+        "order_id": "A-8",
+        "explanation": "Order A-8 received two card payment capture events (evt_025 and evt_026) following its refund event."
+      }
+    ]
+  }
+}
