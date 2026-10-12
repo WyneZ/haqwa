@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { checkEvents, friendlyError, listScenarios, runScenario, summarizeTrace } from '../api/client'
 import type { LogEvent, Scenario, Spec } from '../api/types'
+import { AgentConnectCard } from '../components/AgentConnectCard'
 import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
@@ -78,7 +79,8 @@ export function TestScreen({
     run &&
     (source.kind === 'trace'
       ? run.source.kind === 'trace'
-      : run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id)
+      : run.source.kind === 'agent' ||
+        (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id))
       ? run
       : null
   const kinds = shown?.response.report.results.map(verdictKind) ?? []
@@ -257,6 +259,8 @@ export function TestScreen({
           </section>
         )}
 
+        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
+
         {shown && (
           <section className="card" aria-labelledby="ran-title">
             <h2 id="ran-title" className="card__title">
@@ -272,7 +276,7 @@ export function TestScreen({
                 about happened in this run.
               </p>
             )}
-            {shown.source.kind === 'scenario' && (
+            {shown.source.kind !== 'trace' && (
               <>
                 <p className="card__lead">What the agent did:</p>
                 <Timeline events={shown.response.events} />
