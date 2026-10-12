@@ -11,6 +11,7 @@ dependencies = [
     "agentproof-sim==0.1.1",
     "fastapi>=0.115",
     "google-genai>=2.25.0",
+    "mcp==1.30.0",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",

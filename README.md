@@ -128,6 +128,46 @@ Runs are recorded by default (`--no-record` skips) and replay in the demo withou
 To connect another MCP client, run `uv run haqwa live serve --fault timeout_after_commit`
 and use the printed URL; the verdict prints when you stop the server.
 
+### Bring your own agent
+
+Create a private shop session through the web API, then give your MCP agent the returned
+`mcp_url` and `task`. The URL contains the session secret. After the agent finishes,
+use `POST /api/v1/agent-sessions/{session_id}/check` as **Check now** with a sealed spec
+to get the same `events` and `report` shape as `/runs`. Session status lists the
+agent's tool calls. This is an additional path alongside scenarios, trace upload and
+the local `haqwa live` commands.
+
+```sh
+curl -X POST http://localhost:8000/api/v1/agent-sessions \
+  -H 'content-type: application/json' \
+  -d '{"fault":"timeout_after_commit"}'
+# Give your MCP client the returned mcp_url and task.
+# Then POST {"spec": <contents of examples/shop/rules.spec.yaml as JSON>}
+# to /api/v1/agent-sessions/<session_id>/check.
+```
+
+For a Gemini ADK client, install the demo group, set your own `GEMINI_API_KEY`, and run
+`uv run python examples/connect_agent.py --url "<mcp_url>" --task "<task>"`.
+The [generic MCP client config](examples/mcp_client_config.json) shows the Streamable
+HTTP URL shape; adjust its keys to your client's format.
+
+**Requirements**
+
+1. Your agent must be an MCP client that supports Streamable HTTP. Stdio-only clients
+   need a bridge such as `mcp-remote`.
+2. It may act only through the shop tools Haqwa gives it. Actions done any other way
+   are not checked.
+3. Give it the task returned by the session API (and shown on the page). The task uses
+   order `A-1`; the stale fault affects only `A-1`.
+4. Do not tell your agent which fault is injected, or the test proves nothing.
+5. Check it against shop rules, using the shop vocabulary.
+6. A session lasts 30 minutes and allows 200 tool calls. Each IP can create 5 new
+   sessions per minute.
+7. The URL is a secret: anyone with it can call your session. Sessions live in memory
+   and are lost on redeploy.
+8. Your agent's model and its cost are yours; Haqwa makes no LLM call for this.
+9. Use test data only; never real customer data.
+
 ## Evidence
 
 The [recorded comparison](spikes/evidence/results/summary.md) used a log of 12 orders and
