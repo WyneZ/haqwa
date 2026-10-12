@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 
 from haqwa.ai.client import GeminiBadOutput, GeminiQuotaError, GeminiUnavailable
 from haqwa.core.compiler import CompileError
@@ -21,7 +26,10 @@ from haqwa.core.errors import (
     HaqwaError,
     to_problem,
 )
+from haqwa.live.server import Fault, ShopState, register_tools
 
+from .agent_routes import router as agent_router
+from .agent_sessions import AgentSessionStore
 from .config import get_settings
 from .rate_limit import RateLimiter, client_ip
 from .routes import router
@@ -45,10 +53,43 @@ def create_app() -> FastAPI:
     from haqwa.ai.client import GeminiClient
 
     settings = get_settings()
-    api = FastAPI(title="Haqwa API", version="1.0.0")
+    sessions = AgentSessionStore(settings.agent_max_sessions, settings.agent_ttl_seconds)
+    security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    timeout_mcp = FastMCP("Haqwa live shop", json_response=True, transport_security=security)
+    stale_mcp = FastMCP("Haqwa live shop", json_response=True, transport_security=security)
+
+    def resolver_for(fault: Fault) -> Callable[[Context], ShopState]:
+        def resolve(ctx: Context) -> ShopState:
+            try:
+                token = ctx.request_context.request.query_params["session"]
+                session = sessions.get(token)
+            except (KeyError, HaqwaError) as exc:
+                raise ToolError("Session not found or expired") from exc
+            if session.fault != fault:
+                raise ToolError("Session not found or expired")
+            if session.calls_started >= settings.agent_max_calls:
+                raise ToolError("Too many requests")
+            session.calls_started += 1
+            return session.shop
+
+        return resolve
+
+    register_tools(timeout_mcp, "timeout_after_commit", resolver_for("timeout_after_commit"))
+    register_tools(stale_mcp, "stale_state", resolver_for("stale_state"))
+
+    @asynccontextmanager
+    async def lifespan(_api: FastAPI):
+        async with timeout_mcp.session_manager.run(), stale_mcp.session_manager.run():
+            yield
+
+    api = FastAPI(title="Haqwa API", version="1.0.0", lifespan=lifespan)
     api.state.settings = settings
     api.state.gemini_client = GeminiClient(cache_dir=settings.cache_dir)
     api.state.rate_limiter = RateLimiter(settings.rate_per_min, settings.rate_per_day)
+    api.state.agent_create_limiter = RateLimiter(
+        settings.agent_create_per_min, settings.agent_create_per_day
+    )
+    api.state.agent_sessions = sessions
 
     @api.middleware("http")
     async def limit_gemini_routes(request: Request, call_next):
@@ -118,11 +159,15 @@ def create_app() -> FastAPI:
         return _problem(HaqwaError(INTERNAL_ERROR, "An unexpected error occurred"))
 
     api.include_router(router)
+    api.include_router(agent_router)
 
     @api.get("/healthz", response_model=HealthResponse)
     def healthz() -> HealthResponse:
         """Cloud Run health check."""
         return HealthResponse(ok=True)
+
+    api.mount("/agent/timeout", timeout_mcp.streamable_http_app())
+    api.mount("/agent/stale", stale_mcp.streamable_http_app())
 
     if (DIST_DIR / "index.html").is_file():
 

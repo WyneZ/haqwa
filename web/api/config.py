@@ -33,6 +33,11 @@ class Settings:
     dev_cors: bool
     rate_per_min: int = 10
     rate_per_day: int = 200
+    agent_max_sessions: int = 20
+    agent_ttl_seconds: int = 1800
+    agent_max_calls: int = 200
+    agent_create_per_min: int = 5
+    agent_create_per_day: int = 100
 
 
 def get_settings() -> Settings:
@@ -43,4 +48,9 @@ def get_settings() -> Settings:
         dev_cors=os.getenv("HAQWA_DEV_CORS") == "1",
         rate_per_min=int(os.getenv("HAQWA_RATE_PER_MIN", "10")),
         rate_per_day=int(os.getenv("HAQWA_RATE_PER_DAY", "200")),
+        agent_max_sessions=int(os.getenv("HAQWA_AGENT_MAX_SESSIONS", "20")),
+        agent_ttl_seconds=int(os.getenv("HAQWA_AGENT_TTL_SECONDS", "1800")),
+        agent_max_calls=int(os.getenv("HAQWA_AGENT_MAX_CALLS", "200")),
+        agent_create_per_min=int(os.getenv("HAQWA_AGENT_CREATE_PER_MIN", "5")),
+        agent_create_per_day=int(os.getenv("HAQWA_AGENT_CREATE_PER_DAY", "100")),
     )
