@@ -1,0 +1,825 @@
+[
+  {
+    "event": "employee_onboarded",
+    "ts": "2026-08-25T09:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-01T07:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-01T09:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "leave_id": "L-01",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-01T14:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "leave_id": "L-01",
+      "leave_type": "annual",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-01T15:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "leave_id": "L-01",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-03T07:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-03T09:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "leave_id": "L-02",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-03T15:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "leave_id": "L-02",
+      "leave_type": "sick",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-03T16:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "employee_period": "E-01-2026-09"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-03T16:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "leave_id": "L-02",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-03T17:00:00Z",
+    "data": {
+      "employee_id": "E-01",
+      "department": "operations",
+      "employee_period": "E-01-2026-09"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-05T09:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "leave_id": "L-03",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-05T16:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "employee_period": "E-02-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-05T16:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "leave_id": "L-03",
+      "leave_type": "unpaid",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-05T17:00:00Z",
+    "data": {
+      "employee_id": "E-02",
+      "department": "finance",
+      "employee_period": "E-02-2026-09"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-05T17:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "leave_id": "L-03",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "leave_cancelled",
+    "ts": "2026-09-05T19:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "leave_id": "L-03",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-07T07:00:00Z",
+    "data": {
+      "employee_id": "E-04",
+      "department": "operations",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-07T09:00:00Z",
+    "data": {
+      "employee_id": "E-04",
+      "department": "operations",
+      "leave_id": "L-04",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-07T16:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "employee_period": "E-03-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-07T17:00:00Z",
+    "data": {
+      "employee_id": "E-03",
+      "department": "support",
+      "employee_period": "E-03-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-07T17:00:00Z",
+    "data": {
+      "employee_id": "E-04",
+      "department": "operations",
+      "leave_id": "L-04",
+      "leave_type": "annual",
+      "decision": "rejected"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-09T09:00:00Z",
+    "data": {
+      "employee_id": "E-05",
+      "department": "finance",
+      "leave_id": "L-05",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-09T16:00:00Z",
+    "data": {
+      "employee_id": "E-04",
+      "department": "operations",
+      "employee_period": "E-04-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-09T17:00:00Z",
+    "data": {
+      "employee_id": "E-04",
+      "department": "operations",
+      "employee_period": "E-04-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-09T18:00:00Z",
+    "data": {
+      "employee_id": "E-05",
+      "department": "finance",
+      "leave_id": "L-05",
+      "leave_type": "sick",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-09T19:00:00Z",
+    "data": {
+      "employee_id": "E-05",
+      "department": "finance",
+      "leave_id": "L-05",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-11T07:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-11T09:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "leave_id": "L-06",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-11T16:00:00Z",
+    "data": {
+      "employee_id": "E-05",
+      "department": "finance",
+      "employee_period": "E-05-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-11T17:00:00Z",
+    "data": {
+      "employee_id": "E-05",
+      "department": "finance",
+      "employee_period": "E-05-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-11T19:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "leave_id": "L-06",
+      "leave_type": "unpaid",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-11T20:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "leave_id": "L-06",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-13T09:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "leave_id": "L-07",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-13T16:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "employee_period": "E-06-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-13T17:00:00Z",
+    "data": {
+      "employee_id": "E-06",
+      "department": "support",
+      "employee_period": "E-06-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-13T20:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "leave_id": "L-07",
+      "leave_type": "annual",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_cancelled",
+    "ts": "2026-09-13T22:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "leave_id": "L-07",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-14T00:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "leave_id": "L-07",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "employee_onboarded",
+    "ts": "2026-09-14T09:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-15T07:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-15T09:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "leave_id": "L-08",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-15T16:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "employee_period": "E-07-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-15T17:00:00Z",
+    "data": {
+      "employee_id": "E-07",
+      "department": "operations",
+      "employee_period": "E-07-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-15T21:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "leave_id": "L-08",
+      "leave_type": "sick",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-15T22:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "leave_id": "L-08",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-17T09:00:00Z",
+    "data": {
+      "employee_id": "E-09",
+      "department": "support",
+      "leave_id": "L-09",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-17T16:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "employee_period": "E-08-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-17T17:00:00Z",
+    "data": {
+      "employee_id": "E-08",
+      "department": "finance",
+      "employee_period": "E-08-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-17T22:00:00Z",
+    "data": {
+      "employee_id": "E-09",
+      "department": "support",
+      "leave_id": "L-09",
+      "leave_type": "unpaid",
+      "decision": "rejected"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-19T07:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-19T09:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "leave_id": "L-10",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-19T16:00:00Z",
+    "data": {
+      "employee_id": "E-09",
+      "department": "support",
+      "employee_period": "E-09-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-19T17:00:00Z",
+    "data": {
+      "employee_id": "E-09",
+      "department": "support",
+      "employee_period": "E-09-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-19T23:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "leave_id": "L-10",
+      "leave_type": "annual",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-20T00:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "leave_id": "L-10",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-21T09:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance",
+      "leave_id": "L-11",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-21T16:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "employee_period": "E-10-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-21T17:00:00Z",
+    "data": {
+      "employee_id": "E-10",
+      "department": "operations",
+      "employee_period": "E-10-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-22T00:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance",
+      "leave_id": "L-11",
+      "leave_type": "sick",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-22T01:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance",
+      "leave_id": "L-11",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-23T07:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-23T09:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "leave_id": "L-12",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-23T13:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "leave_id": "L-12",
+      "leave_type": "unpaid",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-23T14:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "leave_id": "L-12",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-23T16:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance",
+      "employee_period": "E-11-2026-09"
+    }
+  },
+  {
+    "event": "leave_cancelled",
+    "ts": "2026-09-23T16:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "leave_id": "L-12",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-23T17:00:00Z",
+    "data": {
+      "employee_id": "E-11",
+      "department": "finance",
+      "employee_period": "E-11-2026-09"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-25T09:00:00Z",
+    "data": {
+      "employee_id": "E-13",
+      "department": "operations",
+      "leave_id": "L-13",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-25T14:00:00Z",
+    "data": {
+      "employee_id": "E-13",
+      "department": "operations",
+      "leave_id": "L-13",
+      "leave_type": "annual",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-25T15:00:00Z",
+    "data": {
+      "employee_id": "E-13",
+      "department": "operations",
+      "leave_id": "L-13",
+      "leave_type": "annual"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-25T16:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "employee_period": "E-12-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-25T17:00:00Z",
+    "data": {
+      "employee_id": "E-12",
+      "department": "support",
+      "employee_period": "E-12-2026-09"
+    }
+  },
+  {
+    "event": "shift_started",
+    "ts": "2026-09-27T07:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "location": "Yangon"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-27T09:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "leave_id": "L-14",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-09-27T15:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "leave_id": "L-14",
+      "leave_type": "sick",
+      "decision": "approved"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-27T16:00:00Z",
+    "data": {
+      "employee_id": "E-13",
+      "department": "operations",
+      "employee_period": "E-13-2026-09"
+    }
+  },
+  {
+    "event": "leave_approved",
+    "ts": "2026-09-27T16:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "leave_id": "L-14",
+      "leave_type": "sick"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-27T17:00:00Z",
+    "data": {
+      "employee_id": "E-13",
+      "department": "operations",
+      "employee_period": "E-13-2026-09"
+    }
+  },
+  {
+    "event": "leave_requested",
+    "ts": "2026-09-29T09:00:00Z",
+    "data": {
+      "employee_id": "E-15",
+      "department": "support",
+      "leave_id": "L-15",
+      "leave_type": "unpaid"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-09-29T16:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "employee_period": "E-14-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-09-29T17:00:00Z",
+    "data": {
+      "employee_id": "E-14",
+      "department": "finance",
+      "employee_period": "E-14-2026-09"
+    }
+  },
+  {
+    "event": "leave_decided",
+    "ts": "2026-10-01T10:00:00Z",
+    "data": {
+      "employee_id": "E-15",
+      "department": "support",
+      "leave_id": "L-15",
+      "leave_type": "unpaid",
+      "decision": "rejected"
+    }
+  },
+  {
+    "event": "timesheet_approved",
+    "ts": "2026-10-01T16:00:00Z",
+    "data": {
+      "employee_id": "E-15",
+      "department": "support",
+      "employee_period": "E-15-2026-09"
+    }
+  },
+  {
+    "event": "salary_paid",
+    "ts": "2026-10-01T17:00:00Z",
+    "data": {
+      "employee_id": "E-15",
+      "department": "support",
+      "employee_period": "E-15-2026-09"
+    }
+  }
+]

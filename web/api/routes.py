@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import ValidationError
 
 from haqwa.ai import GeminiBadOutput, GeminiClient, ParseError, apply_answers, clarify
 from haqwa.ai.explain import explain_violation
+from haqwa.ai.vocab import Vocabulary
 from haqwa.core.checker import check
 from haqwa.core.compiler import compile_spec
+from haqwa.core.errors import INVALID_REQUEST, HaqwaError
 from haqwa.core.events import parse_event_map, parse_events
 from haqwa.core.spec import dump_spec, parse_spec, suggest_rule_id
 from haqwa.core.trace import summarize_trace
@@ -56,11 +59,19 @@ def clarify_rules(
     results: list[ClarifyResult] = []
     ids: set[str] = set()
     cached = True
+    if request.vocabulary is None:
+        vocab = settings.vocab
+    else:
+        try:
+            vocab = Vocabulary(**request.vocabulary.model_dump())
+        except (ValueError, ValidationError) as exc:
+            first_error = exc.errors()[0]["msg"] if isinstance(exc, ValidationError) else str(exc)
+            raise HaqwaError(INVALID_REQUEST, f"Invalid vocabulary: {first_error}") from exc
     for source in request.rules:
         rule_id = suggest_rule_id(source, ids)
         ids.add(rule_id)
         try:
-            outcome = clarify(source, rule_id=rule_id, vocab=settings.vocab, client=client)
+            outcome = clarify(source, rule_id=rule_id, vocab=vocab, client=client)
         except (ParseError, GeminiBadOutput) as exc:
             results.append(
                 ClarifyResult(source=source, status="unsupported", reason=str(exc)[:240])

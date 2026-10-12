@@ -83,9 +83,27 @@ export interface Scenario {
   id: string
   title: string
   fault: string
-  agent: 'naive' | 'fixed'
+  agent: 'naive' | 'fixed' | 'gemini'
   description: string
-  expected: 'violation' | 'pass'
+  expected: 'violation' | 'pass' | 'unknown'
+  kind: 'scripted' | 'recorded' | 'live'
+}
+
+export interface TraceVocabulary {
+  events: string[]
+  fields: string[]
+  field_values: Record<string, string[]>
+}
+
+export interface TraceSummary {
+  event_count: number
+  event_counts: Record<string, number>
+  first_ts: string | null
+  last_ts: string | null
+  fields: string[]
+  field_values: Record<string, string[]>
+  entity_candidates: string[]
+  vocabulary: TraceVocabulary
 }
 
 /** C2 event: what the agent did, in rule names. `ts` is ISO 8601 with a timezone. */
