@@ -39,6 +39,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-11 · AGREED · Code freeze moved from Oct 11 to Oct 13 (night); deck, video and submission Oct 14–17 are not movable · Hazel + Wyne · time for A and B
 - 2026-10-11 · B spike gate passed: MCP server + ADK agent + timeout_after_commit + effect check work; 3–4 Gemini requests per live run. With a neutral error ("Request timed out") and neutral tool docs, an unmodified Gemini agent double-charged in 3/3 runs (it retried with a fresh idempotency key, which cannot dedupe a first call made without one) · Wyne · a first run with hinting error text and docstring was discarded as biased
 - 2026-10-11 · /clarify takes an optional trace vocabulary; scenarios expose kind (scripted/recorded/live) · Wyne (Hazel reviews) · any-domain rule creation and honest demo labels
+- 2026-10-12 · AGREED · Hazel acknowledges the 2026-10-09 move: deploy (Dockerfile, Cloud Run, Secret Manager, budget alert) is owned by Wyne; web/frontend stays Track A · Hazel + Wyne · one owner for the deployed demo; Wyne already runs it
 
 ## Track A (Hazel — ai/, web/, deploy)
 
