@@ -8,6 +8,13 @@ import type { Run } from '../lib/run'
 import { verdictKind } from '../lib/verdict'
 import { ruleTitle } from '../lib/words'
 
+/** Honest label for who produced the run: scripted code or a recorded real Gemini agent. */
+const AGENT_BADGE: Record<Scenario['agent'], string> = {
+  naive: 'Scripted demo agent',
+  fixed: 'Scripted demo agent',
+  gemini: 'Real Gemini agent · recorded',
+}
+
 interface Props {
   spec: Spec
   run: Run | null
@@ -74,7 +81,10 @@ export function TestScreen({ spec, run, onRun, onBack, onSeeResults }: Props) {
           <span className="bubble__avatar" aria-hidden="true">
             H
           </span>
-          <p>Pick an AI agent and a problem to throw at it. I’ll check what it did against your rules.</p>
+          <p>
+            Pick a demo run: a scripted agent, or a recorded run of a real Gemini agent, facing a
+            problem. I’ll check what it did against your rules.
+          </p>
         </div>
 
         {loadError && (
@@ -98,6 +108,13 @@ export function TestScreen({ spec, run, onRun, onBack, onSeeResults }: Props) {
                   className={s.id === chosen?.id ? 'scenario scenario--on' : 'scenario'}
                   onClick={() => setSelected(s.id)}
                 >
+                  <span
+                    className={
+                      s.agent === 'gemini' ? 'scenario__badge scenario__badge--real' : 'scenario__badge'
+                    }
+                  >
+                    {AGENT_BADGE[s.agent] ?? 'Demo agent'}
+                  </span>
                   <span className="scenario__title">{s.title}</span>
                   <span className="scenario__desc">{s.description}</span>
                 </button>

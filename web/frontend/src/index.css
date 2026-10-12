@@ -512,6 +512,23 @@ button {
   background: var(--brand-soft);
 }
 
+.scenario__badge {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scenario__badge--real {
+  border-color: var(--brand-line);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+
 .scenario__title {
   font-weight: 600;
 }
