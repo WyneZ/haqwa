@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
-from haqwa.ai.clarify import ClarifyOutcome, Question
+from haqwa.ai.clarify import ClarifyOutcome, Question, WireClarify
 from haqwa.ai.client import GeminiQuotaError, GeminiUnavailable
 from haqwa.ai.explain import Explanation
 from haqwa.core.report import Violation
@@ -46,6 +47,14 @@ def test_health_scenarios_and_openapi(client: TestClient) -> None:
     scenarios = client.get("/api/v1/scenarios").json()
     assert any(s["id"] == "payment_timeout_naive" for s in scenarios)
     assert all(s["expected"] == "unknown" for s in scenarios if s["agent"] == "gemini")
+    assert all(s["kind"] in {"scripted", "recorded", "live"} for s in scenarios)
+    assert all(s["kind"] == "scripted" for s in scenarios if s["agent"] != "gemini")
+    assert any(s["kind"] == "live" for s in scenarios if "gemini_live_" in s["id"])
+    assert all(
+        s["kind"] == "recorded"
+        for s in scenarios
+        if s["agent"] == "gemini" and "gemini_live_" not in s["id"]
+    )
     paths = client.get("/openapi.json").json()["paths"]
     for path in ("clarify", "answers", "seal", "scenarios", "runs", "explain"):
         assert f"/api/v1/{path}" in paths
@@ -85,6 +94,52 @@ def test_clarify_supported_and_unsupported(client: TestClient, monkeypatch) -> N
     assert "dropped" not in body["results"][0]
     assert body["results"][1]["status"] == "unsupported"
     assert body["cached"] is False
+
+
+def test_clarify_uses_optional_vocabulary_in_fake_client(client: TestClient) -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def generate(self, prompt, schema):
+            self.prompts.append(prompt)
+            return SimpleNamespace(
+                value=WireClarify.model_validate(
+                    {
+                        "rule_id": "rule",
+                        "parse": {"pattern": "unsupported", "reason": "outside the four patterns"},
+                        "ambiguities": [],
+                    }
+                ),
+                cached=False,
+            )
+
+    fake = FakeClient()
+    client.app.dependency_overrides[routes.get_client] = lambda: fake
+    payload = {
+        "rules": ["Decide every leave request."],
+        "vocabulary": {"events": ["leave_requested", "leave_decided"], "fields": ["leave_id"]},
+    }
+    assert client.post("/api/v1/clarify", json=payload).status_code == 200
+    assert "leave_requested" in fake.prompts[-1]
+    assert "charged" not in fake.prompts[-1]
+    assert client.post("/api/v1/clarify", json={"rules": payload["rules"]}).status_code == 200
+    assert "charged" in fake.prompts[-1]
+
+
+def test_clarify_rejects_invalid_vocabulary(client: TestClient) -> None:
+    vocabulary = {"events": ["leave_requested"], "fields": ["leave_id"]}
+    invalid = (
+        {**vocabulary, "field_values": {"unknown": ["x"]}},
+        {**vocabulary, "events": []},
+        {**vocabulary, "events": ["leave requested"]},
+        {**vocabulary, "field_values": {"leave_id": ["x"] * 51}},
+    )
+    for value in invalid:
+        response = client.post("/api/v1/clarify", json={"rules": ["one"], "vocabulary": value})
+        assert_problem(response, "invalid_request", 422)
+        if "unknown" in value.get("field_values", {}):
+            assert response.json()["detail"].startswith("Invalid vocabulary:")
 
 
 def test_answers_and_invalid_rule(client: TestClient) -> None:

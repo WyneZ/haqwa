@@ -19,10 +19,21 @@ interface Props {
   onEdit: () => void
   busy: boolean
   rows: RuleRow[] | null // null = still writing the policy
+  placeholder?: string
+  canSubmit?: boolean
 }
 
 /** Left column: the policy text, then one status line per rule. */
-export function PolicyPanel({ text, onTextChange, onSubmit, onEdit, busy, rows }: Props) {
+export function PolicyPanel({
+  text,
+  onTextChange,
+  onSubmit,
+  onEdit,
+  busy,
+  rows,
+  placeholder,
+  canSubmit = true,
+}: Props) {
   const editing = rows === null
   return (
     <aside className="policy">
@@ -34,6 +45,7 @@ export function PolicyPanel({ text, onTextChange, onSubmit, onEdit, busy, rows }
         id="policy"
         className="policy__text"
         value={text}
+        placeholder={placeholder}
         onChange={(e) => onTextChange(e.target.value)}
         readOnly={!editing}
         rows={7}
@@ -43,7 +55,7 @@ export function PolicyPanel({ text, onTextChange, onSubmit, onEdit, busy, rows }
           type="button"
           className="btn btn--primary"
           onClick={onSubmit}
-          disabled={busy || text.trim() === ''}
+          disabled={busy || !canSubmit || text.trim() === ''}
         >
           {busy ? 'Reading your rules…' : 'Understand my rules'}
         </button>

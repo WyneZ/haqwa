@@ -15,6 +15,7 @@ export const DEMO_SCENARIOS: Scenario[] = [
     "title": "Payment timeout — naive agent",
     "fault": "timeout_after_commit",
     "agent": "naive",
+    "kind": "scripted",
     "description": "The charge succeeds, then the API times out; the agent retries without an idempotency key.",
     "expected": "violation"
   },
@@ -23,6 +24,7 @@ export const DEMO_SCENARIOS: Scenario[] = [
     "title": "Payment timeout — fixed agent",
     "fault": "timeout_after_commit",
     "agent": "fixed",
+    "kind": "scripted",
     "description": "Same timeout; the agent retries with one idempotency key.",
     "expected": "pass"
   },
@@ -31,6 +33,7 @@ export const DEMO_SCENARIOS: Scenario[] = [
     "title": "Duplicate webhook — naive consumer",
     "fault": "duplicate_event",
     "agent": "naive",
+    "kind": "scripted",
     "description": "The charge request message is delivered twice; the consumer charges twice.",
     "expected": "violation"
   },
@@ -39,6 +42,7 @@ export const DEMO_SCENARIOS: Scenario[] = [
     "title": "Duplicate webhook — fixed consumer",
     "fault": "duplicate_event",
     "agent": "fixed",
+    "kind": "scripted",
     "description": "Same duplicate delivery; the consumer dedupes by message id.",
     "expected": "pass"
   }

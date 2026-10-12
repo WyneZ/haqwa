@@ -310,6 +310,10 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
 
 ### C3 trace additions (AGREED, 2026-10-11)
 
+- `POST /api/v1/clarify` accepts optional `vocabulary` (`{events, fields, field_values}`),
+  the same shape as `summary.vocabulary`. Omitted means the shop vocabulary;
+  invalid vocabulary returns 422 `invalid_request`.
+- `GET /api/v1/scenarios` items gain `kind: "scripted" | "recorded" | "live"`.
 - `POST /api/v1/traces` accepts `{ "events": [/* C2 events */], "extra_events": ["payroll_run"] }`
   (`extra_events` is optional) and returns
   `{ "summary": TraceSummary }`. The summary contains the observed vocabulary,
