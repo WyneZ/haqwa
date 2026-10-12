@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { friendlyError, listScenarios, runScenario } from '../api/client'
 import type { Spec } from '../api/types'
 import { ExplainBox } from '../components/ExplainBox'
+import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
 import type { Run } from '../lib/run'
@@ -9,6 +10,7 @@ import { entityNoun, humanize } from '../lib/words'
 
 interface Props {
   spec: Spec
+  specYaml: string
   run: Run
   onRun: (run: Run) => void
   onBack: () => void
@@ -18,22 +20,26 @@ interface Props {
  * Screen 3 (Results): which rule broke, for which entity, at which event — all from
  * core's report. The AI explanation sits apart and is labelled as a suggestion.
  */
-export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
+export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { scenario, response } = run
+  const { source, response } = run
   const violations = response.report.results.flatMap((r) => r.violations)
 
   /** Same fault, fixed agent: the "before / after" step of the demo. */
   async function testFixed() {
+    if (source.kind !== 'scenario') return
     setBusy(true)
     setError(null)
     try {
       const fixed = (await listScenarios()).find(
-        (s) => s.fault === scenario.fault && s.agent === 'fixed',
+        (s) => s.fault === source.scenario.fault && s.agent === 'fixed',
       )
       if (!fixed) throw new Error('no fixed agent for this scenario')
-      onRun({ scenario: fixed, response: await runScenario(spec, fixed.id) })
+      onRun({
+        source: { kind: 'scenario', scenario: fixed },
+        response: await runScenario(spec, fixed.id),
+      })
     } catch (e) {
       setError(friendlyError(e))
     } finally {
@@ -43,9 +49,13 @@ export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
 
   return (
     <main className="stage stage--wide">
-      <p className="card__lead">Scenario: {scenario.title}</p>
+      <p className="card__lead">
+        {source.kind === 'scenario'
+          ? `Scenario: ${source.scenario.title}`
+          : `Your events: ${source.name} (${source.eventCount} events)`}
+      </p>
 
-      {violations.length === 0 && (
+      {violations.length === 0 && source.kind === 'scenario' && (
         <section className="card card--pass">
           <h2 className="card__title">✓ All rules held</h2>
           <p>The agent did nothing your rules forbid.</p>
@@ -56,13 +66,25 @@ export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
 
       {violations.map((v) => {
         const rule = spec.rules.find((r) => r.id === v.rule_id)
+        const start = Math.max(0, v.offending_index - 199)
+        const visible = source.kind === 'trace' ? v.timeline.slice(start, start + 200) : v.timeline
         return (
           <section key={`${v.rule_id}:${v.entity}`} className="card card--fail">
             <p className="verdict">Rule broken</p>
             <h2 className="card__title">
-              {humanize(rule ? entityNoun(rule.per) : 'item')} {v.entity} broke “{rule?.source ?? v.rule_id}”
+              {humanize(rule ? entityNoun(rule.per) : 'item')} {v.entity} broke “
+              {rule?.source ?? v.rule_id}”
             </h2>
-            <Timeline events={v.timeline} offendingIndex={v.offending_index} />
+            {source.kind === 'trace' && (
+              <p className="card__lead">
+                Showing {visible.length} of {response.events.length} events (only those involved in
+                a broken rule)
+              </p>
+            )}
+            <Timeline
+              events={visible}
+              offendingIndex={v.offending_index - (source.kind === 'trace' ? start : 0)}
+            />
             {rule && <ExplainBox rule={rule} violation={v} />}
           </section>
         )
@@ -71,6 +93,7 @@ export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
       <section className="card">
         <h2 className="card__title card__title--small">All rules</h2>
         <Verdicts results={response.report.results} />
+        <SpecDownload specYaml={specYaml} />
       </section>
 
       {error && (
@@ -82,7 +105,7 @@ export function ResultsScreen({ spec, run, onRun, onBack }: Props) {
         <button type="button" className="btn btn--ghost" onClick={onBack}>
           ← Back to test
         </button>
-        {scenario.agent === 'naive' && (
+        {source.kind === 'scenario' && source.scenario.agent === 'naive' && (
           <button type="button" className="btn btn--primary" onClick={testFixed} disabled={busy}>
             {busy ? 'Running…' : 'Test the fixed agent →'}
           </button>

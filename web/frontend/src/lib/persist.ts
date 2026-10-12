@@ -9,7 +9,7 @@
  */
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 
-const VERSION = 'v1'
+const VERSION = 'v2'
 const PREFIX = `haqwa:${VERSION}:`
 
 function load<T>(key: string, initial: T): T {

@@ -43,7 +43,7 @@ class Scenario:
     def to_dict(self) -> dict[str, str]:
         """Public fields only (JSON-ready for the web API)."""
         keys = ("id", "title", "fault", "agent", "description", "expected")
-        return {k: getattr(self, k) for k in keys}
+        return {**{k: getattr(self, k) for k in keys}, "kind": "scripted"}
 
 
 _SCENARIOS: tuple[Scenario, ...] = (
@@ -150,6 +150,7 @@ def list_scenarios(
         title = _recording_title(path.stem)
         if title is None:
             continue
+        live = re.fullmatch(r"gemini_live_(timeout|stale)_run_\d+_\d{4}_\d{2}_\d{2}", path.stem)
         expected = "unknown"
         if spec is not None:
             compiled = compile_spec(spec, event_map)
@@ -162,8 +163,14 @@ def list_scenarios(
                 "title": title,
                 "fault": "recorded",
                 "agent": "gemini",
-                "description": "Saved AgentProof effects; replay makes no Gemini request.",
+                "description": (
+                    "A real Gemini agent (Google ADK) used the shop tools over MCP while Haqwa "
+                    "injected a fault. Replay of the recorded effects; no Gemini request."
+                    if live
+                    else "Saved AgentProof effects; replay makes no Gemini request."
+                ),
                 "expected": expected,
+                "kind": "live" if live else "recorded",
             }
         )
     return scenarios
