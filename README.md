@@ -128,6 +128,27 @@ Runs are recorded by default (`--no-record` skips) and replay in the demo withou
 To connect another MCP client, run `uv run haqwa live serve --fault timeout_after_commit`
 and use the printed URL; the verdict prints when you stop the server.
 
+## Evidence
+
+The [recorded comparison](spikes/evidence/results/summary.md) used a log of 12 orders and
+37 events, with two real violations. Gemini received the rule, the owner's decisions,
+the event map, and the full log.
+
+| | Gemini direct | Haqwa checker |
+|---|---|---|
+| Runs | 10 | 10 |
+| Exactly right (all violations, no false alarms) | 10/10 | 10/10 |
+| Violations caught | 20/20 | 20/20 |
+| False alarms (allowed orders flagged) | 0 | 0 |
+| Time per run (median) | 10.7 s | 0.1 ms |
+| Tokens per run (median, in / out) | 3189.0 / 85.0 | 0 / 0 |
+| Same answer every run | yes | yes |
+
+On this log Gemini, given the rule and the full log, was also right 10/10. Haqwa's
+checker gave the same answers in 0.1 ms with zero tokens, the same way every time,
+and it runs offline in CI. The live MCP runs show where AI fails: the agent itself
+broke the rule in 6/6 runs.
+
 ## Architecture
 
 ```text
