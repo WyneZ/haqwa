@@ -116,8 +116,14 @@ export function friendlyError(error: unknown): string {
     if (error.code === 'compile_failed') {
       return 'Some answers don’t match how Haqwa checks these rules. Please answer them again.'
     }
+    if (error.code === 'rate_limited') {
+      // The server puts the wait in `detail` ("... retry in 37 seconds."); no Retry-After header.
+      const seconds = /(\d+) seconds?/.exec(error.message)?.[1]
+      const wait = seconds ? `${seconds} seconds` : 'a minute'
+      return `Too many requests right now. Please wait ${wait} and try again.`
+    }
     if (error.code === 'gemini_quota') {
-      return 'The AI has reached its free limit for now. Please try again in a little while.'
+      return 'The AI has reached its usage limit for now. Please try again in a little while.'
     }
     if (error.status === 503) {
       return 'The AI is very busy right now. Please try again in a minute.'

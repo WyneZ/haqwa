@@ -83,9 +83,11 @@ export interface Scenario {
   id: string
   title: string
   fault: string
-  agent: 'naive' | 'fixed'
+  /** naive/fixed = scripted demo agents; gemini = a recorded run of a real Gemini agent. */
+  agent: 'naive' | 'fixed' | 'gemini'
   description: string
-  expected: 'violation' | 'pass'
+  /** `unknown` for recorded runs: the verdict comes from core when the run is checked. */
+  expected: 'violation' | 'pass' | 'unknown'
 }
 
 /** C2 event: what the agent did, in rule names. `ts` is ISO 8601 with a timezone. */
