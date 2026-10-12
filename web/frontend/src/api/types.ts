@@ -83,11 +83,27 @@ export interface Scenario {
   id: string
   title: string
   fault: string
-  /** naive/fixed = scripted demo agents; gemini = a recorded run of a real Gemini agent. */
   agent: 'naive' | 'fixed' | 'gemini'
   description: string
-  /** `unknown` for recorded runs: the verdict comes from core when the run is checked. */
   expected: 'violation' | 'pass' | 'unknown'
+  kind: 'scripted' | 'recorded' | 'live'
+}
+
+export interface TraceVocabulary {
+  events: string[]
+  fields: string[]
+  field_values: Record<string, string[]>
+}
+
+export interface TraceSummary {
+  event_count: number
+  event_counts: Record<string, number>
+  first_ts: string | null
+  last_ts: string | null
+  fields: string[]
+  field_values: Record<string, string[]>
+  entity_candidates: string[]
+  vocabulary: TraceVocabulary
 }
 
 /** C2 event: what the agent did, in rule names. `ts` is ISO 8601 with a timezone. */

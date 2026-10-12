@@ -1,0 +1,30 @@
+{
+  "run": 10,
+  "model": "gemini-3.6-flash",
+  "seconds": 7.66,
+  "input_tokens": 3189,
+  "output_tokens": 56,
+  "found": [
+    "A-2",
+    "A-8"
+  ],
+  "caught": [
+    "A-2",
+    "A-8"
+  ],
+  "missed": [],
+  "false_alarms": [],
+  "exact": true,
+  "raw": {
+    "violations": [
+      {
+        "order_id": "A-2",
+        "explanation": "Order A-2 received two non-installment payment captures without an intervening refund."
+      },
+      {
+        "order_id": "A-8",
+        "explanation": "Order A-8 received two non-installment payment captures following a refund."
+      }
+    ]
+  }
+}

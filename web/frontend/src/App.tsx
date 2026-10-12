@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import type { Rule, Spec } from './api/types'
+import type { LogEvent, Rule, Spec } from './api/types'
 import { Header } from './components/Header'
 import { clearSaved, usePersistentState } from './lib/persist'
 import type { Run } from './lib/run'
+import type { Source } from './lib/source'
 import { DefineScreen } from './screens/DefineScreen'
 import { ResultsScreen } from './screens/ResultsScreen'
 import { TestScreen } from './screens/TestScreen'
@@ -30,14 +31,38 @@ export default function App() {
 function Wizard({ onStartOver }: { onStartOver: () => void }) {
   const [step, setStep] = usePersistentState<Step>('step', 'define')
   const [spec, setSpec] = usePersistentState<Spec | null>('spec', null)
-  const [run, setRun] = usePersistentState<Run | null>('run', null)
+  const [specYaml, setSpecYaml] = usePersistentState<string | null>('specYaml', null)
+  const [savedRun, setSavedRun] = usePersistentState<Run | null>('run', null)
+  const [traceRun, setTraceRun] = useState<Run | null>(null)
+  const [source, setSource] = usePersistentState<Source>('source', { kind: 'shop' })
+  const [events, setEvents] = useState<LogEvent[] | null>(null)
+  const run = source.kind === 'shop' ? savedRun : traceRun
+
+  function setRun(next: Run | null) {
+    if (next?.source.kind === 'trace') {
+      setTraceRun(next)
+      setSavedRun(null)
+    } else {
+      setSavedRun(next)
+      setTraceRun(null)
+    }
+  }
+
+  function changeSource(next: Source, log: LogEvent[] | null) {
+    setSource(next)
+    setEvents(log)
+    setSpec(null)
+    setSpecYaml(null)
+    setRun(null)
+  }
 
   // Never show a screen without its data (e.g. saved data from an older version).
   let view: Step = 'define'
-  if (spec && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
+  if (spec && specYaml && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
 
-  function rulesConfirmed(rules: Rule[]) {
+  function rulesConfirmed(rules: Rule[], yaml: string) {
     setSpec({ version: 1, rules })
+    setSpecYaml(yaml)
     setRun(null)
     setStep('test')
   }
@@ -45,18 +70,34 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
   return (
     <div className="app">
       <Header active={['define', 'test', 'results'].indexOf(view)} onStartOver={onStartOver} />
-      {view === 'define' && <DefineScreen onDone={rulesConfirmed} />}
-      {view === 'test' && spec && (
+      {view === 'define' && (
+        <DefineScreen source={source} onSourceChange={changeSource} onDone={rulesConfirmed} />
+      )}
+      {view === 'test' && spec && specYaml && (
         <TestScreen
           spec={spec}
+          specYaml={specYaml}
+          source={source}
+          events={events}
+          onTraceLoaded={(next, log) => {
+            setSource(next)
+            setEvents(log)
+            setRun(null)
+          }}
           run={run}
           onRun={setRun}
           onBack={() => setStep('define')}
           onSeeResults={() => setStep('results')}
         />
       )}
-      {view === 'results' && spec && run && (
-        <ResultsScreen spec={spec} run={run} onRun={setRun} onBack={() => setStep('test')} />
+      {view === 'results' && spec && specYaml && run && (
+        <ResultsScreen
+          spec={spec}
+          specYaml={specYaml}
+          run={run}
+          onRun={setRun}
+          onBack={() => setStep('test')}
+        />
       )}
     </div>
   )

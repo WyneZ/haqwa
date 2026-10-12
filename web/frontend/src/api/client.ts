@@ -20,12 +20,15 @@ import type {
   ApiProblem,
   ClarifyResponse,
   Explanation,
+  LogEvent,
   Rule,
   RunResponse,
   Scenario,
   SealResponse,
   SelfTestFailure,
   Spec,
+  TraceSummary,
+  TraceVocabulary,
   Violation,
 } from './types'
 
@@ -72,8 +75,46 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /** C3 endpoint 1: rule texts -> parsed rules + owner questions. */
-export function clarifyRules(rules: string[]): Promise<ClarifyResponse> {
-  return USE_MOCK ? mockClarify(rules) : request<ClarifyResponse>('/clarify', { rules })
+export function clarifyRules(
+  rules: string[],
+  vocabulary?: TraceVocabulary,
+): Promise<ClarifyResponse> {
+  return USE_MOCK
+    ? mockClarify(rules)
+    : request<ClarifyResponse>('/clarify', { rules, ...(vocabulary ? { vocabulary } : {}) })
+}
+
+/** C3 trace summary; mock mode mirrors only the fields needed for presentation. */
+export async function summarizeTrace(events: unknown[], extraEvents: string[]): Promise<TraceSummary> {
+  if (!USE_MOCK) {
+    const result = await request<{ summary: TraceSummary }>('/traces', {
+      events,
+      extra_events: extraEvents,
+    })
+    return result.summary
+  }
+  const log = events as LogEvent[]
+  const event_counts: Record<string, number> = {}
+  const fields = new Set<string>()
+  const times: string[] = []
+  for (const item of log) {
+    event_counts[item.event] = (event_counts[item.event] ?? 0) + 1
+    Object.keys(item.data ?? {}).forEach((field) => fields.add(field))
+    if (item.ts) times.push(item.ts)
+  }
+  times.sort((a, b) => Date.parse(a) - Date.parse(b))
+  const names = [...new Set([...Object.keys(event_counts), ...extraEvents])].sort()
+  const fieldNames = [...fields].sort()
+  return {
+    event_count: log.length,
+    event_counts,
+    first_ts: times[0] ?? null,
+    last_ts: times.at(-1) ?? null,
+    fields: fieldNames,
+    field_values: {},
+    entity_candidates: fieldNames.filter((field) => field.endsWith('_id')),
+    vocabulary: { events: names, fields: fieldNames, field_values: {} },
+  }
 }
 
 /** C3 endpoint 2: one rule + the owner's Yes/No answers -> updated rule. */
@@ -103,6 +144,12 @@ export function runScenario(spec: Spec, scenarioId: string): Promise<RunResponse
     : request<RunResponse>('/runs', { spec, scenario_id: scenarioId })
 }
 
+export function checkEvents(spec: Spec, events: LogEvent[]): Promise<RunResponse> {
+  return USE_MOCK
+    ? Promise.reject(new ApiError('Checking your own events needs the real API', 501))
+    : request<RunResponse>('/runs', { spec, events })
+}
+
 /** C3 endpoint 6: plain-English explanation of one violation. Advisory only. */
 export function explainViolation(rule: Rule, violation: Violation): Promise<Explanation> {
   return USE_MOCK
@@ -124,6 +171,9 @@ export function friendlyError(error: unknown): string {
     }
     if (error.code === 'gemini_quota') {
       return 'The AI has reached its usage limit for now. Please try again in a little while.'
+    }
+    if (error.code === 'invalid_events' || error.code === 'invalid_request') {
+      return error.problem.detail ?? error.message
     }
     if (error.status === 503) {
       return 'The AI is very busy right now. Please try again in a minute.'
