@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "haqwa-shop": {
+      "transport": "streamable-http",
+      "url": "https://YOUR-SERVICE/agent/timeout/mcp?session=YOUR_SESSION_TOKEN"
+    }
+  }
+}
