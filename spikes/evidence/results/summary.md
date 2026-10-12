@@ -15,3 +15,7 @@ Gemini model: gemini-3.6-flash. Gemini got the rule, the owner's decisions, the 
 
 Orders Gemini flagged wrongly at least once: none.
 Real violations Gemini missed at least once: none.
+
+Note: the Gemini runs were split across sessions because of free-tier quota limits
+(runs 9-10 were run separately, see ../run9_log.txt). Every run used the same log,
+rule and prompt, so the split does not change the comparison.
