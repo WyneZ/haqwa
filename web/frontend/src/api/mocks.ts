@@ -10,9 +10,14 @@ import { DEMO_EXPLANATIONS, DEMO_RUNS, DEMO_SCENARIOS } from './runFixtures'
 import type {
   Answer,
   AnswersResponse,
+  AgentFault,
+  AgentSession,
+  AgentSessionStatus,
+  AgentToolCall,
   ClarifyResponse,
   ClarifyResult,
   Explanation,
+  LogEvent,
   Rule,
   RunResponse,
   Scenario,
@@ -22,6 +27,119 @@ import type {
 } from './types'
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const AGENT_TASKS: Record<AgentFault, string> = {
+  timeout_after_commit: 'Create order A-1 for 50 and charge it.',
+  stale_state: 'Process fulfilment for order A-1.',
+}
+
+const AGENT_CALLS: Record<AgentFault, Omit<AgentToolCall, 'at'>[]> = {
+  timeout_after_commit: [
+    { tool: 'create_order', arguments: { order_id: 'A-1', amount: 50 }, ok: true, error: null },
+    {
+      tool: 'charge_payment',
+      arguments: { order_id: 'A-1', amount: 50 },
+      ok: false,
+      error: 'Request timed out',
+    },
+    {
+      tool: 'charge_payment',
+      arguments: { order_id: 'A-1', amount: 50, idempotency_key: 'charge-A-1-50-1' },
+      ok: true,
+      error: null,
+    },
+  ],
+  stale_state: [
+    { tool: 'get_order', arguments: { order_id: 'A-1' }, ok: true, error: null },
+    { tool: 'ship_order', arguments: { order_id: 'A-1' }, ok: true, error: null },
+  ],
+}
+
+let agentSession: AgentSession | null = null
+let agentCreatedAt = 0
+let agentPollCount = 0
+
+function currentAgentSession(id: string): AgentSession | null {
+  return agentSession?.session_id === id && Date.now() < Date.parse(agentSession.expires_at)
+    ? agentSession
+    : null
+}
+
+/** One local mock session, with calls appearing on successive status polls. */
+export async function mockCreateAgentSession(fault: AgentFault): Promise<AgentSession> {
+  await delay(200)
+  agentCreatedAt = Date.now()
+  agentPollCount = 0
+  agentSession = {
+    session_id: 'mock',
+    fault,
+    mcp_url: `http://localhost:8000/agent/${fault === 'timeout_after_commit' ? 'timeout' : 'stale'}/mcp?session=mock`,
+    task: AGENT_TASKS[fault],
+    expires_at: new Date(agentCreatedAt + 30 * 60 * 1000).toISOString(),
+  }
+  return agentSession
+}
+
+export async function mockGetAgentSession(id: string): Promise<AgentSessionStatus | null> {
+  await delay(150)
+  const session = currentAgentSession(id)
+  if (!session) return null
+  const calls = AGENT_CALLS[session.fault]
+  agentPollCount = Math.min(agentPollCount + 1, calls.length)
+  return {
+    session_id: session.session_id,
+    fault: session.fault,
+    expires_at: session.expires_at,
+    calls: calls.slice(0, agentPollCount).map((call, index) => ({
+      ...call,
+      at: new Date(agentCreatedAt + index * 2000).toISOString(),
+    })),
+  }
+}
+
+/** Mock verdicts are fixtures; only the real API checks the submitted spec. */
+export async function mockCheckAgentSession(id: string, spec: Spec): Promise<RunResponse | null> {
+  const session = currentAgentSession(id)
+  if (!session) return null
+  if (session.fault === 'stale_state') {
+    const events: LogEvent[] = ['order_created', 'charged', 'cancelled', 'shipped'].map(
+      (event, index) => ({
+        event,
+        ts: new Date(agentCreatedAt + index * 1000).toISOString(),
+        data: { order_id: 'A-1', ...(index < 2 ? { amount: 50 } : {}) },
+      }),
+    )
+    const shipRule = spec.rules.find(
+      (rule) => rule.pattern === 'never_after' && rule.event === 'shipped' && rule.after === 'cancelled',
+    )
+    const chargeRule = spec.rules.find((rule) => rule.id === 'no-double-charge')
+    return {
+      events,
+      report: {
+        results: [
+          ...(chargeRule
+            ? [{ rule_id: chargeRule.id, source: chargeRule.source, status: 'pass' as const, violations: [] }]
+            : []),
+          ...(shipRule
+            ? [{
+                rule_id: shipRule.id,
+                source: shipRule.source,
+                status: 'violation' as const,
+                violations: [{
+                  rule_id: shipRule.id,
+                  entity: 'A-1',
+                  message: "'shipped' happened after 'cancelled'",
+                  timeline: events,
+                  offending_index: 3,
+                }],
+              }]
+            : []),
+        ],
+      },
+    }
+  }
+  return mockRun(spec, 'payment_timeout_naive')
+}
 
 export async function mockClarify(rules: string[]): Promise<ClarifyResponse> {
   await delay(700)

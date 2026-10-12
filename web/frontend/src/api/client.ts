@@ -8,8 +8,11 @@
  */
 import {
   mockApplyAnswers,
+  mockCheckAgentSession,
   mockClarify,
+  mockCreateAgentSession,
   mockExplain,
+  mockGetAgentSession,
   mockListScenarios,
   mockRun,
   mockSeal,
@@ -17,6 +20,9 @@ import {
 import type {
   Answer,
   AnswersResponse,
+  AgentFault,
+  AgentSession,
+  AgentSessionStatus,
   ApiProblem,
   ClarifyResponse,
   Explanation,
@@ -144,6 +150,35 @@ export function runScenario(spec: Spec, scenarioId: string): Promise<RunResponse
     : request<RunResponse>('/runs', { spec, scenario_id: scenarioId })
 }
 
+/** Create a private MCP shop for an external agent. */
+export function createAgentSession(fault: AgentFault): Promise<AgentSession> {
+  return USE_MOCK
+    ? mockCreateAgentSession(fault)
+    : request<AgentSession>('/agent-sessions', { fault })
+}
+
+/** Read the calls made in one live agent session. */
+export async function getAgentSession(id: string): Promise<AgentSessionStatus> {
+  if (!USE_MOCK) return request<AgentSessionStatus>(`/agent-sessions/${encodeURIComponent(id)}`)
+  const session = await mockGetAgentSession(id)
+  if (!session) {
+    throw new ApiError('Session not found or expired', 404, { code: 'session_not_found' })
+  }
+  return session
+}
+
+/** Ask the backend checker for a session verdict. */
+export async function checkAgentSession(id: string, spec: Spec): Promise<RunResponse> {
+  if (!USE_MOCK) {
+    return request<RunResponse>(`/agent-sessions/${encodeURIComponent(id)}/check`, { spec })
+  }
+  const response = await mockCheckAgentSession(id, spec)
+  if (!response) {
+    throw new ApiError('Session not found or expired', 404, { code: 'session_not_found' })
+  }
+  return response
+}
+
 export function checkEvents(spec: Spec, events: LogEvent[]): Promise<RunResponse> {
   return USE_MOCK
     ? Promise.reject(new ApiError('Checking your own events needs the real API', 501))
@@ -162,6 +197,12 @@ export function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === 'compile_failed') {
       return 'Some answers don’t match how Haqwa checks these rules. Please answer them again.'
+    }
+    if (error.code === 'session_not_found') {
+      return 'This session expired or was not found. Create a new one.'
+    }
+    if (error.code === 'session_limit') {
+      return 'Too many live sessions right now. Please try again in a few minutes.'
     }
     if (error.code === 'rate_limited') {
       // The server puts the wait in `detail` ("... retry in 37 seconds."); no Retry-After header.

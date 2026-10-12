@@ -78,7 +78,8 @@ export function TestScreen({
     run &&
     (source.kind === 'trace'
       ? run.source.kind === 'trace'
-      : run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id)
+      : run.source.kind === 'agent' ||
+        (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id))
       ? run
       : null
   const kinds = shown?.response.report.results.map(verdictKind) ?? []
@@ -272,7 +273,7 @@ export function TestScreen({
                 about happened in this run.
               </p>
             )}
-            {shown.source.kind === 'scenario' && (
+            {shown.source.kind !== 'trace' && (
               <>
                 <p className="card__lead">What the agent did:</p>
                 <Timeline events={shown.response.events} />
