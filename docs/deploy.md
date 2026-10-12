@@ -1,7 +1,8 @@
 # Deploying Haqwa to Cloud Run
 
-One container, one Cloud Run service. FastAPI serves the API (`/api/v1/...`), the
-health check (`/healthz`) and the built React app (everything else).
+One container, one Cloud Run service. FastAPI serves the API (`/api/v1/...`),
+the agent MCP mounts (`/agent/timeout/mcp` and `/agent/stale/mcp`), the health
+check (`/healthz`) and the built React app (everything else).
 
 Owner: Wyne (see `docs/decisions.md`, 2026-10-09).
 
@@ -14,6 +15,9 @@ Owner: Wyne (see `docs/decisions.md`, 2026-10-09).
    `uv.lock` (`uv sync --frozen --no-dev`), copies `src/`, `web/api/` and the built
    `web/frontend/dist/`, runs as a non-root user.
 
+The pinned `mcp==1.30.0` package is a runtime dependency because the web API
+creates its two MCP mounts at startup.
+
 Start command: `uvicorn web.api.main:app --host 0.0.0.0 --port $PORT`.
 
 | Setting | Value | Notes |
@@ -23,9 +27,18 @@ Start command: `uvicorn web.api.main:app --host 0.0.0.0 --port $PORT`.
 | `HAQWA_CACHE_DIR` | `/tmp/haqwa_cache` (image default) | in-memory, lost on restart |
 | `HAQWA_MODEL` | unset | optional model override |
 | `HAQWA_DEV_CORS` | unset | dev only; not needed because UI and API share one origin |
+| `HAQWA_AGENT_MAX_SESSIONS` | `20` | maximum concurrent agent sessions |
+| `HAQWA_AGENT_TTL_SECONDS` | `1800` | session lifetime (30 minutes) |
+| `HAQWA_AGENT_MAX_CALLS` | `200` | tool calls per session |
+| `HAQWA_AGENT_CREATE_PER_MIN` | `5` | new sessions per IP per rolling minute |
+| `HAQWA_AGENT_CREATE_PER_DAY` | `100` | new sessions globally per rolling day |
 
-The API is stateless (the browser keeps the draft in `sessionStorage`), so several
-instances are safe. `--max-instances 1` is used only to cap cost.
+The spec and trace API remains stateless (the browser keeps the draft in
+`sessionStorage`). Agent sessions are private in-memory shop worlds: a redeploy
+or instance shutdown loses them. Keep `--max-instances 1` so an MCP request and
+its status/check requests reach the same session registry. The MCP mounts use
+`json_response=True`, so each tool call returns a JSON response without a
+long-lived stream; the normal Cloud Run request timeout is sufficient.
 
 > **Mock trap:** the frontend uses mock data unless it was built with
 > `VITE_USE_MOCK=false`. The Dockerfile sets it. If you ever build the frontend another

@@ -33,6 +33,8 @@ UNKNOWN_EVENT = ErrorCode("unknown_event", "Unknown event", 422, 2)
 INVALID_REQUEST = ErrorCode("invalid_request", "Invalid request", 422, 3)
 GEMINI_QUOTA = ErrorCode("gemini_quota", "Gemini quota exceeded", 429, 4)
 RATE_LIMITED = ErrorCode("rate_limited", "Rate limit exceeded", 429, 3)
+SESSION_NOT_FOUND = ErrorCode("session_not_found", "Session not found or expired", 404, 3)
+SESSION_LIMIT = ErrorCode("session_limit", "Session limit reached", 429, 3)
 GEMINI_UNAVAILABLE = ErrorCode("gemini_unavailable", "Gemini unavailable", 503, 4)
 INTERNAL_ERROR = ErrorCode("internal_error", "Internal server error", 500, 3)
 
@@ -50,6 +52,8 @@ CODES: dict[str, ErrorCode] = {
         INVALID_REQUEST,
         GEMINI_QUOTA,
         RATE_LIMITED,
+        SESSION_NOT_FOUND,
+        SESSION_LIMIT,
         GEMINI_UNAVAILABLE,
         INTERNAL_ERROR,
     )

@@ -142,7 +142,7 @@ Canonical examples per pattern (confirmation cards; "Is this allowed?" Yes = `vi
 
 ### Principles
 
-- **Stateless.** The browser holds the draft spec and sends what each call needs. No database in the MVP; Firestore stays on the roadmap (hosted service).
+- **Stateless spec and trace routes.** The browser holds the draft spec and sends what each call needs. No database in the MVP; Firestore stays on the roadmap (hosted service). Agent sessions are the in-memory exception described below.
 - **The spec is a file.** Seal returns `rules.spec.yaml` for the owner to download and commit.
 - **No business logic in `web/`.** Each endpoint calls one library function (`ai/` or `core/`) and returns its result.
 - **Shapes follow C1/C2.** Rules, confirmed examples, events and reports use the C1/C2 JSON shapes. Gemini's wire format (`data: [{key, value}]`) never leaves `ai/`.
@@ -331,3 +331,38 @@ Recorded demo files with invalid JSON or effect data raise `HaqwaError` with cod
   by the core library; the response remains `{ "events": [...], "report": {...} }`.
   Existing scenario requests keep the same behavior.
   The same 5 MB request body limit applies to `/runs`.
+
+### Agent sessions (AGREED, 2026-10-12)
+
+These endpoints add a live MCP agent source without changing `/scenarios`, `/runs`,
+`/traces`, or the local live CLI. All paths below have the `/api/v1` prefix.
+
+| Method + path | Request | Response |
+|---|---|---|
+| `POST /agent-sessions` | `{"fault":"timeout_after_commit"\|"stale_state"}` | `{session_id, fault, mcp_url, task, expires_at}` |
+| `GET /agent-sessions/{id}` | — | `{session_id, fault, expires_at, calls:[{tool, arguments, ok, error, at}]}` |
+| `POST /agent-sessions/{id}/check` | `{spec, event_map?}` | Existing `RunResponse`: `{events, report}` |
+| `DELETE /agent-sessions/{id}` | — | 204, no body |
+
+`mcp_url` is absolute and contains a secret token:
+`{base}/agent/timeout/mcp?session=<token>` or
+`{base}/agent/stale/mcp?session=<token>`. The timeout mount exposes only
+`create_order` and `charge_payment`; the stale mount exposes only `get_order`
+and `ship_order`. Each session has a private shop world. The API builds `task`
+from the matching live-agent task; `/check` converts that shop's effects to C2
+events and uses the core compiler and checker for the verdict.
+
+Sessions are in memory and expire after 1,800 seconds. Defaults are 20 concurrent
+sessions, 200 tool calls per session, 5 creations per IP per rolling minute, and
+100 creations globally per rolling day. The corresponding settings are
+`HAQWA_AGENT_TTL_SECONDS`, `HAQWA_AGENT_MAX_SESSIONS`,
+`HAQWA_AGENT_MAX_CALLS`, `HAQWA_AGENT_CREATE_PER_MIN`, and
+`HAQWA_AGENT_CREATE_PER_DAY`. Expired sessions are swept on create and get;
+redeploying loses all sessions. Keep Cloud Run at one instance while sessions are
+in memory.
+
+Unknown, expired, deleted or wrong-fault session tokens return the same neutral
+MCP tool error, `Session not found or expired`; tool calls above the cap return
+`Too many requests`. The HTTP API returns RFC 9457 `session_not_found` (404)
+or `session_limit` (429). Excess session creation uses the existing
+`rate_limited` code (429).
