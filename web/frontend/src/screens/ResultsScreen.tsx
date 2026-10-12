@@ -25,6 +25,12 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
   const { source, response } = run
   const violations = response.report.results.flatMap((r) => r.violations)
+  const heading =
+    source.kind === 'scenario'
+      ? `Scenario: ${source.scenario.title}`
+      : source.kind === 'agent'
+        ? `Your agent · live (${source.fault === 'timeout_after_commit' ? 'payment timeout' : 'stale order status'})`
+        : `Your events: ${source.name} (${source.eventCount} events)`
 
   /** Same fault, fixed agent: the "before / after" step of the demo. */
   async function testFixed() {
@@ -50,12 +56,10 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
   return (
     <main className="stage stage--wide">
       <p className="card__lead">
-        {source.kind === 'scenario'
-          ? `Scenario: ${source.scenario.title}`
-          : `Your events: ${source.name} (${source.eventCount} events)`}
+        {heading}
       </p>
 
-      {violations.length === 0 && source.kind === 'scenario' && (
+      {violations.length === 0 && source.kind !== 'trace' && (
         <section className="card card--pass">
           <h2 className="card__title">✓ All rules held</h2>
           <p>The agent did nothing your rules forbid.</p>

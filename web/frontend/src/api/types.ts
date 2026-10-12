@@ -89,6 +89,31 @@ export interface Scenario {
   kind: 'scripted' | 'recorded' | 'live'
 }
 
+export type AgentFault = 'timeout_after_commit' | 'stale_state'
+
+export interface AgentSession {
+  session_id: string
+  fault: AgentFault
+  mcp_url: string
+  task: string
+  expires_at: string
+}
+
+export interface AgentToolCall {
+  tool: string
+  arguments: Record<string, unknown>
+  ok: boolean
+  error: string | null
+  at: string
+}
+
+export interface AgentSessionStatus {
+  session_id: string
+  fault: AgentFault
+  expires_at: string
+  calls: AgentToolCall[]
+}
+
 export interface TraceVocabulary {
   events: string[]
   fields: string[]

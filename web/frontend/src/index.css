@@ -590,6 +590,158 @@ button {
   color: var(--muted);
 }
 
+/* ---- connect your own agent ---- */
+.agent-connect,
+.agent-details,
+.agent-copy,
+.agent-activity {
+  min-width: 0;
+}
+
+.agent-faults {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.agent-faults legend {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.agent-faults label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.agent-faults input {
+  accent-color: var(--brand);
+}
+
+.agent-copy__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.agent-copy__heading .btn {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.agent-copy__value {
+  display: block;
+  max-width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  font: 13px/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.agent-details > .agent-copy,
+.agent-details > ol {
+  margin: 12px 0 0;
+}
+
+.agent-details ol {
+  padding-left: 24px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.agent-details li + li {
+  margin-top: 6px;
+}
+
+.agent-expiry {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.agent-activity h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.agent-activity > p {
+  margin: 0;
+}
+
+.agent-activity ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.agent-call time {
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+
+.agent-call__args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.agent-call__chip {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--bg);
+  font: 12px var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.agent-call__status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.agent-call__status--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.agent-call__status--error {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
 /* ---- uploaded trace ---- */
 .source-picker label {
   display: flex;
