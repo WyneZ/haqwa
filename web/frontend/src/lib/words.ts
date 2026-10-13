@@ -53,8 +53,15 @@ export function entityCount(timeline: TimelineEvent[], per?: string): number {
  * With `per` (the rule's entity key) and more than one entity, each label names its
  * entity as a letter ("Charged (order A)", "Charged (order B)") instead of showing the
  * raw id, and "again" only counts repeats for the same entity.
+ *
+ * `repeats: false` never says "again": for lists that mix entities without a `per`
+ * (an uploaded log), where a repeated event name may belong to someone else.
  */
-export function timelineLabels(timeline: TimelineEvent[], per?: string): string[] {
+export function timelineLabels(
+  timeline: TimelineEvent[],
+  per?: string,
+  { repeats = true }: { repeats?: boolean } = {},
+): string[] {
   const keys = entityKeys(timeline, per)
   const many = per !== undefined && keys.length > 1
   const noun = per ? entityNoun(per) : ''
@@ -71,7 +78,42 @@ export function timelineLabels(timeline: TimelineEvent[], per?: string): string[
     if (many) values.push(`${noun} ${String.fromCharCode(65 + keys.indexOf(key))}`)
     const extra = values.length ? ` (${values.join(', ')})` : ''
     const offset = offsetText(item.at)
-    return `${humanize(event)}${count > 1 ? ' again' : ''}${extra}${offset ? ` ${offset}` : ''}`
+    const again = repeats && count > 1 ? ' again' : ''
+    return `${humanize(event)}${again}${extra}${offset ? ` ${offset}` : ''}`
+  })
+}
+
+/**
+ * Core's violation message in plain words, e.g.
+ * "'leave_decided' happened 49h after 'leave_requested' (limit 48h)"
+ * -> "Leave decided happened 49h after leave requested (limit 48h)."
+ * Only quotes and underscores change; numbers and wording stay exactly as core wrote them,
+ * so an unknown message format still shows correctly (just less polished).
+ */
+export function checkerFact(message: string): string {
+  const words = message.replace(/'([^']*)'/g, '$1').replace(/_/g, ' ').trim()
+  if (!words) return ''
+  const sentence = words.charAt(0).toUpperCase() + words.slice(1)
+  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * Event times for a timeline, e.g. "29 Sep 09:00 UTC", or null when they would not help:
+ * all events within one minute (the demo shop uses one timestamp, so order is what
+ * matters) or a timestamp that does not parse. Always UTC, so every viewer sees the same
+ * time as the checker and the AI text.
+ */
+export function eventTimes(timeline: { ts: string }[]): string[] | null {
+  const times = timeline.map((e) => new Date(e.ts))
+  if (times.length === 0 || times.some((d) => Number.isNaN(d.getTime()))) return null
+  const ms = times.map((d) => d.getTime())
+  if (Math.max(...ms) - Math.min(...ms) < 60_000) return null
+  const two = (n: number) => String(n).padStart(2, '0')
+  return times.map((d) => {
+    const clock = `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`
+    return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${clock} UTC`
   })
 }
 

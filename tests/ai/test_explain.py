@@ -42,7 +42,7 @@ VIOLATION = Violation(
     offending_index=2,
 )  # fmt: skip
 
-ANSWER = {"text": "  Order A-2 was charged twice, 30 seconds apart. Likely a retry.  "}
+ANSWER = {"text": "  Order A-2 was charged twice, 30 seconds apart, with no refund between.  "}
 
 
 class _Response:
@@ -70,7 +70,7 @@ def client_for(sdk: FakeSDK, cache_dir: Path | None = None) -> GeminiClient:
 
 def test_returns_advisory_text() -> None:
     result = explain_violation(RULE, VIOLATION, client=client_for(FakeSDK(ANSWER)))
-    assert result.text == "Order A-2 was charged twice, 30 seconds apart. Likely a retry."
+    assert result.text == "Order A-2 was charged twice, 30 seconds apart, with no refund between."
     assert result.advisory is True
     assert result.cached is False
 
@@ -83,6 +83,20 @@ def test_prompt_has_rule_decisions_entity_and_marked_timeline() -> None:
     assert "order_id A-2" in prompt
     assert ">> 2026-10-01T09:01:30+00:00  charged  (amount=120)" in prompt
     assert "ALREADY decided this is a violation" in prompt
+
+
+def test_prompt_gives_checker_facts_and_forbids_guessed_causes() -> None:
+    prompt = build_prompt(RULE, VIOLATION)
+    assert "'charged' happened 2 times with no refunded in between" in prompt
+    assert "do not calculate new ones" in prompt
+    assert '"29 Sep, 09:00 UTC"' in prompt  # natural dates, not raw ISO timestamps
+    assert "Do not guess why it happened" in prompt
+    assert "most likely cause" not in prompt
+
+
+def test_wire_schema_does_not_ask_for_a_cause() -> None:
+    description = WireExplanation.model_json_schema()["properties"]["text"]["description"]
+    assert "cause" not in description
 
 
 def test_entity_key_is_not_repeated_in_event_lines() -> None:

@@ -6,7 +6,7 @@ import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
 import type { Run } from '../lib/run'
-import { entityNoun, humanize } from '../lib/words'
+import { checkerFact, entityNoun, humanize } from '../lib/words'
 
 interface Props {
   spec: Spec
@@ -89,6 +89,10 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
               events={visible}
               offendingIndex={v.offending_index - (source.kind === 'trace' ? start : 0)}
             />
+            <p className="fact">
+              <span className="tag tag--checker">Checker</span>
+              <span>{checkerFact(v.message)}</span>
+            </p>
             {rule && <ExplainBox rule={rule} violation={v} />}
           </section>
         )
