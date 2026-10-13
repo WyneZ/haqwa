@@ -288,7 +288,7 @@ export function TestScreen({
                   Showing {traceEvents.length} of {shown.response.events.length} events (only those
                   involved in a broken rule)
                 </p>
-                <Timeline events={traceEvents} />
+                <Timeline events={traceEvents} repeats={false} />
               </>
             )}
             <Verdicts results={shown.response.report.results} />
