@@ -75,6 +75,20 @@ export function timelineLabels(timeline: TimelineEvent[], per?: string): string[
   })
 }
 
+/**
+ * Core's violation message in plain words, e.g.
+ * "'leave_decided' happened 49h after 'leave_requested' (limit 48h)"
+ * -> "Leave decided happened 49h after leave requested (limit 48h)."
+ * Only quotes and underscores change; numbers and wording stay exactly as core wrote them,
+ * so an unknown message format still shows correctly (just less polished).
+ */
+export function checkerFact(message: string): string {
+  const words = message.replace(/'([^']*)'/g, '$1').replace(/_/g, ' ').trim()
+  if (!words) return ''
+  const sentence = words.charAt(0).toUpperCase() + words.slice(1)
+  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
+}
+
 /** "order_id" -> "order" (used in "If this happens to one order:"). */
 export function entityNoun(per: string): string {
   return per.replace(/_id$/, '').replace(/_/g, ' ') || 'item'

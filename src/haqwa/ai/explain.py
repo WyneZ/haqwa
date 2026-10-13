@@ -1,8 +1,9 @@
 """Plain-English explanation of one violation (C3 endpoint 6). ADVISORY ONLY.
 
-Core has already decided that this is a violation. Gemini only explains what happened
-and the likely cause, for a non-technical ops manager. The explanation never changes the
-verdict, and the result always carries `advisory=True` so the UI labels it.
+Core has already decided that this is a violation, and its message holds the exact facts
+(e.g. "49h after ... (limit 48h)"). Gemini only retells those facts in plain English for a
+non-technical ops manager: no new numbers, no guessed causes. The explanation never
+changes the verdict, and the result always carries `advisory=True` so the UI labels it.
 
 One Gemini call per violation; the disk cache in `client.py` makes repeats free.
 """
@@ -20,7 +21,7 @@ from .client import GeminiClient
 # Wire model (no docstring: Pydantic would send it to Gemini as a schema description).
 class WireExplanation(BaseModel):
     text: str = Field(
-        description="2-3 short sentences: what happened to this entity, and the likely cause"
+        description="2-3 short sentences: what happened to this entity, using only the given facts"
     )
 
 
@@ -62,16 +63,22 @@ Policy: "{rule.source}" (per {rule.per})
 The policy owner decided:
 {decision_text}
 
-Checker message: {violation.message}
+Checker message (exact facts, already verified): {violation.message}
 
 Events for {rule.per} {violation.entity} (oldest first; ">>" marks the event that broke
 the policy):
 {timeline}
 
-In 2-3 short sentences of plain English: say what happened to {rule.per}
-{violation.entity}, then the most likely cause. Use only facts from the events above;
-if the cause is not certain, say "likely". No code, no event names in snake_case, no
-markdown."""
+In 2-3 short sentences of plain English, say what happened to {rule.per}
+{violation.entity} and how it went against the policy.
+- Use only facts from the checker message and the events above.
+- Keep times, counts and limits exactly as the checker gives them; do not calculate new ones.
+  You may write them naturally: "49h" as "49 hours", dates like "29 Sep, 09:00 UTC".
+- Mention the details from the events that matter to the manager (who, what kind, the
+  outcome), not just the rule.
+- Do not guess why it happened: no causes, reasons, intentions or blame. The events do not
+  show them.
+No code, no event names in snake_case, no markdown."""
 
 
 def _owner_decisions(rule: Rule) -> list[str]:
