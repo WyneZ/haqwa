@@ -9,13 +9,15 @@ interface Props {
 }
 
 /**
- * "Why did this happen?" — an AI suggestion, asked only when the owner clicks
+ * "What happened, in plain words" — an AI retelling of core's facts (no guessed causes),
+ * asked only when the owner clicks
  * (saves the free-tier quota). Shown apart from the verdict and labelled: it never
  * changes what core decided. The answer is kept for this tab, so a refresh does not
  * ask the AI again.
  */
 export function ExplainBox({ rule, violation }: Props) {
-  const key = `explain:${violation.rule_id}:${violation.entity}:${violation.message}`
+  // `v2` = fact-only prompt; answers kept in this tab from the old prompt are not reused.
+  const key = `explain:v2:${violation.rule_id}:${violation.entity}:${violation.message}`
   const [text, setText] = usePersistentState<string | null>(key, null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +38,7 @@ export function ExplainBox({ rule, violation }: Props) {
     <section className="explain" aria-labelledby="explain-title">
       <div className="explain__head">
         <h3 id="explain-title" className="explain__title">
-          Why did this happen?
+          What happened, in plain words
         </h3>
         <span className="tag">AI suggestion</span>
       </div>
