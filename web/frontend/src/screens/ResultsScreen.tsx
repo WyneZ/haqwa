@@ -55,9 +55,9 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
 
   return (
     <main className="stage stage--wide">
-      <p className="card__lead">
+      <h1 className="report__context">
         {heading}
-      </p>
+      </h1>
 
       {violations.length === 0 && source.kind !== 'trace' && (
         <section className="card card--pass">
@@ -74,7 +74,7 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
         const visible = source.kind === 'trace' ? v.timeline.slice(start, start + 200) : v.timeline
         return (
           <section key={`${v.rule_id}:${v.entity}`} className="card card--fail">
-            <p className="verdict">Rule broken</p>
+            <p className="verdict">Broken</p>
             <h2 className="card__title">
               {humanize(rule ? entityNoun(rule.per) : 'item')} {v.entity} broke “
               {rule?.source ?? v.rule_id}”
@@ -98,7 +98,7 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
         )
       })}
 
-      <section className="card">
+      <section className="card card--rules">
         <h2 className="card__title card__title--small">All rules</h2>
         <Verdicts results={response.report.results} />
         <SpecDownload specYaml={specYaml} />
@@ -109,7 +109,7 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
           {error}
         </p>
       )}
-      <div className="card__actions">
+      <div className="card__actions report__actions">
         <button type="button" className="btn btn--ghost" onClick={onBack}>
           ← Back to test
         </button>
