@@ -745,6 +745,32 @@ summary:hover {
   border-color: var(--brand);
 }
 
+/* Picker sections: live Gemini runs, scripted agents, other recordings. */
+.scenario-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.scenario-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scenario-group__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--brand-dark);
+}
+
+.scenario-group__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
 .scenarios {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 224px), 1fr));
@@ -842,12 +868,11 @@ summary:hover {
 }
 
 /* ---- connect your own agent ---- */
+/* A full card with a brand edge: the live-agent path should be easy to find. */
 .agent-connect {
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  padding: var(--space-8) 0 0;
+  border: 1px solid var(--brand-line);
+  border-left: 4px solid var(--brand);
+  scroll-margin-top: var(--space-6);
 }
 
 .agent-connect .card__title {
@@ -1437,6 +1462,11 @@ input[type='file']::file-selector-button {
   .layout--define > .source-picker {
     margin: 0;
   }
+  /* While answering questions, the question card comes first on a phone. */
+  .layout--define:has(> .policy:not(.policy--editing)) {
+    grid-template-areas: 'stage' 'policy' 'source';
+    grid-template-rows: auto auto auto;
+  }
   .policy {
     border-right: none;
     border-bottom: 1px solid var(--line);
@@ -1452,7 +1482,7 @@ input[type='file']::file-selector-button {
     padding: var(--space-5);
   }
   .agent-connect {
-    padding: var(--space-6) 0 0;
+    padding: var(--space-5);
   }
   .test-picker > .btn {
     width: 100%;

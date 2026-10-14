@@ -16,7 +16,7 @@ import { TraceSummaryCard } from '../components/TraceSummaryCard'
 import { usePersistentState } from '../lib/persist'
 import { HR_NAME, HR_RULES, type Source } from '../lib/source'
 import { readEventsFile, readHrSample } from '../lib/traceFile'
-import { entityNoun, ruleTitle } from '../lib/words'
+import { entityNoun } from '../lib/words'
 
 const DEMO_POLICY = [
   'A customer must not be charged twice for the same order.',
@@ -272,7 +272,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
       r.status === 'unsupported'
         ? { title: r.source, status: 'unsupported' }
         : {
-            title: ruleTitle(r.rule),
+            title: r.source,
             status: i in confirmed ? 'confirmed' : i === current ? 'asking' : 'waiting',
           },
     ) ?? null
@@ -425,7 +425,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
                       className="btn btn--ghost"
                       onClick={() => answerAgain(i)}
                     >
-                      Answer “{ruleTitle(r.rule)}” again
+                      Answer “{r.source}” again
                     </button>
                   ) : null
                 })}
