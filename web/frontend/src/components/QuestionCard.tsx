@@ -31,7 +31,7 @@ export function QuestionCard({
   const labels = timelineLabels(question.timeline, per)
   const entities = entityCount(question.timeline, per)
   return (
-    <section className="card" aria-labelledby="q-title">
+    <section className="card card--question" aria-labelledby="q-title">
       <div className="card__meta">
         <span>
           Question {index + 1} of {total}
