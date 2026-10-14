@@ -36,7 +36,7 @@ export function PolicyPanel({
 }: Props) {
   const editing = rows === null
   return (
-    <aside className="policy">
+    <aside className={editing ? 'policy policy--editing' : 'policy'} aria-busy={busy}>
       <h1 className="policy__title">Your policy</h1>
       <label htmlFor="policy" className="policy__hint">
         Write each rule on its own line.

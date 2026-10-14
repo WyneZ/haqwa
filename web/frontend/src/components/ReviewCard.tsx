@@ -36,7 +36,7 @@ export function ReviewCard({
 }: Props) {
   const wrong = mismatchIds(mismatches)
   return (
-    <section className="card" aria-labelledby="review-title">
+    <section className="card card--review" aria-labelledby="review-title" aria-busy={busy}>
       <h2 id="review-title" className="card__title">
         {questions.length ? 'Here’s what you decided' : 'No questions needed for this rule'}
       </h2>
