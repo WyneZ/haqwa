@@ -24,13 +24,15 @@ export function Timeline({ events, offendingIndex, repeats = true }: Props) {
           className={i === offendingIndex ? 'timeline__item timeline__item--bad' : 'timeline__item'}
         >
           <span className="timeline__n">{i === offendingIndex ? '✖' : i + 1}</span>
-          <span>{label}</span>
-          {times && (
-            <time className="timeline__time" dateTime={events[i].ts}>
-              {times[i]}
-            </time>
-          )}
-          {i === offendingIndex && <span className="timeline__note">this broke the rule</span>}
+          <span className="timeline__body">
+            <span className="timeline__label">{label}</span>
+            {times && (
+              <time className="timeline__time" dateTime={events[i].ts}>
+                {times[i]}
+              </time>
+            )}
+            {i === offendingIndex && <span className="timeline__note">this broke the rule</span>}
+          </span>
         </li>
       ))}
     </ol>
