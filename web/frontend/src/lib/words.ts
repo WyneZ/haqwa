@@ -117,6 +117,15 @@ export function eventTimes(timeline: { ts: string }[]): string[] | null {
   })
 }
 
+/**
+ * Gemini's question text with any snake_case name in plain words:
+ * "if an order_created event occurs" -> "if an order created event occurs".
+ * Presentation only; the question's meaning and the stored answer are unchanged.
+ */
+export function plainWords(text: string): string {
+  return text.replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (name) => name.replace(/_/g, ' '))
+}
+
 /** "order_id" -> "order" (used in "If this happens to one order:"). */
 export function entityNoun(per: string): string {
   return per.replace(/_id$/, '').replace(/_/g, ' ') || 'item'
