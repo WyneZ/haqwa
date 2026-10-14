@@ -16,7 +16,7 @@ import { TraceSummaryCard } from '../components/TraceSummaryCard'
 import { usePersistentState } from '../lib/persist'
 import { HR_NAME, HR_RULES, type Source } from '../lib/source'
 import { readEventsFile, readHrSample } from '../lib/traceFile'
-import { entityNoun, ruleTitle } from '../lib/words'
+import { entityNoun } from '../lib/words'
 
 const DEMO_POLICY = [
   'A customer must not be charged twice for the same order.',
@@ -272,7 +272,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
       r.status === 'unsupported'
         ? { title: r.source, status: 'unsupported' }
         : {
-            title: ruleTitle(r.rule),
+            title: r.source,
             status: i in confirmed ? 'confirmed' : i === current ? 'asking' : 'waiting',
           },
     ) ?? null
@@ -285,18 +285,20 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
         <h2 id="source-title" className="card__title card__title--small">
           What should Haqwa check?
         </h2>
-        <label>
-          <input type="radio" name="source" checked={choice === 'shop'} onChange={() => void choose('shop')} />
-          Online shop demo
-        </label>
-        <label>
-          <input type="radio" name="source" checked={choice === 'hr'} onChange={() => void choose('hr')} />
-          HR leave sample
-        </label>
-        <label>
-          <input type="radio" name="source" checked={choice === 'upload'} onChange={() => void choose('upload')} />
-          Your own events (JSON)
-        </label>
+        <div className="source-picker__options">
+          <label>
+            <input type="radio" name="source" checked={choice === 'shop'} onChange={() => void choose('shop')} />
+            Online shop demo
+          </label>
+          <label>
+            <input type="radio" name="source" checked={choice === 'hr'} onChange={() => void choose('hr')} />
+            HR leave sample
+          </label>
+          <label>
+            <input type="radio" name="source" checked={choice === 'upload'} onChange={() => void choose('upload')} />
+            Your own events (JSON)
+          </label>
+        </div>
         {choice === 'upload' && (
           <input
             type="file"
@@ -311,7 +313,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
             <code>{'[{"event": "leave_requested", "ts": "2026-09-01T09:00:00Z", "data": {"leave_id": "L-1"}}]'}</code>
           </details>
         )}
-        {sourceBusy && <p className="card__lead">Reading events…</p>}
+        {sourceBusy && <p className="card__lead" role="status">Reading events…</p>}
         {sourceError && <p className="notice notice--error" role="alert">{sourceError}</p>}
       </section>
       <PolicyPanel
@@ -329,7 +331,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
         canSubmit={choice === 'shop' || source.kind === 'trace'}
       />
 
-      <main className="stage">
+      <main className="stage stage--interview" aria-busy={loading}>
         {source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
         {!results && (
           <div className="empty">
@@ -338,10 +340,15 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
                 {loadError}
               </p>
             ) : (
-              <p>
-                Write your rules on the left. I’ll ask you a few Yes/No questions so each rule
-                means exactly what you intend.
-              </p>
+              <div className="bubble">
+                <span className="bubble__avatar" aria-hidden="true">
+                  H
+                </span>
+                <p>
+                  Write your rules. I’ll ask you a few Yes/No questions so each rule means
+                  exactly what you intend.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -418,7 +425,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
                       className="btn btn--ghost"
                       onClick={() => answerAgain(i)}
                     >
-                      Answer “{ruleTitle(r.rule)}” again
+                      Answer “{r.source}” again
                     </button>
                   ) : null
                 })}

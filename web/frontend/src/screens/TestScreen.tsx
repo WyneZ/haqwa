@@ -11,7 +11,6 @@ import { HR_NAME, type Source } from '../lib/source'
 import { readEventsFile, readHrSample } from '../lib/traceFile'
 import { traceTimeline } from '../lib/traceTimeline'
 import { verdictKind } from '../lib/verdict'
-import { ruleTitle } from '../lib/words'
 
 interface Props {
   spec: Spec
@@ -30,6 +29,13 @@ const SCENARIO_BADGES: Record<Scenario['kind'], string> = {
   live: 'Live Gemini run · recorded',
   recorded: 'Gemini run · recorded',
 }
+
+/** Picker sections, in this order. A kind the API adds later still shows, under "Other runs". */
+const SCENARIO_GROUPS: { kind: Scenario['kind']; title: string }[] = [
+  { kind: 'live', title: 'Real Gemini agent, recorded over MCP' },
+  { kind: 'scripted', title: 'Scripted agents: the classic mistake and its fix' },
+  { kind: 'recorded', title: 'Earlier recorded Gemini runs' },
+]
 
 const SCENARIO_ORDER: Record<Scenario['kind'], number> = {
   live: 0,
@@ -139,14 +145,14 @@ export function TestScreen({
   const traceEvents = shown?.source.kind === 'trace' ? traceTimeline(shown.response) : []
 
   return (
-    <div className="layout">
+    <div className="layout layout--test">
       <aside className="policy">
         <h1 className="policy__title">Your rules</h1>
         <ol className="rules">
           {spec.rules.map((r, i) => (
             <li key={r.id} className="rules__item rules__item--confirmed">
               <span className="rules__name">
-                {i + 1}. {ruleTitle(r)}
+                {i + 1}. {r.source}
               </span>
               <span className="rules__status">Confirmed</span>
             </li>
@@ -158,7 +164,7 @@ export function TestScreen({
         </button>
       </aside>
 
-      <main className="stage">
+      <main className="stage" aria-busy={running || loadingEvents}>
         <div className="bubble">
           <span className="bubble__avatar" aria-hidden="true">
             H
@@ -176,8 +182,14 @@ export function TestScreen({
           </p>
         )}
 
+        {source.kind === 'shop' && !scenarios && !loadError && (
+          <p className="notice notice--loading" role="status">
+            Loading demo runs…
+          </p>
+        )}
+
         {source.kind === 'trace' && (
-          <section className="card" aria-labelledby="trace-run-title">
+          <section className="card test-picker" aria-labelledby="trace-run-title" aria-busy={running}>
             <h2 id="trace-run-title" className="card__title">
               Check your events
             </h2>
@@ -224,27 +236,55 @@ export function TestScreen({
         )}
 
         {source.kind === 'shop' && scenarios && (
-          <section className="card" aria-labelledby="pick-title">
+          <section className="card test-picker" aria-labelledby="pick-title" aria-busy={running}>
             <h2 id="pick-title" className="card__title">
               Test your agent
             </h2>
-            <div className="scenarios" role="radiogroup" aria-label="Scenario">
-              {scenarios.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={s.id === chosen?.id}
-                  className={s.id === chosen?.id ? 'scenario scenario--on' : 'scenario'}
-                  onClick={() => setSelected(s.id)}
-                >
-                  <span className="scenario__title">{s.title}</span>
-                  <span className={`scenario__badge scenario__badge--${s.kind}`}>
-                    {SCENARIO_BADGES[s.kind]}
-                  </span>
-                  <span className="scenario__desc">{s.description}</span>
-                </button>
-              ))}
+            <p className="card__lead">
+              Pick a run below, or{' '}
+              <a href="#agent-connect-title">connect your own MCP agent ↓</a>
+            </p>
+            <div className="scenario-groups" role="radiogroup" aria-label="Scenario">
+              {[
+                ...SCENARIO_GROUPS,
+                { kind: null, title: 'Other runs' } as const,
+              ].map((group) => {
+                const items = scenarios.filter((s) =>
+                  group.kind === null
+                    ? !SCENARIO_GROUPS.some((g) => g.kind === s.kind)
+                    : s.kind === group.kind,
+                )
+                if (items.length === 0) return null
+                // Runs of one kind often share a description: say it once for the section.
+                const shared =
+                  items.length > 1 && items.every((s) => s.description === items[0].description)
+                    ? items[0].description
+                    : null
+                return (
+                  <div key={group.title} className="scenario-group">
+                    <h3 className="scenario-group__title">{group.title}</h3>
+                    {shared && <p className="scenario-group__note">{shared}</p>}
+                    <div className="scenarios">
+                      {items.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={s.id === chosen?.id}
+                          className={s.id === chosen?.id ? 'scenario scenario--on' : 'scenario'}
+                          onClick={() => setSelected(s.id)}
+                        >
+                          <span className="scenario__title">{s.title}</span>
+                          <span className={`scenario__badge scenario__badge--${s.kind}`}>
+                            {SCENARIO_BADGES[s.kind] ?? 'Demo run'}
+                          </span>
+                          {!shared && <span className="scenario__desc">{s.description}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
             <div className="card__actions">
               <button type="button" className="btn btn--primary" onClick={() => void start()} disabled={running}>
@@ -259,10 +299,8 @@ export function TestScreen({
           </section>
         )}
 
-        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
-
         {shown && (
-          <section className="card" aria-labelledby="ran-title">
+          <section className="card run-preview" aria-labelledby="ran-title">
             <h2 id="ran-title" className="card__title">
               {broken
                 ? `${broken} rule${broken > 1 ? 's' : ''} broken`
@@ -299,6 +337,8 @@ export function TestScreen({
             </div>
           </section>
         )}
+
+        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
       </main>
     </div>
   )

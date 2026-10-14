@@ -17,7 +17,8 @@ export function Header({ active, onStartOver }: Props) {
             className={i === active ? 'step step--active' : i < active ? 'step step--done' : 'step'}
             aria-current={i === active ? 'step' : undefined}
           >
-            {i + 1} {label}
+            <span className="step__number">{i + 1}</span>
+            <span className="step__label">{label}</span>
           </span>
         ))}
       </nav>

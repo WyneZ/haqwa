@@ -35,7 +35,7 @@ export function ExplainBox({ rule, violation }: Props) {
   }
 
   return (
-    <section className="explain" aria-labelledby="explain-title">
+    <section className="explain" aria-labelledby="explain-title" aria-busy={busy}>
       <div className="explain__head">
         <h3 id="explain-title" className="explain__title">
           What happened, in plain words
