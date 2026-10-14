@@ -41,6 +41,9 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-11 · /clarify takes an optional trace vocabulary; scenarios expose kind (scripted/recorded/live) · Wyne (Hazel reviews) · any-domain rule creation and honest demo labels
 - 2026-10-12 · AGREED · Hazel acknowledges the 2026-10-09 move: deploy (Dockerfile, Cloud Run, Secret Manager, budget alert) is owned by Wyne; web/frontend stays Track A · Hazel + Wyne · one owner for the deployed demo; Wyne already runs it
 - 2026-10-12 · AGREED · Bring your own agent: per-session shop over two static MCP mounts, token in URL, in-memory sessions (max-instances 1), limits via env · Hazel + Wyne · judges and users can test any MCP agent; no Gemini cost on our side
+- 2026-10-14 · Official demo URL: https://haqwa-1020226488566.asia-southeast1.run.app (Cloud Run service `haqwa`, asia-southeast1, Wyne's project). It is the only URL used in the submission, deck, video and README · Hazel + Wyne · one URL avoids confusion for judges; the project and its billing stay alive through judging
+- 2026-10-14 · AGREED · Code freeze for the submission at `main` a3f1017. It includes #34 (explain shows checker facts) and #35 (UI polish), merged after the planned Oct 13 freeze. Until submission (Oct 17) only critical fixes, each through a PR, review and one redeploy · Hazel + Wyne · protect the deployed demo while the deck and video are made
+- 2026-10-14 · AGREED · Rule engine phase 3 (wire v2 into `check()`, Gemini emits the AST, UI for composed rules) starts after the submission; `trackb/rule-engine` and `feat/ai-rule-ast` stay unmerged until then · Hazel + Wyne · keep the deployed demo stable
 
 ## Track A (Hazel — ai/, web/, deploy)
 
@@ -67,3 +70,5 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-05 · Recorded scenarios report `expected: unknown` without a spec and derive a verdict through core when given one; malformed recordings use `invalid_recording` · Track B · a recording can pass or violate, and bad effect data must reach the web as a stable error
 - 2026-10-05 · FastAPI app (web/api) written by Track B with Track A's agreement; web/frontend stays Track A · Hazel + Wyne · Track B finished early; protects the Oct 11 deployed demo
 - 2026-10-11 · Recorded runs may also be named `gemini_<scenario>_run_<n>_<YYYY_MM_DD>.json` (replaces the 2026-10-05 "only `gemini_YYYY_MM_DD.json`" line; the old name still works) · Track B · several recorded live runs per scenario
+- 2026-10-13 · The Gemini key secret is pinned to an explicit version (`gemini-api-key:<N>`), never `:latest`. A new key is tested locally from `.env` (not pasted from the clipboard) before `gcloud secrets versions add`; wrong versions are destroyed · Track B · a wrong secret version made clarify and explain fail with 500
+- 2026-10-13 · Cloud Run's front end reserves `/healthz` (returns a Google 404 before the app); deploy verification uses `GET /api/v1/scenarios` instead · Track B · the app's health route is unreachable on Cloud Run
