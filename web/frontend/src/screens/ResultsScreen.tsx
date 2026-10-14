@@ -81,8 +81,8 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
             </h2>
             {source.kind === 'trace' && (
               <p className="card__lead">
-                Showing {visible.length} of {response.events.length} events (only those involved in
-                a broken rule)
+                Showing {visible.length} of {response.events.length} events: this{' '}
+                {rule ? entityNoun(rule.per) : 'item'}&apos;s events up to the one that broke the rule
               </p>
             )}
             <Timeline
