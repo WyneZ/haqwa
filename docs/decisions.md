@@ -41,6 +41,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-11 · /clarify takes an optional trace vocabulary; scenarios expose kind (scripted/recorded/live) · Wyne (Hazel reviews) · any-domain rule creation and honest demo labels
 - 2026-10-12 · AGREED · Hazel acknowledges the 2026-10-09 move: deploy (Dockerfile, Cloud Run, Secret Manager, budget alert) is owned by Wyne; web/frontend stays Track A · Hazel + Wyne · one owner for the deployed demo; Wyne already runs it
 - 2026-10-12 · AGREED · Bring your own agent: per-session shop over two static MCP mounts, token in URL, in-memory sessions (max-instances 1), limits via env · Hazel + Wyne · judges and users can test any MCP agent; no Gemini cost on our side
+- 2026-10-14 · AGREED · Composable rule engine (v2 AST) on trackb/rule-engine; v1 patterns become presets proven equal by a golden corpus + property tests; not wired until after submission · Hazel + Wyne · rule coverage beyond 4 patterns without losing determinism
 
 ## Track A (Hazel — ai/, web/, deploy)
 
