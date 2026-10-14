@@ -101,6 +101,20 @@ export async function mockGetAgentSession(id: string): Promise<AgentSessionStatu
 export async function mockCheckAgentSession(id: string, spec: Spec): Promise<RunResponse | null> {
   const session = currentAgentSession(id)
   if (!session) return null
+  if (agentPollCount === 0) {
+    return {
+      events: [],
+      report: {
+        results: spec.rules.map((rule) => ({
+          rule_id: rule.id,
+          source: rule.source,
+          status: 'pass',
+          violations: [],
+          checked_events: 0,
+        })),
+      },
+    }
+  }
   if (session.fault === 'stale_state') {
     const events: LogEvent[] = ['order_created', 'charged', 'cancelled', 'shipped'].map(
       (event, index) => ({

@@ -141,13 +141,13 @@ export function AgentConnectCard({ spec, onRun }: Props) {
   }
 
   async function check() {
-    if (!session || !status?.calls.length || expired) return
+    if (!session || expired || busy !== null) return
     setBusy('check')
     setError(null)
     try {
       const response = await checkAgentSession(session.session_id, spec)
       onRun({
-        source: { kind: 'agent', sessionId: session.session_id, fault: session.fault, callCount: status.calls.length },
+        source: { kind: 'agent', sessionId: session.session_id, fault: session.fault, callCount: status?.calls.length ?? 0 },
         response,
       })
     } catch (caught) {
@@ -247,7 +247,7 @@ export function AgentConnectCard({ spec, onRun }: Props) {
             ) : <p className="muted">Waiting for your agent to call a tool…</p>}
           </div>
           <div className="card__actions">
-            <button type="button" className="btn btn--primary" disabled={!status?.calls.length || busy !== null} onClick={() => void check()}>
+            <button type="button" className="btn btn--primary" disabled={busy !== null} onClick={() => void check()}>
               {busy === 'check' ? 'Checking…' : 'Check now'}
             </button>
             <button type="button" className="btn btn--link" onClick={reset}>Start a new session</button>
