@@ -1,6 +1,6 @@
-# Composable rule engine proposal
+# Composable rule engine
 
-**Status: PROPOSED.** This is a design for review, not a change to the locked C1 contract. The C1 extension needs both developers' sign-off before use. Existing `version: 1` specs, checkers, APIs, and behavior stay as they are during phase 1.
+**Status: ACCEPTED (Hazel + Wyne).** The v2 AST, validator, interpreter, and v1 preset expansion are implemented on `trackb/rule-engine`. Existing `version: 1` specs, checkers, APIs, and behavior remain the production path. V2 is not wired into `check()` until after the hackathon submission.
 
 ## Goal and boundary
 
@@ -26,8 +26,8 @@ The node list is flat, with references by id; there are no recursively nested no
 | `none_after` | `{of: select-id, after: select-id, since: [...]}` forbids `of` after an `after` event in stream order. |
 | `every_preceded_by` | `{of: select-id, by: select-id, since: [...]}` requires an earlier `by` for every `of`; one `by` can enable many later events. |
 | `every_followed_within` | `{start: select-id, by: select-id, within: ISO-8601 duration, since: [...]}` requires each start to be followed within positive elapsed calendar time. |
-| `sum_compare` | `{left: {of: select-id, field}, op, right: {of: select-id, field}}` compares numeric sums, for example `sum(refunded.amount) <= sum(charged.amount)`. The comparison operator is one of `eq`, `ne`, `lt`, `le`, `gt`, `ge`. |
-| `field_compare` | `{of: select-id, a: field, op: eq\|ne, b: field}` compares two fields on each selected event, for example `approver != requester`. |
+| `sum_compare` | `{left: {of: select-id, field}, op, right: {of: select-id, field}}` compares final numeric sums over the entity stream, for example `sum(refunded.amount) <= sum(charged.amount)`. The comparison operator is one of `eq`, `ne`, `lt`, `le`, `gt`, `ge`. A missing or non-numeric field contributes 0. A failed comparison produces one finding at the entity's last event. |
+| `field_compare` | `{of: select-id, a: field, op: eq\|ne, b: field}` compares two fields on each selected event, for example `approver != requester`. An event missing either field is skipped and produces no finding. |
 | `all_of` | `{children: [node ids]}` is logical AND of nonempty child results. |
 
 `select` is a reference target, not itself a pass/fail root. The flat form carries a `type` and unique `id` on every node. V2 validation also checks reference kinds, literal types, positive durations, and `per` against the field vocabulary. The validator rebuilds a bounded tree from `root`; unreachable nodes should be rejected so a sealed rule has one unambiguous meaning. For the depth limit, count nodes from root to leaf, including both endpoints.
@@ -80,17 +80,27 @@ nodes:
 root: rule
 ```
 
-Every preset `allow_if` goes into `exclude` on **every** select, including a trigger, prerequisite, or start: v1 ignores any matching non-reset event. Multiple exclusions have OR semantics. Because `exclude` calls the v1 condition matcher, a missing field does not exclude the event; `in` and multiple `allow_if` conditions also preserve v1 behavior. This resolves the filter parity blocker in the proposal. Migration still requires golden-corpus parity and both developers' sign-off on the C1 extension.
+Every preset `allow_if` goes into `exclude` on **every** select, including a trigger, prerequisite, or start: v1 ignores any matching non-reset event. Multiple exclusions have OR semantics. Because `exclude` calls the v1 condition matcher, a missing field does not exclude the event; `in` and multiple `allow_if` conditions also preserve v1 behavior. The golden corpus and property tests have now established parity for all four presets.
 
 ## Finite traces, witnesses, and rollout
 
-Use the existing pipeline: optional event-map translation, stable timestamp sort, then grouping by `data[per]`; events without the entity field are skipped. Order at equal timestamps is stable input order. `after` and `preceded_by` use stream order, not strict timestamp inequality. Resets are evaluated before exemptions. `count` uses the per-op witness rules above; `none_after` and `every_preceded_by` report every offending event. A completion event fulfils all open starts; one late completion produces one finding, based on the earliest overdue start. Completion exactly at its deadline passes. An open `every_followed_within` obligation produces a finding only if the **whole checked trace's** last timestamp is past its deadline, and that finding points at the entity's last event. Several overdue open starts yield one finding. The checker's existing `Finding(index, message)` shape and per-entity indices remain the witness contract; composed-rule messages also include the failing node id. Preset messages must be matched against the golden corpus before routing v1 checks through the interpreter.
+Use the existing pipeline: optional event-map translation, stable timestamp sort, then grouping by `data[per]`; events without the entity field are skipped. Order at equal timestamps is stable input order. `after` and `preceded_by` use stream order, not strict timestamp inequality. Resets are evaluated before exemptions. `count` uses the per-op witness rules above; `none_after` and `every_preceded_by` report every offending event. A completion event fulfils all open starts; one late completion produces one finding, based on the earliest overdue start. Completion exactly at its deadline passes. An open `every_followed_within` obligation produces a finding only if the **whole checked trace's** last timestamp is past its deadline, and that finding points at the entity's last event. Several overdue open starts yield one finding. The checker's existing `Finding(index, message)` shape and per-entity indices remain the witness contract; composed-rule messages also include the failing node id. Preset messages match the golden corpus; v1 checks remain the production path until phase 3.
 
-The rollout uses a golden characterization corpus and differential tests against all four old checkers, plus `hypothesis` property tests. The old checkers remain in place under a strangler migration, one preset at a time after parity. Clarification offers presets first. The validator and existing confirmed-example self-test remain mandatory. A golden rule set measures prompt accuracy; questions are generated from primitive-level templates with code-generated boundary examples, at most three decision questions per rule. A code-based AST-to-English renderer shows the policy owner the meaning without YAML. The performance budget is 10,000 events in under 100 ms on a laptop. V1 and v2 remain explicitly versioned; neither silently changes the other.
+Phase 2 proved identical findings against the old checkers for **12,114 golden corpus entries** and **4 × 300 differential property examples**, with **0 mismatches**. The property tests vary resets, `eq`/`ne`/`in` exemptions, missing fields, equal timestamps, and 1–3 entities. The old checkers remain in place under a strangler migration; v1 and v2 remain explicitly versioned, and neither silently changes the other. Clarification will offer presets first. The validator and existing confirmed-example self-test remain mandatory. A golden rule set will measure prompt accuracy; questions will use primitive-level templates with code-generated boundary examples, at most three decision questions per rule. A code-based AST-to-English renderer will show the policy owner the meaning without YAML.
 
-## Open questions — no decision in this proposal
+The documented laptop budget is 10,000 events in under 100 ms. The phase 2 test evaluates each preset over 10,000 events across 1,000 entities and enforces a 1.0 s CI limit. These measured runs were:
 
-- Whether the AST belongs in the C3 API, and how it would be added without changing existing requests.
-- The Gemini wire format for a flat v2 rule.
-- Whether `sum_compare` holds on every prefix or only at the end of the entity stream (for example, when a refund is logged before its charge).
-- The UI for composed rules and owner review of rendered meaning.
+| Preset | Local run | Owner rerun |
+| --- | ---: | ---: |
+| `at_most_once` | 5.8 ms | 5 ms |
+| `never_after` | 9.8 ms | 8 ms |
+| `must_precede` | 9.7 ms | 30 ms |
+| `within_time` | 10.8 ms | 10 ms |
+
+`sum_compare` uses **final totals**, not a comparison on every prefix: a refund logged before its charge can still satisfy the rule by the end of the entity stream. This is the phase 2 decision.
+
+## Phase 3
+
+- Decide whether the AST belongs in the C3 API and how to add it without changing existing requests.
+- Choose the Gemini wire format for a flat v2 rule.
+- Design the UI for composed rules and owner review of rendered meaning.
