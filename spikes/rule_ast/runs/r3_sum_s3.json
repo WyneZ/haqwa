@@ -1,0 +1,6 @@
+{
+  "model": "gemini-3.6-flash",
+  "shape": "s3",
+  "rule": "The total refunded amount of an order must not exceed the total charged amount.",
+  "response": "{\"per\":\"order_id\",\"root_id\":\"n1\",\"nodes\":[{\"id\":\"n1\",\"op\":\"compare\",\"event\":null,\"field\":null,\"cmp\":\"le\",\"value\":null,\"child_ids\":[\"n2\",\"n3\"]},{\"id\":\"n2\",\"op\":\"sum\",\"event\":\"refunded\",\"field\":\"amount\",\"cmp\":null,\"value\":null,\"child_ids\":[]},{\"id\":\"n3\",\"op\":\"sum\",\"event\":\"charged\",\"field\":\"amount\",\"cmp\":null,\"value\":null,\"child_ids\":[]}]}"
+}
