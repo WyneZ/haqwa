@@ -1,5 +1,5 @@
 import type { Question } from '../api/types'
-import { entityCount, timelineLabels } from '../lib/words'
+import { entityCount, plainWords, timelineLabels } from '../lib/words'
 
 interface Props {
   question: Question
@@ -31,7 +31,7 @@ export function QuestionCard({
   const labels = timelineLabels(question.timeline, per)
   const entities = entityCount(question.timeline, per)
   return (
-    <section className="card" aria-labelledby="q-title">
+    <section className="card card--question" aria-labelledby="q-title">
       <div className="card__meta">
         <span>
           Question {index + 1} of {total}
@@ -64,7 +64,7 @@ export function QuestionCard({
       {/* The question itself is the heading: Gemini's decision question, or core's
           plain-English situation + "Is this allowed?" for a confirmation card. */}
       <h2 id="q-title" className="card__question">
-        {question.text}
+        {plainWords(question.text)}
       </h2>
 
       <div className="card__actions">

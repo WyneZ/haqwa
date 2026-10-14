@@ -3,7 +3,7 @@ import { verdictKind } from '../lib/verdict'
 
 const BADGE = {
   broken: { className: 'badge badge--bad', label: 'Broken' },
-  pass: { className: 'badge badge--ok', label: 'Pass' },
+  pass: { className: 'badge badge--ok', label: 'Held' },
   untested: { className: 'badge badge--muted', label: 'Not tested' },
 } as const
 
