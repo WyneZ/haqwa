@@ -338,7 +338,16 @@ export function TestScreen({
           </section>
         )}
 
-        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
+        {source.kind === 'shop' && (
+          <AgentConnectCard
+            spec={spec}
+            onRun={(agentRun) => {
+              onRun(agentRun)
+              onSeeResults()
+              window.scrollTo(0, 0)
+            }}
+          />
+        )}
       </main>
     </div>
   )
