@@ -139,7 +139,7 @@ export function TestScreen({
   const traceEvents = shown?.source.kind === 'trace' ? traceTimeline(shown.response) : []
 
   return (
-    <div className="layout">
+    <div className="layout layout--test">
       <aside className="policy">
         <h1 className="policy__title">Your rules</h1>
         <ol className="rules">
@@ -158,7 +158,7 @@ export function TestScreen({
         </button>
       </aside>
 
-      <main className="stage">
+      <main className="stage" aria-busy={running || loadingEvents}>
         <div className="bubble">
           <span className="bubble__avatar" aria-hidden="true">
             H
@@ -176,8 +176,14 @@ export function TestScreen({
           </p>
         )}
 
+        {source.kind === 'shop' && !scenarios && !loadError && (
+          <p className="notice notice--loading" role="status">
+            Loading demo runs…
+          </p>
+        )}
+
         {source.kind === 'trace' && (
-          <section className="card" aria-labelledby="trace-run-title">
+          <section className="card test-picker" aria-labelledby="trace-run-title" aria-busy={running}>
             <h2 id="trace-run-title" className="card__title">
               Check your events
             </h2>
@@ -224,7 +230,7 @@ export function TestScreen({
         )}
 
         {source.kind === 'shop' && scenarios && (
-          <section className="card" aria-labelledby="pick-title">
+          <section className="card test-picker" aria-labelledby="pick-title" aria-busy={running}>
             <h2 id="pick-title" className="card__title">
               Test your agent
             </h2>
@@ -259,10 +265,8 @@ export function TestScreen({
           </section>
         )}
 
-        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
-
         {shown && (
-          <section className="card" aria-labelledby="ran-title">
+          <section className="card run-preview" aria-labelledby="ran-title">
             <h2 id="ran-title" className="card__title">
               {broken
                 ? `${broken} rule${broken > 1 ? 's' : ''} broken`
@@ -299,6 +303,8 @@ export function TestScreen({
             </div>
           </section>
         )}
+
+        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
       </main>
     </div>
   )

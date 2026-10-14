@@ -190,7 +190,7 @@ export function AgentConnectCard({ spec, onRun }: Props) {
             <label><input type="radio" name="agent-fault" value="stale_state" checked={fault === 'stale_state'} onChange={() => setFault('stale_state')} /> Order status is stale</label>
           </fieldset>
           <div className="card__actions">
-            <button type="button" className="btn btn--primary" disabled={busy !== null} onClick={() => void create()}>
+            <button type="button" className="btn btn--ghost" disabled={busy !== null} onClick={() => void create()}>
               {busy === 'create' ? 'Creating…' : 'Create endpoint'}
             </button>
           </div>
