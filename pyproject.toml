@@ -33,6 +33,7 @@ demo = [
 ]
 dev = [
     "httpx>=0.28",
+    "hypothesis==6.169.1",
     "mcp==1.30.0",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
