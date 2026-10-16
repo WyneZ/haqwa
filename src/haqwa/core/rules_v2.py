@@ -17,6 +17,8 @@ from pydantic import (
     model_validator,
 )
 
+from .examples import ConfirmedExample
+
 
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -158,6 +160,7 @@ class RuleV2(_Strict):
     version: Literal[2]
     nodes: list[NodeV2]
     root: str = Field(min_length=1)
+    confirmed_examples: list[ConfirmedExample] = Field(default_factory=list)
 
 
 def _references(node: NodeV2) -> list[tuple[str, str]]:
