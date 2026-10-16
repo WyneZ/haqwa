@@ -15,9 +15,10 @@ from .clarify_v2 import (
     AddReset,
     ClarifyV2Outcome,
     Patch,
-    _condition,
-    _condition_key,
-    _patch_key,
+    condition_key,
+    patch_condition,
+    patch_key,
+    patch_problems,
 )
 from .core_v2_ports import ApplyPatch
 from .parse import ParseError
@@ -66,10 +67,10 @@ def _already_applied(rule: RuleV2, patch: Patch) -> bool:
     if isinstance(patch, AddReset):
         target = nodes.get(patch.node_id)
         return isinstance(target, RESETTABLE) and patch.event in target.since
-    key = _condition_key(_condition(patch))
+    key = condition_key(patch_condition(patch))
     return all(
         isinstance(target := nodes.get(select_id), SelectNode)
-        and any(_condition_key(condition) == key for condition in target.exclude)
+        and any(condition_key(condition) == key for condition in target.exclude)
         for select_id in patch.select_ids
     )
 
@@ -111,8 +112,12 @@ def apply_answers_v2(
             continue
         if question.kind == "decision" and answer.allowed:
             assert question.patch is not None  # QuestionV2's kind validator guarantees this.
-            key = _patch_key(question.patch)
+            key = patch_key(question.patch)
             if key not in applied and not _already_applied(updated, question.patch):
+                # The patch came back from the browser: re-check the same policy as clarify
+                # (target node types, vocabulary, closed value lists) before core applies it.
+                if problems := patch_problems(updated, question.patch, vocab):
+                    raise ParseError([f"{question.id}: {p}" for p in problems])
                 try:
                     updated = apply_patch(updated, question.patch.model_copy(deep=True))
                 except ValidationError as exc:

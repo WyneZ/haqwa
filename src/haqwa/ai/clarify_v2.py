@@ -31,7 +31,11 @@ __all__ = [
     "DroppedDecision",
     "Patch",
     "build_decision_prompt",
+    "condition_key",
     "decision_schema",
+    "patch_condition",
+    "patch_key",
+    "patch_problems",
     "propose_decisions",
     "to_core_patches",
 ]
@@ -113,26 +117,34 @@ Never propose a reset with the event being counted or banned itself.
 """
 
 
-def _condition(patch: AddExclude) -> ConditionV2:
+def patch_condition(patch: AddExclude) -> ConditionV2:
+    """The core condition an exclude patch adds."""
     cond = patch.condition
     value = cond.values if cond.op == "in" else cond.value
     return ConditionV2(field=cond.field, op=cond.op, value=value)
 
 
-def _condition_key(condition: ConditionV2) -> tuple[str, str, tuple[str, ...]]:
+def condition_key(condition: ConditionV2) -> tuple[str, str, tuple[str, ...]]:
+    """A comparable key; `in [x]` and `eq x` give the same key."""
     values = condition.value if isinstance(condition.value, list) else [condition.value]
     normalized = tuple(sorted({str(v) for v in values}))
     op = "eq" if condition.op == "in" and len(normalized) == 1 else condition.op
     return condition.field, op, normalized
 
 
-def _patch_key(patch: Patch) -> tuple:
+def patch_key(patch: Patch) -> tuple:
+    """A comparable key used to detect duplicate patches."""
     if isinstance(patch, AddReset):
         return patch.op, patch.node_id, patch.event
-    return patch.op, tuple(sorted(patch.select_ids)), _condition_key(_condition(patch))
+    return patch.op, tuple(sorted(patch.select_ids)), condition_key(patch_condition(patch))
 
 
-def _patch_problems(rule: RuleV2, patch: Patch, vocab: Vocabulary) -> list[str]:
+def patch_problems(rule: RuleV2, patch: Patch, vocab: Vocabulary) -> list[str]:
+    """Why this patch may not be applied to this rule; empty if it may.
+
+    Used for Gemini proposals and again for patches the browser sends back to
+    `/answers`, because the API is stateless and the patch is client input.
+    """
     nodes = {n.id: n for n in rule.nodes}
     if isinstance(patch, AddReset):
         problems = []
@@ -160,9 +172,9 @@ def _patch_problems(rule: RuleV2, patch: Patch, vocab: Vocabulary) -> list[str]:
     elif any(value not in allowed for value in values):
         problems.append("exemption value is outside the field's closed value list")
     if not problems:
-        key = _condition_key(_condition(patch))
+        key = condition_key(patch_condition(patch))
         if all(
-            any(_condition_key(c) == key for c in nodes[sid].exclude) for sid in patch.select_ids
+            any(condition_key(c) == key for c in nodes[sid].exclude) for sid in patch.select_ids
         ):
             problems.append("exemption already present on every target")
     return problems
@@ -189,10 +201,10 @@ def propose_decisions(
     seen: set[tuple] = set()
     for proposal in response.value.decisions:
         patch = proposal.patch
-        reasons = _patch_problems(rule, patch, vocab)
+        reasons = patch_problems(rule, patch, vocab)
         if not proposal.id.strip() or not proposal.question.strip() or not proposal.why.strip():
             reasons.append("id, question and why must contain non-whitespace text")
-        key = _patch_key(patch)
+        key = patch_key(patch)
         if key in seen:
             reasons.append("duplicate proposal patch")
         seen.add(key)
@@ -237,4 +249,4 @@ def to_core_patches[CorePatch](
     """
     if isinstance(patch, AddReset):
         return [add_reset(patch.node_id, patch.event)]
-    return [add_exclude(select_id, _condition(patch)) for select_id in patch.select_ids]
+    return [add_exclude(select_id, patch_condition(patch)) for select_id in patch.select_ids]

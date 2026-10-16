@@ -292,6 +292,35 @@ def test_answers_invalid_patched_rule_is_422(client: TestClient) -> None:
     assert_problem(response, "invalid_spec", 422)
 
 
+def test_answers_rejects_client_patch_outside_closed_values(client: TestClient) -> None:
+    calls = []
+    ports = fake_ports()
+
+    def apply_patch(rule, patch):
+        calls.append(patch)
+        return rule
+
+    client.app.dependency_overrides[routes.get_core_v2_ports] = lambda: CoreV2Ports(
+        apply_patch=apply_patch,
+        canonical_examples=ports.canonical_examples,
+        make_example=ports.make_example,
+    )
+    forged = {
+        **DECISION,
+        "patch": {
+            "op": "add_exclude",
+            "select_ids": ["charges"],
+            "condition": {"field": "order_id", "op": "eq", "value": "o-1"},
+        },
+    }
+    response = client.post(
+        "/api/v1/answers",
+        json={"rule": V2_RULE, "answers": [{"question": forged, "allowed": True}]},
+    )
+    assert_problem(response, "invalid_spec", 422)
+    assert calls == []
+
+
 def test_answers_accepts_custom_vocabulary(client: TestClient) -> None:
     custom_rule = {
         **V2_RULE,
