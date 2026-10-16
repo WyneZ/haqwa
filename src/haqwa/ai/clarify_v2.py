@@ -94,6 +94,22 @@ Supported patches:
   Propose an exemption ONLY if the field has a closed value list and EVERY proposed
   value is an exact member. It must also be a plausible real business exception.
 If no supported patch captures the business choice, omit the question.
+
+Checklist. Walk every checking node and consider each question that applies to its type:
+- count: which event resets the count (e.g. a refund or cancellation)?
+- none_after: which later event lifts the ban (e.g. the entity is re-opened or
+  re-created)? Only an event that undoes the "after" event qualifies.
+- every_preceded_by: which event clears the prerequisite, so it is needed again?
+- every_followed_within: two separate questions.
+  (a) Which event removes the open obligation (e.g. a cancellation)?
+  (b) If the start event happens again before the deadline, does the clock restart
+      from the new start? Ask this one whenever the start event can repeat; its patch
+      is add_reset on this node with the START event itself.
+- exemption (any type): ask only when the value changes this rule's own business
+  reason (e.g. installment plans legitimately charge more than once). Do not attach
+  an exemption only because a closed-value field exists. A field that describes how
+  money is paid rarely matters for a rule about shipping or cancelling.
+Never propose a reset with the event being counted or banned itself.
 """
 
 
