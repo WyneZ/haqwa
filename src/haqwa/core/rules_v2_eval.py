@@ -6,15 +6,17 @@ groups events, validates the rule, and passes the whole-trace end for time rules
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import Any
 
 from pydantic import TypeAdapter
 
 from .conditions import matches
-from .events import Event
+from .events import Event, EventMap, group_by, sort_events
 from .patterns.base import Finding
 from .patterns.within_time import fmt_duration
+from .report import Violation
 from .rules_v2 import (
     AllOfNode,
     ConditionV2,
@@ -241,3 +243,26 @@ def evaluate_v2(
         return [Finding(index, message) for index, message in sorted(combined)]
 
     return evaluate(rule.root)
+
+
+def check_v2(
+    rule: RuleV2, events: Iterable[Event], event_map: EventMap | None = None
+) -> list[Violation]:
+    """Check one rule over a trace; `rule` must have passed `validate_rule_v2`."""
+    evs = event_map.translate(events) if event_map else list(events)
+    evs = sort_events(evs)
+    trace_end = evs[-1].ts if evs else None
+
+    violations: list[Violation] = []
+    for entity, stream in group_by(evs, rule.per).items():
+        for finding in evaluate_v2(rule, stream, trace_end):
+            violations.append(
+                Violation(
+                    rule_id=rule.id,
+                    entity=str(entity),
+                    message=finding.message,
+                    timeline=stream[: finding.index + 1],
+                    offending_index=finding.index,
+                )
+            )
+    return violations
