@@ -82,20 +82,28 @@ def _check(node: Any, nodes: dict[str, Any]) -> str:
         text = (
             f"every {_events(nodes[node.of])} must come after an earlier {_events(nodes[node.by])}"
         )
-        return _with_extras(text, [nodes[node.of], nodes[node.by]], node.since)
+        reuse = (
+            f"one {_events(nodes[node.by])} is enough for any number of later "
+            f"{_events(nodes[node.of], 2)}"
+        )
+        return _with_extras(text, [nodes[node.of], nodes[node.by]], node.since, [reuse])
     if isinstance(node, EveryFollowedWithinNode):
         text = (
             f"every {_events(nodes[node.start])} must be followed by a "
             f"{_events(nodes[node.by])} within {_duration(node.within)}"
         )
-        return _with_extras(text, [nodes[node.start], nodes[node.by]], node.since)
+        shared = (
+            f"one {_events(nodes[node.by])} covers every earlier open {_events(nodes[node.start])}"
+        )
+        return _with_extras(text, [nodes[node.start], nodes[node.by]], node.since, [shared])
     if isinstance(node, SumCompareNode):
         left, right = nodes[node.left.of], nodes[node.right.of]
         text = (
-            f"the total {_words(node.left.field)} of {_events(left, 2)} must be "
-            f"{_COMPARE_OP[node.op]} the total {_words(node.right.field)} of {_events(right, 2)}"
+            f"by the end of the checked log, the total {_words(node.left.field)} of "
+            f"{_events(left, 2)} must be {_COMPARE_OP[node.op]} the total "
+            f"{_words(node.right.field)} of {_events(right, 2)}"
         )
-        return _with_extras(text, [left, right], [])
+        return _with_extras(text, [left, right], [], ["final totals only, not at every step"])
     if isinstance(node, FieldCompareNode):
         verb = "must equal" if node.op == "eq" else "must be different from"
         text = f"on every {_events(nodes[node.of])}, {_words(node.a)} {verb} {_words(node.b)}"
@@ -103,13 +111,15 @@ def _check(node: Any, nodes: dict[str, Any]) -> str:
     raise TypeError(f"cannot render node type {type(node).__name__}")
 
 
-def _with_extras(text: str, selects: list[SelectNode], since: list[str]) -> str:
+def _with_extras(
+    text: str, selects: list[SelectNode], since: list[str], notes: list[str] | None = None
+) -> str:
     """Append exemptions and resets as one parenthesis, so the main sentence stays short.
 
     An exemption shared by every event in the sentence is said once ("events where ...");
     otherwise it names its event.
     """
-    extras: list[str] = []
+    extras: list[str] = list(notes or [])
     by_condition: dict[str, list[str]] = {}
     for select in selects:
         for cond in select.exclude:
