@@ -111,7 +111,7 @@ def test_odd_duration_falls_back_to_short_form() -> None:
     rule_ = v2(
         sel("s", "refund_requested"),
         sel("d", "refund_completed"),
-        wire_node(id="check", type="every_followed_within", start="s", by="d", within="PT90M"),
+        wire_node(id="check", type="every_followed_within", start="s", by="d", within_seconds=5400),
     )
     assert "within 1h30m" in render_rule(rule_)
 

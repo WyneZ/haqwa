@@ -3,6 +3,9 @@
 Uses Gemini quota: one request per golden rule (16). Answers are cached in
 `.haqwa_cache/` by GeminiClient, so a re-run of the same prompt costs no quota.
 A cached answer is NOT a repetition: stability needs fresh calls (`--fresh`).
+Two fresh runs, kept apart:
+    uv run --env-file .env python spikes/rule_ast/eval_parse_v2.py --fresh --label run3a
+    uv run --env-file .env python spikes/rule_ast/eval_parse_v2.py --fresh --label run3b
 
 Run from the repo root:
     uv run python spikes/rule_ast/eval_parse_v2.py --dry-run          # no calls, checks scoring
@@ -13,7 +16,8 @@ Outcome classes, reported separately (GPT review, 2026-10-16):
     correct   same meaning as the golden answer (after normalising known equivalences)
     wrong     a valid rule with a DIFFERENT meaning. Dangerous: could be sealed.
     refused   Gemini said "unsupported". Safe but a miss.
-    invalid   Gemini's answer failed wire/core validation (ParseError). Safe but a miss.
+    invalid   Gemini's answer did not fit the schema (GeminiBadOutput) or failed
+              wire/core validation (ParseError). Safe but a miss.
   Golden = UNSUPPORTED
     correct_refusal  Gemini said "unsupported"
     wrong            Gemini produced a rule (an approximation). Dangerous.
@@ -43,14 +47,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from golden_v2 import GOLDEN, SYSTEMS, UNSUPPORTED  # noqa: E402
 
-from haqwa.ai.client import GeminiClient, GeminiError  # noqa: E402
+from haqwa.ai.client import GeminiBadOutput, GeminiClient, GeminiError  # noqa: E402
 from haqwa.ai.parse import ParseError  # noqa: E402
 from haqwa.ai.parse_v2 import parse_v2  # noqa: E402
 from haqwa.ai.render_v2 import render_rule  # noqa: E402
 from haqwa.ai.rule_wire import WireRule, to_rule_v2  # noqa: E402
 from haqwa.core.rules_v2 import RuleV2  # noqa: E402
 
-OUT = Path(__file__).parent / "runs" / "g1_summary.json"
+RUNS = Path(__file__).parent / "runs"
 SECONDS_BETWEEN_CALLS = 13  # free tier: 5 requests/minute
 _DURATION: TypeAdapter[timedelta] = TypeAdapter(timedelta)
 _SWAP = {"gt": "lt", "ge": "le"}
@@ -150,6 +154,8 @@ def score(gid: str, system: str, text: str, golden: WireRule | str, client: Any)
         outcome = parse_v2(text, rule_id=gid, vocab=SYSTEMS[system], client=client)
     except ParseError as e:
         return row | {"result": "invalid", "problems": e.problems}
+    except GeminiBadOutput as e:  # the answer did not fit the per-vocabulary schema
+        return row | {"result": "invalid", "problems": [str(e)[:500]]}
     row["cached"] = outcome.cached
     if golden == UNSUPPORTED:
         if outcome.status == "unsupported":
@@ -193,6 +199,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="no Gemini calls")
     ap.add_argument("--fresh", action="store_true", help="ignore the cache (costs quota)")
+    ap.add_argument("--label", default="summary", help="result file: runs/g1_<label>.json")
     args = ap.parse_args()
 
     dry = _DryRunSDK() if args.dry_run else None
@@ -220,9 +227,10 @@ def main() -> None:
     report = gate(rows)
     print("\nG1:", json.dumps(report))
     if not args.dry_run:
-        OUT.parent.mkdir(exist_ok=True)
-        OUT.write_text(json.dumps({"gate": report, "rows": rows}, indent=2), encoding="utf-8")
-        print(f"details: {OUT}")
+        out = RUNS / f"g1_{args.label}.json"
+        RUNS.mkdir(exist_ok=True)
+        out.write_text(json.dumps({"gate": report, "rows": rows}, indent=2), encoding="utf-8")
+        print(f"details: {out}")
 
 
 if __name__ == "__main__":
