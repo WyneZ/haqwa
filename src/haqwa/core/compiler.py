@@ -113,7 +113,7 @@ def run_timeline(rule: Rule | RuleV2, timeline: Sequence[TimelineEvent]) -> list
     trace_end = events[-1].ts if events else None
     findings: list[Finding] = []
     for stream in group_by(events, rule.per).values():
-        findings += evaluate_v2(runnable, stream, trace_end, legacy_reset_start=legacy)
+        findings += evaluate_v2(runnable, stream, trace_end)
     return findings
 
 
@@ -132,12 +132,12 @@ def validate_rule_events(rule: Rule, event_map: EventMap) -> None:
         raise HaqwaError(UNKNOWN_EVENT, f"rule {rule.id!r}: events not in event map: {unknown}")
 
 
-def self_test_v2(rule: RuleV2, *, legacy_reset_start: bool = False) -> list[SelfTestFailure]:
+def self_test_v2(rule: RuleV2) -> list[SelfTestFailure]:
     """Check every confirmed timeline through v2 and retain the C3 failure shape."""
     failures: list[SelfTestFailure] = []
     for i, ex in enumerate(rule.confirmed_examples):
         events = synthetic_timeline(((t.event, t.data, t.at) for t in ex.timeline), per=rule.per)
-        got = bool(check_v2(rule, events, legacy_reset_start=legacy_reset_start))
+        got = bool(check_v2(rule, events))
         if got != ex.violation:
             failures.append(SelfTestFailure(rule.id, i, ex, ex.violation, got))
     return failures
@@ -185,7 +185,7 @@ def compile_spec(
             rule = expand_v1(source).model_copy(
                 update={"confirmed_examples": list(source.confirmed_examples)}
             )
-        failures += self_test_v2(rule, legacy_reset_start=not isinstance(source, RuleV2))
+        failures += self_test_v2(rule)
         compiled.append(CompiledRule(source, rule))
 
     if problems or failures:

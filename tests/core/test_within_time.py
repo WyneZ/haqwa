@@ -33,6 +33,12 @@ def test_reset_cancels_obligation():
     assert evaluate(wt(**{"except": CANCEL}), evs) == []
 
 
+def test_reset_on_start_restarts_the_deadline():
+    rule = wt(**{"except": [{"reset_after": REQ}]})
+    assert evaluate(rule, [ev(REQ, 0), ev(REQ, 24 * H), ev(DONE, 72 * H)]) == []
+    assert idx(evaluate(rule, [ev(REQ, 0), ev(REQ, 24 * H), ev(DONE, 73 * H)])) == [2]
+
+
 def test_allowed_start_opens_nothing():
     evs = [ev(REQ, 0, method="manual"), ev("note", 100 * H)]
     assert evaluate(wt(**{"except": MANUAL}), evs) == []
