@@ -8,7 +8,8 @@ Semantics (DRAFT, Track B):
 - End of trace (open question Q2, option B): an obligation still open is a finding only if
   the end of the checked trace (last event of ANY entity) is past its deadline; otherwise
   it passes. The finding points at the entity's last event.
-- A `reset_after` event cancels open obligations (e.g. the order was cancelled).
+- A `reset_after` event cancels open obligations (e.g. the order was cancelled). If it
+  is also a selected `start`, it immediately opens a fresh obligation.
 - Events matching an `allow_if` are ignored. An `event` with no open obligation is ignored.
 """
 
@@ -41,6 +42,8 @@ def evaluate(
     for i, e in enumerate(events):
         if e.event in resets:
             open_starts.clear()
+            if e.event == rule.start and not is_allowed(rule, e):
+                open_starts.append(e)
             continue
         if is_allowed(rule, e):
             continue

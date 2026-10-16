@@ -23,7 +23,7 @@ from haqwa.ai.clarify import (
 from haqwa.ai.client import GeminiClient
 from haqwa.ai.parse import ParseError
 from haqwa.ai.vocab import Vocabulary
-from haqwa.core.compiler import compile_spec
+from haqwa.core.compiler import compile_spec, violates
 from haqwa.core.spec import (
     AllowIf,
     AtMostOnce,
@@ -133,12 +133,25 @@ def test_r3_decisions_without_times_are_dropped_by_core() -> None:
     assert all("'No' cannot be checked" in d.reasons[0] for d in outcome.dropped)
 
 
-def test_restart_the_clock_question_is_dropped() -> None:
-    # Bug 2026-10-06: Yes -> reset_after on the rule's own start event, which core reads
-    # as "cancel", so every deadline vanished and seal failed. Core now refuses it.
-    outcome, _ = run_clarify(spike_raw("R3"))
-    restart = [d for d in outcome.dropped if "restart" in d.gemini_id]
-    assert restart and "basic cases" in restart[0].reasons[-1]
+def test_restart_the_clock_question_is_kept() -> None:
+    # Bug 2026-10-06: core cancelled every deadline on a second start. Core now
+    # restarts the clock; a short window makes the untimed wire example checkable.
+    answer = spike_raw("R3")
+    answer["parse"]["within"] = "PT1.5S"
+    outcome, _ = run_clarify(answer)
+    restart = [q for q in decisions(outcome) if "restart" in q.text]
+    assert len(restart) == 1
+    assert outcome.rule is not None
+    question = restart[0]
+    assert question.if_yes == ResetAfter(reset_after="refund_requested")
+    no_violation = violates(outcome.rule, question.timeline)
+    yes_rule = outcome.rule.model_copy(
+        update={"exceptions": [*outcome.rule.exceptions, question.if_yes]}
+    )
+    yes_violation = violates(yes_rule, question.timeline)
+    assert no_violation is True
+    assert yes_violation is False
+    assert no_violation != yes_violation
 
 
 def test_prompt_uses_the_callers_vocabulary() -> None:
@@ -247,16 +260,27 @@ def test_yes_that_does_not_allow_the_timeline_is_dropped() -> None:
     assert kept == [] and "would not make the example timeline pass" in dropped[0].reasons[0]
 
 
-def test_reset_after_the_start_event_of_within_time_is_dropped() -> None:
+def test_reset_after_the_start_event_of_within_time_is_kept() -> None:
     rule = WithinTime(
         id="r3", source="s", pattern="within_time", start="refund_requested",
-        event="refund_completed", within=timedelta(hours=24), per="order_id",
+        event="refund_completed", within=timedelta(milliseconds=1500), per="order_id",
     )  # fmt: skip
-    # Even with a timeline core can check, the Yes would cancel every deadline.
-    events = [{"event": "refund_requested", "data": []}]
+    events = [
+        {"event": "refund_requested", "data": []},
+        {"event": "refund_requested", "data": []},
+        {"event": "refund_completed", "data": []},
+    ]
     item = ambiguity(events=events, kind="reset_after", event="refund_requested")
     kept, dropped = decide(item, rule=rule)
-    assert kept == [] and any("basic cases" in r for r in dropped[0].reasons)
+    assert dropped == [] and len(kept) == 1
+    question = kept[0]
+    assert question.if_yes == ResetAfter(reset_after="refund_requested")
+    no_violation = violates(rule, question.timeline)
+    yes_rule = rule.model_copy(update={"exceptions": [question.if_yes]})
+    yes_violation = violates(yes_rule, question.timeline)
+    assert no_violation is True
+    assert yes_violation is False
+    assert no_violation != yes_violation
 
 
 def test_ids_stay_consecutive_after_a_drop() -> None:

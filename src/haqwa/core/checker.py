@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from .compiler import CompiledSpec
 from .events import Event, EventMap, sort_events
 from .report import Report, RuleResult
-from .rules_v2 import RuleV2, SelectNode
+from .rules_v2 import SelectNode
 from .rules_v2_eval import check_v2
 
 
@@ -21,9 +21,7 @@ def check(
     for cr in compiled.rules:
         names = {node.event for node in cr.rule.nodes if isinstance(node, SelectNode)}
         checked = sum(1 for e in evs if e.event in names)
-        violations = check_v2(
-            cr.rule, evs, legacy_reset_start=not isinstance(cr.source_rule, RuleV2)
-        )
+        violations = check_v2(cr.rule, evs)
         results.append(
             RuleResult(
                 rule_id=cr.source_rule.id,

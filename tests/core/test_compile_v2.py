@@ -170,7 +170,7 @@ def test_v2_checked_events_ignore_reset_only_events():
     assert result.status == "pass"
 
 
-def test_mixed_spec_preserves_source_and_v1_behavior():
+def test_mixed_spec_uses_restart_semantics_for_v1_too():
     v1 = {
         "id": "v1-window",
         "source": "Finish within an hour",
@@ -187,7 +187,7 @@ def test_mixed_spec_preserves_source_and_v1_behavior():
                     {"event": "started", "at": "PT30M"},
                     {"event": "finished", "at": "PT1H31M"},
                 ],
-                "violation": False,
+                "violation": True,
             }
         ],
     }
@@ -197,8 +197,8 @@ def test_mixed_spec_preserves_source_and_v1_behavior():
     assert isinstance(compiled.rules[0].rule, RuleV2)
     assert compiled.rules[1].source_rule is spec.rules[1]
     events = [ev("started", 0), ev("started", 1800), ev("finished", 5460)]
-    assert check(compiled, events).results[0].status == "pass"
-    assert not violates(
+    assert check(compiled, events).results[0].status == "violation"
+    assert violates(
         spec.rules[0],
         [
             TimelineEvent(event="started", at=timedelta(0)),
