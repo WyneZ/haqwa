@@ -181,7 +181,6 @@ def test_build_trace_vocabulary_and_field_conflict(tmp_path, monkeypatch):
             "field_values": {"state": ["done"]},
             "numeric_fields": [],
         }
-        
     ]
     conflict = runner.invoke(app, ["build", str(rules), "--trace", str(events), "--field", "state"])
     assert conflict.exit_code == 3
