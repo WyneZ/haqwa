@@ -501,6 +501,12 @@ them and resend the complete answer history when recomputing them; they are not
 persisted by this stateless endpoint. Opposite decision answers for the same timeline
 remain separate evidence for a future core self-test.
 
+**`POST /api/v1/explain`** keeps its shape (`{rule, violation}` → `{text, advisory,
+cached}`) but `rule` is now a `RuleV2`. The prompt gives Gemini the code-rendered
+meaning (`render_v2`), which already includes the owner's resets and ignored events,
+so the explanation matches what core enforced. `violation` is the same core
+`Violation` that `check_v2` returns. Advisory only; it never changes the verdict.
+
 **Stage 1 provisional ports:** `make_example` returns a timeline labelled
 `PLACEHOLDER...`; it does not establish a separating witness. No confirmations are
 generated until Track B supplies `canonical_examples_v2`. Applying a new Yes decision
