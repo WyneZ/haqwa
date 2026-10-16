@@ -10,7 +10,7 @@ from haqwa.ai.answers_v2 import AnswerV2, QuestionV2
 from haqwa.core.events import Event
 from haqwa.core.report import Report, Violation
 from haqwa.core.rules_v2 import RuleV2
-from haqwa.core.spec import ConfirmedExample, Rule
+from haqwa.core.spec import ConfirmedExample
 from haqwa.core.trace import TraceSummary
 
 NAME = r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
@@ -118,7 +118,7 @@ class TraceResponse(BaseModel):
 
 
 class ExplainRequest(BaseModel):
-    rule: Rule
+    rule: RuleV2
     violation: Violation
 
 

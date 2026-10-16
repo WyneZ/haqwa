@@ -549,7 +549,7 @@ def test_explain(client: TestClient, monkeypatch) -> None:
         offending_index=0,
     )
     response = client.post(
-        "/api/v1/explain", json={"rule": RULE, "violation": violation.model_dump(mode="json")}
+        "/api/v1/explain", json={"rule": V2_RULE, "violation": violation.model_dump(mode="json")}
     )
     assert response.status_code == 200
     assert response.json() == {"text": "Two charges.", "advisory": True, "cached": True}
