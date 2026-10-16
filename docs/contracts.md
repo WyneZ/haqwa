@@ -505,3 +505,9 @@ returns RFC 9457 HTTP 501 with web-only code `not_implemented` and detail
 `"core apply_patch_v2 not merged yet"`. No/confirmation-only answers can still succeed.
 This flow is not ready for sealing. B5 replaces provisional functions in
 `ai/core_v2_ports.py` only; B2 must move confirmed examples into `RuleV2`.
+
+Track B review request: `validate_rule_v2` currently accepts only event names,
+field names and numeric field names; it cannot validate closed field values.
+An input rule with an invented `payment_type` value can therefore pass answers'
+final validation. Please define closed-value validation at the core boundary;
+stage 1 does not modify protected core files or imply that this check exists.
