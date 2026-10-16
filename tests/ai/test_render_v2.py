@@ -29,11 +29,13 @@ PRESET_TEXT = {
     ),
     "must_precede": (
         "For each order: every shipped event must come after an earlier charged event "
-        "(events where payment type is one of card, installment are ignored)."
+        "(one charged event is enough for any number of later shipped events; "
+        "events where payment type is one of card, installment are ignored)."
     ),
     "within_time": (
         "For each order: every refund requested event must be followed by a refund completed "
-        "event within 48 hours."
+        "event within 48 hours (one refund completed event covers every earlier open "
+        "refund requested event)."
     ),
 }
 
@@ -61,8 +63,9 @@ def test_all_of_numbers_each_part() -> None:
     )
     assert render_rule(rule_) == (
         "For each order: all of these must hold: (1) every refunded event must come after an "
-        "earlier charged event; (2) the total amount of refunded events must be at most the "
-        "total amount of charged events."
+        "earlier charged event (one charged event is enough for any number of later refunded "
+        "events); (2) by the end of the checked log, the total amount of refunded events must "
+        "be at most the total amount of charged events (final totals only, not at every step)."
     )
 
 
