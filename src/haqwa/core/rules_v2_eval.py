@@ -172,6 +172,9 @@ def evaluate_v2(
             for index, event in enumerate(events):
                 if event.event in resets:
                     open_starts.clear()
+                    if selected[node.start][index]:
+                        # A start that is also a reset begins a fresh deadline.
+                        open_starts.append(event)
                     continue
                 if selected[node.by][index] and open_starts:
                     late = [opened for opened in open_starts if event.ts - opened.ts > window]
