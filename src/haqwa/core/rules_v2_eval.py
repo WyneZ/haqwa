@@ -79,9 +79,16 @@ def _reset_suffix(since: list[str], *, count: bool = False) -> str:
 
 
 def evaluate_v2(
-    rule: RuleV2, events: list[Event], trace_end: datetime | None = None
+    rule: RuleV2,
+    events: list[Event],
+    trace_end: datetime | None = None,
+    *,
+    legacy_reset_start: bool = False,
 ) -> list[Finding]:
-    """Evaluate a validated rule over one entity's time-sorted events."""
+    """Evaluate a validated rule over one entity's time-sorted events.
+
+    ``legacy_reset_start`` preserves v1's skip behavior for expanded v1 rules.
+    """
     nodes = {node.id: node for node in rule.nodes}
     selected = {
         node.id: _select(node, events) for node in rule.nodes if isinstance(node, SelectNode)
@@ -172,7 +179,7 @@ def evaluate_v2(
             for index, event in enumerate(events):
                 if event.event in resets:
                     open_starts.clear()
-                    if selected[node.start][index]:
+                    if not legacy_reset_start and selected[node.start][index]:
                         # A start that is also a reset begins a fresh deadline.
                         open_starts.append(event)
                     continue
@@ -249,7 +256,11 @@ def evaluate_v2(
 
 
 def check_v2(
-    rule: RuleV2, events: Iterable[Event], event_map: EventMap | None = None
+    rule: RuleV2,
+    events: Iterable[Event],
+    event_map: EventMap | None = None,
+    *,
+    legacy_reset_start: bool = False,
 ) -> list[Violation]:
     """Check one rule over a trace; `rule` must have passed `validate_rule_v2`."""
     evs = event_map.translate(events) if event_map else list(events)
@@ -258,7 +269,7 @@ def check_v2(
 
     violations: list[Violation] = []
     for entity, stream in group_by(evs, rule.per).items():
-        for finding in evaluate_v2(rule, stream, trace_end):
+        for finding in evaluate_v2(rule, stream, trace_end, legacy_reset_start=legacy_reset_start):
             violations.append(
                 Violation(
                     rule_id=rule.id,
