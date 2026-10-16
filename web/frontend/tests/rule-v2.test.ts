@@ -93,3 +93,13 @@ test('mock Define to Results uses v2 specs with fixture verdicts', async () => {
   const checked = await mockCheckAgentSession(session.session_id, spec)
   assert.ok(checked?.report.results.some(r => r.rule_id === 'no-ship-after-cancel' && r.status === 'violation'))
 })
+
+test('mock answers return the final meaning: parsed meaning plus accepted decisions only', async () => {
+  const original = supported()[0]
+  const decisions = original.questions.filter(q => q.kind === 'decision')
+  const yes = await mockApplyAnswers(original.rule, decisions.map(question => ({ question, allowed: true })))
+  assert.ok(yes.meaning.startsWith(original.meaning))
+  assert.ok(yes.meaning.includes('Exceptions:'))
+  const no = await mockApplyAnswers(original.rule, decisions.map(question => ({ question, allowed: false })))
+  assert.equal(no.meaning, original.meaning)
+})

@@ -64,8 +64,20 @@ def test_yes_applies_patch_without_mutating_input() -> None:
     )
     assert len(calls) == 1
     assert result.rule.nodes[-1].since == ["refunded"]
+    assert result.meaning == render_rule(result.rule)
+    assert "starts again after each refunded event" in result.meaning
     assert result.confirmed_examples[0].violation is False
     assert not result.mismatches and original.model_dump_json() == snapshot
+
+
+def test_meaning_is_unchanged_when_owner_says_no() -> None:
+    result = apply_answers_v2(
+        rule(),
+        [AnswerV2(question=decision(), allowed=False)],
+        vocab=SHOP,
+        apply_patch=lambda r, _: r,
+    )
+    assert result.meaning == render_rule(rule())
 
 
 def test_no_does_not_apply_patch() -> None:

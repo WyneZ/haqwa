@@ -478,6 +478,7 @@ An exclusion condition is `{field, op: "eq"|"ne", value}` or
       {"id": "check", "type": "count", "of": "charges", "op": "le", "value": 1, "since": []}
     ]
   },
+  "meaning": "For each order: there must be at most 1 charged event.",
   "confirmed_examples": [{
     "timeline": [{"event": "charged"}, {"event": "charged"}], "violation": true
   }],
@@ -485,6 +486,8 @@ An exclusion condition is `{field, op: "eq"|"ne", value}` or
 }
 ```
 
+`meaning` is the code-rendered meaning (`render_v2`) of the **updated** rule, after
+the Yes patches, so the owner confirms what core will actually enforce. No Gemini call.
 Answers optionally accept `vocabulary` with the same defaults as clarify. No Gemini
 call occurs. Yes means `violation: false`; a Yes decision applies its patch via the
 core port. No keeps the rule. Duplicate patches and confirmed examples are skipped.

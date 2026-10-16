@@ -139,6 +139,8 @@ export interface AnswerV2 {
 
 export interface AnswersResponse {
   rule: RuleV2
+  /** Code-rendered meaning of the UPDATED rule (after Yes decisions). What core will enforce. */
+  meaning: string
   confirmed_examples: ConfirmedExample[]
   mismatches: string[]
 }

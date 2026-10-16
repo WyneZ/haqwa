@@ -22,7 +22,7 @@ export function TechDetails({ rule, meaning, confirmedExamples = [] }: {
         <pre className="tech__box">
           {[
             `id: ${rule.id}`,
-            `parsed meaning (before decisions): ${meaning}`,
+            `meaning: ${meaning}`,
             `root: ${rule.root} · per: ${rule.per}`,
             ...rule.nodes.map(nodeText),
             `confirmed examples: ${confirmedExamples.length}`,
