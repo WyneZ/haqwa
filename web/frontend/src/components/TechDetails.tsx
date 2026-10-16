@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import type { Rule } from '../api/types'
-import { exceptionText } from '../lib/words'
+import type { ConfirmedExample, RuleV2 } from '../api/types'
+import { nodeText } from '../lib/words'
 
-/** Hidden by default: the exact C1 rule, for developers and judges. */
-export function TechDetails({ rule }: { rule: Rule }) {
+/** Hidden by default: exact v2 parameters and the unedited code-generated meaning. */
+export function TechDetails({ rule, meaning, confirmedExamples = [] }: {
+  rule: RuleV2; meaning: string; confirmedExamples?: ConfirmedExample[]
+}) {
   const [open, setOpen] = useState(false)
-  const fields = (['event', 'after', 'requires', 'start', 'within'] as const)
-    .filter((k) => rule[k] !== undefined)
-    .map((k) => `${k}: ${rule[k]}`)
 
   return (
     <div className="tech">
@@ -23,10 +22,10 @@ export function TechDetails({ rule }: { rule: Rule }) {
         <pre className="tech__box">
           {[
             `id: ${rule.id}`,
-            `pattern: ${rule.pattern} · per: ${rule.per}`,
-            fields.join(' · '),
-            `except: ${rule.except.length ? rule.except.map(exceptionText).join('; ') : 'none'}`,
-            `confirmed examples: ${rule.confirmed_examples.length}`,
+            `parsed meaning (before decisions): ${meaning}`,
+            `root: ${rule.root} · per: ${rule.per}`,
+            ...rule.nodes.map(nodeText),
+            `confirmed examples: ${confirmedExamples.length}`,
           ].join('\n')}
         </pre>
       )}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { LogEvent, Rule, Spec } from './api/types'
+import type { LogEvent, SpecRule, Spec } from './api/types'
 import { Header } from './components/Header'
 import { clearSaved, usePersistentState } from './lib/persist'
 import type { Run } from './lib/run'
@@ -60,8 +60,8 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
   let view: Step = 'define'
   if (spec && specYaml && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
 
-  function rulesConfirmed(rules: Rule[], yaml: string) {
-    setSpec({ version: 1, rules })
+  function rulesConfirmed(rules: SpecRule[], yaml: string) {
+    setSpec({ version: 2, rules })
     setSpecYaml(yaml)
     setRun(null)
     setStep('test')

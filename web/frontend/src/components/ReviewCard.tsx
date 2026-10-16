@@ -1,8 +1,8 @@
-import type { Question } from '../api/types'
-import { timelineLabels } from '../lib/words'
+import type { QuestionV2 } from '../api/types'
+import { patchText, timelineLabels } from '../lib/words'
 
 interface Props {
-  questions: Question[]
+  questions: QuestionV2[]
   answers: boolean[]
   busy: boolean
   error: string | null
@@ -53,7 +53,12 @@ export function ReviewCard({
               </span>
               <span className="summary__text">
                 {timelineLabels(q.timeline, per).join(' → ')}
-                {wrong.has(q.id) && q.expected_violation !== undefined && (
+                {q.kind === 'decision' && (
+                  <span className="summary__hint">
+                    {answers[i] ? patchText(q.patch) : 'Keep this rule without this exception.'}
+                  </span>
+                )}
+                {wrong.has(q.id) && q.kind === 'confirmation' && (
                   <>
                     <span className="summary__hint">
                       You said “{answers[i] ? 'Allowed' : 'Not allowed'}”, but as the rule is
