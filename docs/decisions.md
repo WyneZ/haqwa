@@ -44,6 +44,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-14 · Official demo URL: https://haqwa-1020226488566.asia-southeast1.run.app (Cloud Run service `haqwa`, asia-southeast1, Wyne's project). It is the only URL used in the submission, deck, video and README · Hazel + Wyne · one URL avoids confusion for judges; the project and its billing stay alive through judging
 - 2026-10-14 · AGREED · Code freeze for the submission at `main` a3f1017. It includes #34 (explain shows checker facts) and #35 (UI polish), merged after the planned Oct 13 freeze. Until submission (Oct 17) only critical fixes, each through a PR, review and one redeploy · Hazel + Wyne · protect the deployed demo while the deck and video are made
 - 2026-10-14 · AGREED · Rule engine phase 3 (wire v2 into `check()`, Gemini emits the AST, UI for composed rules) starts after the submission; `trackb/rule-engine` and `feat/ai-rule-ast` stay unmerged until then · Hazel + Wyne · keep the deployed demo stable
+- 2026-10-16 · AGREED · Supersedes the 2026-10-14 "code freeze" and "rule engine phase 3 after submission" lines: composable rules (v2) are built end to end now (Option 1), behind quality gates G1–G5 (G1 parse accuracy, G2 clarify recall, G3 v2 self-test, G4 golden parity, G5 tests + preview deploy). `main` and the deployed demo stay v1 until every gate passes; go/no-go is GO_NOGO_TIME; if a gate is not green by then we submit v1 `main` · Hazel + Wyne · one rule model for production quality, with the demo protected
 
 ## Track A (Hazel — ai/, web/, deploy)
 
