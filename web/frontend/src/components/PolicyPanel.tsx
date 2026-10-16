@@ -21,6 +21,7 @@ interface Props {
   rows: RuleRow[] | null // null = still writing the policy
   placeholder?: string
   canSubmit?: boolean
+  onRedo?: (index: number) => void
 }
 
 /** Left column: the policy text, then one status line per rule. */
@@ -33,6 +34,7 @@ export function PolicyPanel({
   rows,
   placeholder,
   canSubmit = true,
+  onRedo,
 }: Props) {
   const editing = rows === null
   return (
@@ -68,6 +70,11 @@ export function PolicyPanel({
                   {i + 1}. {row.title}
                 </span>
                 <span className="rules__status">{STATUS_LABEL[row.status]}</span>
+                {row.status === 'confirmed' && onRedo && (
+                  <button type="button" className="btn btn--link" onClick={() => onRedo(i)} disabled={busy}>
+                    Answer again
+                  </button>
+                )}
               </li>
             ))}
           </ol>

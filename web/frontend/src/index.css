@@ -635,6 +635,13 @@ h3 {
   margin: 0;
 }
 
+.meaning {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  line-height: 1.6;
+}
+
 .notice--warn {
   background: var(--warn-soft);
   border: 1px solid var(--warn-line);

@@ -1,7 +1,7 @@
 /**
  * The ONLY place the UI talks to the server.
  *
- * Mock mode (default until the FastAPI app exists) answers from real data in
+ * Mock mode (default for the demo) answers from recorded data in
  * `fixtures.ts` and `runFixtures.ts`. Set VITE_USE_MOCK=false (e.g. in
  * web/frontend/.env.local) to call the real `/api/v1` endpoints. Screens never know
  * which one they are using.
@@ -18,7 +18,7 @@ import {
   mockSeal,
 } from './mocks'
 import type {
-  Answer,
+  AnswerV2,
   AnswersResponse,
   AgentFault,
   AgentSession,
@@ -27,7 +27,7 @@ import type {
   ClarifyResponse,
   Explanation,
   LogEvent,
-  Rule,
+  RuleV2,
   RunResponse,
   Scenario,
   SealResponse,
@@ -124,10 +124,12 @@ export async function summarizeTrace(events: unknown[], extraEvents: string[]): 
 }
 
 /** C3 endpoint 2: one rule + the owner's Yes/No answers -> updated rule. */
-export function applyAnswers(rule: Rule, answers: Answer[]): Promise<AnswersResponse> {
+export function applyAnswers(
+  rule: RuleV2, answers: AnswerV2[], vocabulary?: TraceVocabulary,
+): Promise<AnswersResponse> {
   return USE_MOCK
     ? mockApplyAnswers(rule, answers)
-    : request<AnswersResponse>('/answers', { rule, answers })
+    : request<AnswersResponse>('/answers', { rule, answers, ...(vocabulary ? { vocabulary } : {}) })
 }
 
 /**
@@ -186,7 +188,7 @@ export function checkEvents(spec: Spec, events: LogEvent[]): Promise<RunResponse
 }
 
 /** C3 endpoint 6: plain-English explanation of one violation. Advisory only. */
-export function explainViolation(rule: Rule, violation: Violation): Promise<Explanation> {
+export function explainViolation(rule: RuleV2, violation: Violation): Promise<Explanation> {
   return USE_MOCK
     ? mockExplain(rule, violation)
     : request<Explanation>('/explain', { rule, violation })
@@ -195,6 +197,9 @@ export function explainViolation(rule: Rule, violation: Violation): Promise<Expl
 /** Plain-English message for the owner. Never shows stack traces or raw JSON. */
 export function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.code === 'not_implemented') {
+      return 'Saving this decision needs a core update that is not merged yet. Answer No for now or try again later.'
+    }
     if (error.code === 'compile_failed') {
       return 'Some answers don’t match how Haqwa checks these rules. Please answer them again.'
     }

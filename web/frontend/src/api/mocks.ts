@@ -1,14 +1,14 @@
 /**
- * MOCK MODE ONLY. Delete this file's use (in client.ts) once FastAPI is wired.
+ * MOCK MODE ONLY. Fixture verdicts and a small patch test double for UI development.
  *
- * `mockApplyAnswers` copies ai.clarify.apply_answers so the screen can be built before
- * the API exists. It is NOT the source of truth: the real rule update happens in
+ * `mockApplyAnswers` mirrors answers_v2's transport contract. It is NOT the source
+ * of truth: the real rule update happens in
  * Python (`POST /api/v1/answers`). The web never decides anything in production.
  */
 import { DEMO_RESULTS } from './fixtures'
 import { DEMO_EXPLANATIONS, DEMO_RUNS, DEMO_SCENARIOS } from './runFixtures'
 import type {
-  Answer,
+  AnswerV2,
   AnswersResponse,
   AgentFault,
   AgentSession,
@@ -18,7 +18,7 @@ import type {
   ClarifyResult,
   Explanation,
   LogEvent,
-  Rule,
+  RuleV2,
   RunResponse,
   Scenario,
   SealResponse,
@@ -109,9 +109,11 @@ export async function mockCheckAgentSession(id: string, spec: Spec): Promise<Run
         data: { order_id: 'A-1', ...(index < 2 ? { amount: 50 } : {}) },
       }),
     )
-    const shipRule = spec.rules.find(
-      (rule) => rule.pattern === 'never_after' && rule.event === 'shipped' && rule.after === 'cancelled',
-    )
+    const shipRule = spec.rules.find((rule) => rule.nodes.some((node) =>
+      node.type === 'none_after'
+      && rule.nodes.some(n => n.type === 'select' && n.id === node.of && n.event === 'shipped')
+      && rule.nodes.some(n => n.type === 'select' && n.id === node.after && n.event === 'cancelled'),
+    ))
     const chargeRule = spec.rules.find((rule) => rule.id === 'no-double-charge')
     return {
       events,
@@ -148,40 +150,58 @@ export async function mockClarify(rules: string[]): Promise<ClarifyResponse> {
       DEMO_RESULTS.find((r) => r.source === text) ?? {
         source: text,
         status: 'unsupported',
+        rule: null,
+        meaning: null,
+        questions: null,
         reason: 'Mock mode only knows the three demo rules. Start the API to try your own.',
       },
   )
   return { cached: true, results }
 }
 
-export async function mockApplyAnswers(rule: Rule, answers: Answer[]): Promise<AnswersResponse> {
+/** Mock-only patch application; never imported by the real API path to decide a verdict. */
+export async function mockApplyAnswers(rule: RuleV2, answers: AnswerV2[]): Promise<AnswersResponse> {
   await delay(300)
-  const except = [...rule.except]
-  const examples = [...rule.confirmed_examples]
+  const updated = structuredClone(rule)
+  const examples: AnswersResponse['confirmed_examples'] = []
   const mismatches: string[] = []
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
   for (const { question: q, allowed } of answers) {
     const violation = !allowed
-    if (q.kind === 'confirmation' && q.expected_violation !== undefined) {
+    if (q.kind === 'confirmation') {
       if (violation !== q.expected_violation) {
-        mismatches.push(`${q.id}: owner answered the opposite of the expected result`)
+        const expected = q.expected_violation ? 'not allowed' : 'allowed'
+        mismatches.push(`${q.id}: owner answered the opposite of '${expected}'`)
         continue
       }
     }
-    if (q.kind === 'decision' && allowed && q.if_yes && !except.some((e) => same(e, q.if_yes))) {
-      except.push(q.if_yes)
+    if (q.kind === 'decision' && allowed) {
+      const patch = q.patch
+      if (patch.op === 'add_reset') {
+        const node = updated.nodes.find(n => n.id === patch.node_id)
+        if (node && 'since' in node && !node.since.includes(patch.event)) node.since.push(patch.event)
+      } else {
+        const condition = patch.condition.op === 'in'
+          ? { field: patch.condition.field, op: patch.condition.op, value: patch.condition.values }
+          : patch.condition
+        for (const node of updated.nodes) {
+          if (node.type === 'select' && patch.select_ids.includes(node.id)
+            && !node.exclude.some(c => same(c, condition))) node.exclude.push(structuredClone(condition))
+        }
+      }
     }
     const example = { timeline: q.timeline, violation }
     if (!examples.some((e) => same(e, example))) examples.push(example)
   }
-  return { rule: { ...rule, except, confirmed_examples: examples }, mismatches }
+  return { rule: updated, confirmed_examples: examples, mismatches }
 }
 
 /** Mock mode cannot run core's self-test: it always says the spec is fine. */
 export async function mockSeal(spec: Spec): Promise<SealResponse> {
   await delay(300)
-  return { ok: true, spec_yaml: `# mock mode: ${spec.rules.length} rule(s), not checked by core\n` }
+  // JSON is valid YAML 1.2; preserve the actual v2 shape without a YAML dependency.
+  return { ok: true, spec_yaml: `# MOCK ONLY: not checked by core\n${JSON.stringify(spec, null, 2)}\n` }
 }
 
 export async function mockListScenarios(): Promise<Scenario[]> {
@@ -202,7 +222,7 @@ export async function mockRun(spec: Spec, scenarioId: string): Promise<RunRespon
   return { ...run, report: { results: run.report.results.filter((r) => ids.has(r.rule_id)) } }
 }
 
-export async function mockExplain(rule: Rule, violation: Violation): Promise<Explanation> {
+export async function mockExplain(rule: RuleV2, violation: Violation): Promise<Explanation> {
   await delay(900)
   const text = DEMO_EXPLANATIONS[`${rule.id}|${violation.entity}|${violation.message}`]
   return {
