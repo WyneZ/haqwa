@@ -260,6 +260,20 @@ def test_prompt_is_deterministic_and_has_meaning_targets_and_noise_controls() ->
         assert text in prompt
 
 
+def test_prompt_has_per_node_checklist() -> None:
+    # G2 run 1 missed "a new request restarts the clock" without this checklist.
+    prompt = build_decision_prompt(rule(), SHOP)
+    for text in [
+        "count: which event resets the count",
+        "none_after: which later event lifts the ban",
+        "every_preceded_by: which event clears the prerequisite",
+        "does the clock restart",
+        "START event itself",
+        "this rule's own business",
+    ]:
+        assert text in prompt
+
+
 def test_to_core_patches_expands_two_select_exclude() -> None:
     patch = AddExclude.model_validate(exclude(select_ids=["request", "completion"]))
     calls = []
