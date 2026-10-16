@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from haqwa.ai.client import GeminiClient
+from haqwa.ai.client import GeminiBadOutput, GeminiClient
 from haqwa.ai.parse import ParseError
 from haqwa.ai.parse_v2 import _examples, build_prompt, parse_v2
 from haqwa.ai.rule_wire import WireRule, to_rule_v2
@@ -98,12 +98,19 @@ def test_prompt_is_deterministic() -> None:
 # ---- negative: bad Gemini answers become ParseError, never a rule ------------------------
 
 
-def test_invented_event_rejected() -> None:
+def test_invented_event_rejected_by_schema() -> None:
+    """Event names are an enum in the per-vocabulary schema, so this cannot even decode."""
     bad = json.loads(json.dumps(NO_DOUBLE_CHARGE))
     bad["nodes"][0]["event"] = "payment_captured"
-    with pytest.raises(ParseError) as info:
+    with pytest.raises(GeminiBadOutput):
         run(bad)
-    assert any("unknown event 'payment_captured'" in p for p in info.value.problems)
+
+
+def test_corrupted_name_from_g1_run2_rejected_by_schema() -> None:
+    bad = json.loads(json.dumps(NO_DOUBLE_CHARGE))
+    bad["nodes"][0]["event"] = "refun d_requested"
+    with pytest.raises(GeminiBadOutput):
+        run(bad)
 
 
 def test_select_as_root_rejected() -> None:
@@ -116,9 +123,16 @@ def test_select_as_root_rejected() -> None:
 def test_example_names_leaking_into_answer_rejected() -> None:
     leaked = json.loads(json.dumps(NO_DOUBLE_CHARGE))
     leaked["per"] = "claim_id"  # from the HR worked examples, not this system
-    with pytest.raises(ParseError) as info:
+    with pytest.raises(GeminiBadOutput):
         run(leaked)
-    assert any("unknown entity field 'claim_id'" in p for p in info.value.problems)
+
+
+def test_schema_sent_to_gemini_is_per_vocabulary() -> None:
+    from haqwa.ai.rule_wire import wire_schema
+
+    schema = wire_schema(SHOP).model_json_schema()
+    assert "payment_captured" not in json.dumps(schema)
+    assert '"refund_requested"' in json.dumps(schema)
 
 
 # ---- the worked examples in the prompt are themselves valid ---------------------------

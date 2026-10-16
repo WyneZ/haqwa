@@ -22,9 +22,11 @@ Pure functions only: no Gemini call, no quota.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from datetime import timedelta
+from functools import lru_cache
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, create_model
 
 from haqwa.core.rules_v2 import (
     AllOfNode,
@@ -104,7 +106,9 @@ class WireEveryFollowedWithin(BaseModel):
     type: Literal["every_followed_within"]
     start: str = Field(description="select id of the event that starts the clock")
     by: str = Field(description="select id of the event that must follow")
-    within: str = Field(description="ISO 8601 duration, e.g. 'PT48H'")
+    within_seconds: int = Field(
+        description="time limit in seconds of elapsed calendar time, e.g. 24 hours = 86400"
+    )
     since: list[str] = _SINCE
 
 
@@ -146,6 +150,7 @@ WireNode = (
     | WireAllOf
 )
 _NODE_ADAPTER: TypeAdapter[WireNode] = TypeAdapter(WireNode)
+_DURATION: TypeAdapter[timedelta] = TypeAdapter(timedelta)
 
 
 def wire_node(**fields: Any) -> WireNode:
@@ -163,6 +168,82 @@ class WireRule(BaseModel):
         default=None,
         description="set ONLY if no combination of nodes can express the rule; then leave "
         "per, root and nodes empty",
+    )
+
+
+# ---- per-vocabulary schema (what Gemini actually receives) -----------------------------
+
+
+def wire_schema(vocab: Vocabulary) -> type[WireRule]:
+    """The WireRule schema for one vocabulary: names become string enums.
+
+    Event names (select.event, since) come from `vocab.events`; field names (per,
+    conditions, field_compare) from `vocab.fields`; summed fields from
+    `vocab.numeric_fields`. Constrained decoding can then only emit names that exist, so
+    invented names and corrupted strings ("refun d_requested", G1 run 2) cannot be decoded.
+    A wrong-but-existing name is still possible; that is what the meaning check is for.
+
+    `sum_compare` is left out when the vocabulary has no numeric field. The models are
+    subclasses of the static wire models, so `to_rule_v2` handles them unchanged.
+    """
+    return _schema(tuple(vocab.events), tuple(vocab.fields), tuple(vocab.numeric_fields))
+
+
+def _enum(values: tuple[str, ...]) -> Any:
+    return Literal[values] if values else str  # Literal[("a", "b")] == Literal["a", "b"]
+
+
+@lru_cache(maxsize=64)
+def _schema(
+    events: tuple[str, ...], fields: tuple[str, ...], numeric: tuple[str, ...]
+) -> type[WireRule]:
+    event, field, num = _enum(events), _enum(fields), _enum(numeric)
+    since: Any = (list[event], Field(default_factory=list, description=_SINCE.description))
+
+    cond = create_model(
+        "WireCondition",
+        __base__=WireCondition,
+        field=(field, Field(description="data field name")),
+    )
+    select = create_model(
+        "WireSelect",
+        __base__=WireSelect,
+        event=(event, Field(description="event name")),
+        where=(list[cond], Field(default_factory=list, description="every one must hold")),
+        exclude=(
+            list[cond],
+            Field(default_factory=list, description="an event matching ANY of these is ignored"),
+        ),
+    )
+    nodes: list[Any] = [
+        select,
+        create_model("WireCount", __base__=WireCount, since=since),
+        create_model("WireNoneAfter", __base__=WireNoneAfter, since=since),
+        create_model("WireEveryPrecededBy", __base__=WireEveryPrecededBy, since=since),
+        create_model("WireEveryFollowedWithin", __base__=WireEveryFollowedWithin, since=since),
+        create_model(
+            "WireFieldCompare",
+            __base__=WireFieldCompare,
+            a=(field, Field(description="first field")),
+            b=(field, Field(description="second field")),
+        ),
+        WireAllOf,
+    ]
+    if numeric:
+        nodes.append(
+            create_model(
+                "WireSumCompare",
+                __base__=WireSumCompare,
+                left_field=(num, Field(description="numeric field summed on the left")),
+                right_field=(num, Field(description="numeric field summed on the right")),
+            )
+        )
+    node_union: Any = Union[tuple(nodes)]  # noqa: UP007 (built at runtime)
+    return create_model(
+        "WireRule",
+        __base__=WireRule,
+        per=(field | None, Field(default=None, description="entity key field")),
+        nodes=(list[node_union], Field(default_factory=list)),
     )
 
 
@@ -238,8 +319,23 @@ def _node(node: WireNode, vocab: Vocabulary, problems: list[str]) -> dict[str, A
             "op": node.op,
             "right": {"of": node.right_of, "field": node.right_field},
         }
+    if isinstance(node, WireEveryFollowedWithin):
+        out = node.model_dump(exclude={"within_seconds"})
+        if node.within_seconds <= 0:
+            problems.append(f"{where}: within_seconds must be positive")
+        out["within"] = iso_seconds(max(node.within_seconds, 1))
+        return out
     # The other wire models carry exactly the core node's fields.
     return node.model_dump()
+
+
+def iso_seconds(seconds: int) -> str:
+    """Canonical ISO 8601 duration for whole seconds: 86400 -> 'PT24H', 5400 -> 'PT90M'."""
+    if seconds % 3600 == 0:
+        return f"PT{seconds // 3600}H"
+    if seconds % 60 == 0:
+        return f"PT{seconds // 60}M"
+    return f"PT{seconds}S"
 
 
 def _condition(
@@ -309,13 +405,22 @@ def _wire_node(node: Any) -> WireNode:
             right_of=node.right.of,
             right_field=node.right.field,
         )
+    if isinstance(node, EveryFollowedWithinNode):
+        seconds = _DURATION.validate_python(node.within).total_seconds()
+        return WireEveryFollowedWithin(
+            id=node.id,
+            type="every_followed_within",
+            start=node.start,
+            by=node.by,
+            within_seconds=int(seconds),
+            since=list(node.since),
+        )
     if isinstance(
         node,
         (
             CountNode,
             NoneAfterNode,
             EveryPrecededByNode,
-            EveryFollowedWithinNode,
             FieldCompareNode,
             AllOfNode,
         ),

@@ -229,7 +229,7 @@ def test_every_node_type_marks_its_fields_required_for_gemini() -> None:
         "count": {"id", "type", "of", "op", "value"},
         "none_after": {"id", "type", "of", "after"},
         "every_preceded_by": {"id", "type", "of", "by"},
-        "every_followed_within": {"id", "type", "start", "by", "within"},
+        "every_followed_within": {"id", "type", "start", "by", "within_seconds"},
         "sum_compare": {"id", "type", "left_of", "left_field", "op", "right_of", "right_field"},
         "field_compare": {"id", "type", "of", "a", "op", "b"},
         "all_of": {"id", "type", "children"},
@@ -377,3 +377,52 @@ def test_per_outside_vocabulary() -> None:
         per="invoice_id",
     )
     assert any("unknown entity field 'invoice_id'" in p for p in problems_of(wire))
+
+
+# ---- duration as seconds (G1 run 2 had "P T24H") ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("seconds", "iso"), [(86400, "PT24H"), (172800, "PT48H"), (5400, "PT90M"), (45, "PT45S")]
+)
+def test_within_seconds_becomes_canonical_iso(seconds: int, iso: str) -> None:
+    wire = rule(
+        sel("s", "refund_requested"),
+        sel("d", "refund_completed"),
+        wire_node(id="check", type="every_followed_within", start="s", by="d",
+                  within_seconds=seconds),
+    )  # fmt: skip
+    result = convert(wire)
+    assert isinstance(result, RuleV2)
+    assert {n.id: n for n in result.nodes}["check"].within == iso
+
+
+@pytest.mark.parametrize("seconds", [0, -60])
+def test_non_positive_duration_is_a_problem(seconds: int) -> None:
+    wire = rule(
+        sel("s", "refund_requested"),
+        sel("d", "refund_completed"),
+        wire_node(id="check", type="every_followed_within", start="s", by="d",
+                  within_seconds=seconds),
+    )  # fmt: skip
+    assert "check (every_followed_within): within_seconds must be positive" in problems_of(wire)
+
+
+# ---- per-vocabulary schema ---------------------------------------------------------------
+
+
+def test_vocabulary_without_numeric_fields_offers_no_sum_compare() -> None:
+    from haqwa.ai.rule_wire import wire_schema
+
+    vocab = Vocabulary(events=["a"], fields=["x"])
+    schema = wire_schema(vocab).model_json_schema()
+    assert "sum_compare" not in str(schema)
+
+
+def test_per_vocabulary_schema_output_converts_like_the_static_one() -> None:
+    from haqwa.ai.rule_wire import wire_schema
+
+    core_rule = expand_v1(PRESETS[0])
+    as_json = from_rule_v2(core_rule).model_dump_json()
+    dynamic = wire_schema(SHOP).model_validate_json(as_json)
+    assert convert(dynamic) == core_rule

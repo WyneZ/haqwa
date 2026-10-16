@@ -41,7 +41,7 @@ from haqwa.core.spec import (
 
 from .client import GeminiClient
 from .render_v2 import render_rule
-from .rule_wire import WireCondition, WireRule, from_rule_v2, to_rule_v2, wire_node
+from .rule_wire import WireCondition, WireRule, from_rule_v2, to_rule_v2, wire_node, wire_schema
 from .vocab import Vocabulary
 
 
@@ -79,7 +79,7 @@ def parse_v2(
     """
     if rule_id is None:
         rule_id = suggest_rule_id(rule_text, existing_ids)
-    result = client.generate(build_prompt(rule_text, vocab), WireRule)
+    result = client.generate(build_prompt(rule_text, vocab), wire_schema(vocab))
     parsed = to_rule_v2(result.value, rule_id=rule_id, source=rule_text, vocab=vocab)
     if isinstance(parsed, UnsupportedRule):
         return ParseV2Outcome(
@@ -105,8 +105,10 @@ Checking nodes reference select nodes by id.
 - none_after(of, after, since): once an `after` event happened, `of` must never happen.
 - every_preceded_by(of, by, since): every `of` needs an earlier `by` (one `by` is enough
     for many later `of`).
-- every_followed_within(start, by, within, since): every `start` must be followed by a
-    `by` within the ISO 8601 duration `within` (e.g. PT48H). Calendar time.
+- every_followed_within(start, by, within_seconds, since): every `start` must be followed
+    by a `by` within `within_seconds` of elapsed calendar time (24 hours = 86400,
+    90 minutes = 5400). Business days, calendar months or clock times ("by 5pm") are not
+    elapsed time: set unsupported_reason for them.
 - sum_compare(left_of, left_field, op, right_of, right_field): compares final totals of a
     numeric field, e.g. total refunded amount le total charged amount.
 - field_compare(of, a, op, b): on every `of` event, field a eq/ne field b

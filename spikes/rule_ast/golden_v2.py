@@ -73,7 +73,7 @@ GOLDEN: list[tuple[str, str, str, WireRule | str]] = [
     ("g3", "shop", "A refund must be completed within 24 hours of the request.",
      WireRule(per="order_id", root="r", nodes=[
          sel("s", "refund_requested"), sel("d", "refund_completed"),
-         N(id="r", type="every_followed_within", start="s", by="d", within="PT24H")])),
+         N(id="r", type="every_followed_within", start="s", by="d", within_seconds=86400)])),
     ("g4", "hr", "Approve the timesheet before paying salary for that employee and period.",
      WireRule(per="employee_period", root="r", nodes=[
          sel("t", "salary_paid"), sel("p", "timesheet_approved"),
