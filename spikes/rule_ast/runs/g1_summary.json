@@ -1,9 +1,9 @@
 {
   "gate": {
-    "supported_correct": "11/13",
+    "supported_correct": "12/13",
     "refusal_correct": "3/3",
     "wrong": 0,
-    "invalid": 2,
+    "invalid": 1,
     "refused_supported": 0,
     "G1_pass": false
   },
@@ -30,7 +30,7 @@
       "golden": "rule",
       "result": "invalid",
       "problems": [
-        "rule (every_followed_within): missing 'by'"
+        "nodes.2.every_followed_within.within: Value error, within must be an ISO-8601 duration"
       ]
     },
     {
@@ -109,10 +109,9 @@
       "id": "g14",
       "rule": "On every order_created event, order_id must differ from customer_id.",
       "golden": "rule",
-      "result": "invalid",
-      "problems": [
-        "rule (field_compare): missing 'op'"
-      ]
+      "cached": false,
+      "result": "correct",
+      "meaning": "For each order: on every order created event, order id must be different from customer id."
     },
     {
       "id": "g10",
@@ -120,7 +119,7 @@
       "golden": "unsupported",
       "cached": false,
       "result": "correct_refusal",
-      "reason": "The DSL does not support computing or comparing average order amounts."
+      "reason": "average order amount calculations are not supported by the available node types"
     },
     {
       "id": "g15",
@@ -128,7 +127,7 @@
       "golden": "unsupported",
       "cached": false,
       "result": "correct_refusal",
-      "reason": "1-to-1 matching between refund_completed and refund_requested cannot be expressed because every_preceded_by allows one prerequisite event to satisfy multiple subsequent events, and dynamic count comparisons are not supported."
+      "reason": "The available node types cannot enforce one-to-one matching or distinct pairing between requested and completed events."
     },
     {
       "id": "g16",
@@ -136,7 +135,7 @@
       "golden": "unsupported",
       "cached": false,
       "result": "correct_refusal",
-      "reason": "The prompt is an instruction override rather than a valid business rule using the specified domain events and fields."
+      "reason": "The request is a meta-prompt attempting to bypass rules and does not specify a valid domain logic expressible with the available system events and fields."
     }
   ]
 }
