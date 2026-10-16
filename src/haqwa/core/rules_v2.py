@@ -211,8 +211,13 @@ def validate_rule_v2(
     vocab_events: Iterable[str] | None = None,
     vocab_fields: Iterable[str] | None = None,
     numeric_fields: Iterable[str] | None = None,
+    *,
+    field_values: Mapping[str, Iterable[str]] | None = None,
 ) -> list[str]:
-    """Return model, graph, and supplied-vocabulary problems; empty means valid."""
+    """Return model, graph, and supplied-vocabulary problems; empty means valid.
+
+    ``field_values`` optionally checks conditions against closed value sets.
+    """
     if not isinstance(rule, RuleV2):
         try:
             rule = RuleV2.model_validate(rule)
@@ -223,6 +228,11 @@ def validate_rule_v2(
     events = set(vocab_events) if vocab_events is not None else None
     fields = set(vocab_fields) if vocab_fields is not None else None
     numeric = set(numeric_fields) if numeric_fields is not None else None
+    closed_values = (
+        {field: set(values) for field, values in field_values.items()}
+        if field_values is not None
+        else {}
+    )
     if fields is not None and rule.per not in fields:
         problems.append(f"unknown entity field {rule.per!r}")
     ids = [node.id for node in rule.nodes]
@@ -245,6 +255,18 @@ def validate_rule_v2(
                 for condition in conditions:
                     if fields is not None and condition.field not in fields:
                         problems.append(f"{node.id}.{group}: unknown field {condition.field!r}")
+                    if condition.field in closed_values:
+                        values = (
+                            condition.value
+                            if isinstance(condition.value, list)
+                            else [condition.value]
+                        )
+                        for value in values:
+                            if value not in closed_values[condition.field]:
+                                problems.append(
+                                    f"{node.id}.{group}: value {value!r} for field "
+                                    f"{condition.field!r} is not in the closed vocabulary"
+                                )
                     if (
                         numeric is not None
                         and condition.op in ("gt", "ge", "lt", "le")
