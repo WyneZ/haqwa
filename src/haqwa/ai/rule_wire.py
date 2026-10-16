@@ -2,15 +2,18 @@
 
 Why a separate wire model: `core.rules_v2.RuleV2` is strict (frozen, extra="forbid",
 `version: Literal[2]`, int/str unions). The Gemini Developer API schema converter rejects
-some of that, and core must not bend to an LLM provider. So Gemini fills one flat,
-forgiving node shape (spike `spikes/rule_ast`, shape S3), and this module turns it into a
-`RuleV2` or a list of problems. Nothing reaches core unless `validate_rule_v2` accepts it.
+some of that, and core must not bend to an LLM provider. So Gemini fills a wire shape made
+for constrained decoding, and this module turns it into a `RuleV2` or a list of problems.
+Nothing reaches core unless `validate_rule_v2` accepts it.
 
 Design rules:
 - Flat nodes with id references, never nested node objects (spike finding F4).
-- Every node uses the same model; `type` says which fields matter. A non-empty field that
-  does not belong to the node's type is a problem, not silently dropped: it means Gemini
-  misread the rule, and the owner should see that rather than a quietly different rule.
+- One wire model PER node type, each with its required fields marked required. The schema
+  Gemini receives is an `anyOf` of these, so constrained decoding cannot leave out a field
+  the type needs. (G1 run 1, 2026-10-16: with a single all-optional node model, Gemini
+  dropped `by` from every_followed_within and `op` from field_compare.)
+- No `extra="forbid"` on wire models: it becomes `additionalProperties`, which the
+  Developer API rejects. A field outside a type's model cannot be decoded anyway.
 - Condition values travel as text. Fields in `Vocabulary.numeric_fields` become numbers
   here; closed-value fields are checked against `Vocabulary.field_values`.
 
@@ -21,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from haqwa.core.rules_v2 import (
     AllOfNode,
@@ -40,17 +43,9 @@ from haqwa.core.spec import UnsupportedRule
 from .parse import ParseError
 from .vocab import Vocabulary
 
-NodeType = Literal[
-    "select",
-    "count",
-    "none_after",
-    "every_preceded_by",
-    "every_followed_within",
-    "sum_compare",
-    "field_compare",
-    "all_of",
-]
 CompareOp = Literal["eq", "ne", "lt", "le", "gt", "ge"]
+_ID = Field(description="unique node id, e.g. 'charges' or 'n1'")
+_SINCE = Field(default_factory=list, description="events that reset this check for the entity")
 
 
 # ---- wire models (what Gemini fills) ----------------------------------------------------
@@ -67,45 +62,95 @@ class WireCondition(BaseModel):
     values: list[str] = Field(default_factory=list, description="only for op 'in'")
 
 
-class WireNode(BaseModel):
-    """One node. Fill only the fields its `type` uses; leave the rest null or empty."""
+class WireSelect(BaseModel):
+    """Picks events by name; `where` filters them, `exclude` lists exemptions."""
 
-    id: str = Field(description="unique node id, e.g. 'charges' or 'n1'")
-    type: NodeType
-    # select
-    event: str | None = Field(default=None, description="select: event name")
-    where: list[WireCondition] = Field(default_factory=list, description="select: must hold")
+    id: str = _ID
+    type: Literal["select"]
+    event: str = Field(description="event name")
+    where: list[WireCondition] = Field(default_factory=list, description="every one must hold")
     exclude: list[WireCondition] = Field(
-        default_factory=list, description="select: events matching any of these are ignored"
+        default_factory=list, description="an event matching ANY of these is ignored"
     )
-    # references to select nodes
-    of: str | None = Field(
-        default=None,
-        description="count/none_after/every_preceded_by/field_compare: select id",
-    )
-    after: str | None = Field(default=None, description="none_after: select id of the trigger")
-    by: str | None = Field(
-        default=None, description="every_preceded_by/every_followed_within: select id"
-    )
-    start: str | None = Field(default=None, description="every_followed_within: select id")
-    # parameters
-    op: CompareOp | None = Field(
-        default=None, description="count (le/lt/eq/ge), sum_compare, field_compare (eq/ne)"
-    )
-    value: int | None = Field(default=None, description="count: the limit, e.g. 1")
-    within: str | None = Field(
-        default=None, description="every_followed_within: ISO 8601 duration, e.g. 'PT48H'"
-    )
-    since: list[str] = Field(
-        default_factory=list, description="count/none_after/every_*: events that reset the rule"
-    )
-    left_of: str | None = Field(default=None, description="sum_compare: select id, left side")
-    left_field: str | None = Field(default=None, description="sum_compare: numeric field, left")
-    right_of: str | None = Field(default=None, description="sum_compare: select id, right side")
-    right_field: str | None = Field(default=None, description="sum_compare: numeric field, right")
-    a: str | None = Field(default=None, description="field_compare: first field")
-    b: str | None = Field(default=None, description="field_compare: second field")
-    children: list[str] = Field(default_factory=list, description="all_of: checking node ids")
+
+
+class WireCount(BaseModel):
+    id: str = _ID
+    type: Literal["count"]
+    of: str = Field(description="select id")
+    op: Literal["le", "lt", "eq", "ge"]
+    value: int = Field(description="the limit, e.g. 1")
+    since: list[str] = _SINCE
+
+
+class WireNoneAfter(BaseModel):
+    id: str = _ID
+    type: Literal["none_after"]
+    of: str = Field(description="select id of the forbidden event")
+    after: str = Field(description="select id of the event that starts the ban")
+    since: list[str] = _SINCE
+
+
+class WireEveryPrecededBy(BaseModel):
+    id: str = _ID
+    type: Literal["every_preceded_by"]
+    of: str = Field(description="select id of the event that needs a prerequisite")
+    by: str = Field(description="select id of the prerequisite event")
+    since: list[str] = _SINCE
+
+
+class WireEveryFollowedWithin(BaseModel):
+    id: str = _ID
+    type: Literal["every_followed_within"]
+    start: str = Field(description="select id of the event that starts the clock")
+    by: str = Field(description="select id of the event that must follow")
+    within: str = Field(description="ISO 8601 duration, e.g. 'PT48H'")
+    since: list[str] = _SINCE
+
+
+class WireSumCompare(BaseModel):
+    id: str = _ID
+    type: Literal["sum_compare"]
+    left_of: str = Field(description="select id, left side")
+    left_field: str = Field(description="numeric field summed on the left")
+    op: CompareOp
+    right_of: str = Field(description="select id, right side")
+    right_field: str = Field(description="numeric field summed on the right")
+
+
+class WireFieldCompare(BaseModel):
+    id: str = _ID
+    type: Literal["field_compare"]
+    of: str = Field(description="select id")
+    a: str = Field(description="first field")
+    op: Literal["eq", "ne"]
+    b: str = Field(description="second field")
+
+
+class WireAllOf(BaseModel):
+    id: str = _ID
+    type: Literal["all_of"]
+    children: list[str] = Field(description="ids of checking nodes that must all hold")
+
+
+# Plain union -> JSON Schema `anyOf` (google-genai rejects oneOf + discriminator, see
+# contracts.md Q5). The Literal `type` still lets Pydantic pick the right model.
+WireNode = (
+    WireSelect
+    | WireCount
+    | WireNoneAfter
+    | WireEveryPrecededBy
+    | WireEveryFollowedWithin
+    | WireSumCompare
+    | WireFieldCompare
+    | WireAllOf
+)
+_NODE_ADAPTER: TypeAdapter[WireNode] = TypeAdapter(WireNode)
+
+
+def wire_node(**fields: Any) -> WireNode:
+    """Build the wire model for `fields["type"]` (fixtures, examples, tests)."""
+    return _NODE_ADAPTER.validate_python(fields)
 
 
 class WireRule(BaseModel):
@@ -119,31 +164,6 @@ class WireRule(BaseModel):
         description="set ONLY if no combination of nodes can express the rule; then leave "
         "per, root and nodes empty",
     )
-
-
-# Which wire attributes each node type needs, and which it may use. Everything else on
-# that node must stay null/empty.
-_REQUIRED: dict[str, tuple[str, ...]] = {
-    "select": ("event",),
-    "count": ("of", "op", "value"),
-    "none_after": ("of", "after"),
-    "every_preceded_by": ("of", "by"),
-    "every_followed_within": ("start", "by", "within"),
-    "sum_compare": ("left_of", "left_field", "op", "right_of", "right_field"),
-    "field_compare": ("of", "a", "op", "b"),
-    "all_of": ("children",),
-}
-_OPTIONAL: dict[str, tuple[str, ...]] = {
-    "select": ("where", "exclude"),
-    "count": ("since",),
-    "none_after": ("since",),
-    "every_preceded_by": ("since",),
-    "every_followed_within": ("since",),
-    "sum_compare": (),
-    "field_compare": (),
-    "all_of": (),
-}
-_CONTENT_FIELDS = tuple(name for name in WireNode.model_fields if name not in ("id", "type"))
 
 
 # ---- wire -> core -----------------------------------------------------------------------
@@ -197,28 +217,29 @@ def to_rule_v2(
 
 def _node(node: WireNode, vocab: Vocabulary, problems: list[str]) -> dict[str, Any]:
     where = f"{node.id} ({node.type})"
-    required = _REQUIRED[node.type]
-    allowed = set(required) | set(_OPTIONAL[node.type])
-    for name in required:
-        if _empty(getattr(node, name)):
-            problems.append(f"{where}: missing {name!r}")
-    stray = [n for n in _CONTENT_FIELDS if n not in allowed and not _empty(getattr(node, n))]
-    if stray:
-        problems.append(f"{where}: fields {stray} do not belong to a {node.type} node")
+    # Required fields are enforced by the schema; an empty string still slips through.
+    for name, value in node.model_dump().items():
+        if value == "":
+            problems.append(f"{where}: {name!r} is empty")
 
-    out: dict[str, Any] = {"id": node.id, "type": node.type}
-    if node.type == "select":
-        out["event"] = node.event
-        out["where"] = [_condition(c, f"{where}.where", vocab, problems) for c in node.where]
-        out["exclude"] = [_condition(c, f"{where}.exclude", vocab, problems) for c in node.exclude]
-    elif node.type == "sum_compare":
-        out["left"] = {"of": node.left_of, "field": node.left_field}
-        out["op"] = node.op
-        out["right"] = {"of": node.right_of, "field": node.right_field}
-    else:
-        for name in allowed:
-            out[name] = getattr(node, name)
-    return out
+    if isinstance(node, WireSelect):
+        return {
+            "id": node.id,
+            "type": "select",
+            "event": node.event,
+            "where": [_condition(c, f"{where}.where", vocab, problems) for c in node.where],
+            "exclude": [_condition(c, f"{where}.exclude", vocab, problems) for c in node.exclude],
+        }
+    if isinstance(node, WireSumCompare):
+        return {
+            "id": node.id,
+            "type": "sum_compare",
+            "left": {"of": node.left_of, "field": node.left_field},
+            "op": node.op,
+            "right": {"of": node.right_of, "field": node.right_field},
+        }
+    # The other wire models carry exactly the core node's fields.
+    return node.model_dump()
 
 
 def _condition(
@@ -261,10 +282,6 @@ def _number(text: str) -> int | float | None:
     return number if number == number and abs(number) != float("inf") else None
 
 
-def _empty(value: Any) -> bool:
-    return value is None or value == [] or value == ""
-
-
 # ---- core -> wire (fixtures, few-shot prompt examples, round-trip tests) ---------------
 
 
@@ -275,7 +292,7 @@ def from_rule_v2(rule: RuleV2) -> WireRule:
 
 def _wire_node(node: Any) -> WireNode:
     if isinstance(node, SelectNode):
-        return WireNode(
+        return WireSelect(
             id=node.id,
             type="select",
             event=node.event,
@@ -283,7 +300,7 @@ def _wire_node(node: Any) -> WireNode:
             exclude=[_wire_condition(c) for c in node.exclude],
         )
     if isinstance(node, SumCompareNode):
-        return WireNode(
+        return WireSumCompare(
             id=node.id,
             type="sum_compare",
             left_of=node.left.of,
@@ -303,7 +320,7 @@ def _wire_node(node: Any) -> WireNode:
             AllOfNode,
         ),
     ):
-        return WireNode.model_validate(node.model_dump())
+        return wire_node(**node.model_dump())
     raise TypeError(f"unknown node type: {type(node).__name__}")
 
 

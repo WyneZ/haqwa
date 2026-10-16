@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from haqwa.ai.render_v2 import render_rule
-from haqwa.ai.rule_wire import WireCondition, WireNode, to_rule_v2
+from haqwa.ai.rule_wire import WireCondition, WireNode, to_rule_v2, wire_node
 from haqwa.core.presets_v2 import expand_v1
 from haqwa.core.rules_v2 import RuleV2
 
@@ -49,8 +49,8 @@ def test_all_of_numbers_each_part() -> None:
     rule_ = v2(
         sel("refunds", "refunded"),
         sel("charges", "charged"),
-        WireNode(id="prior", type="every_preceded_by", of="refunds", by="charges"),
-        WireNode(
+        wire_node(id="prior", type="every_preceded_by", of="refunds", by="charges"),
+        wire_node(
             id="cap",
             type="sum_compare",
             left_of="refunds",
@@ -59,7 +59,7 @@ def test_all_of_numbers_each_part() -> None:
             right_of="charges",
             right_field="amount",
         ),
-        WireNode(id="check", type="all_of", children=["prior", "cap"]),
+        wire_node(id="check", type="all_of", children=["prior", "cap"]),
     )
     assert render_rule(rule_) == (
         "For each order: all of these must hold: (1) every refunded event must come after an "
@@ -72,7 +72,7 @@ def test_all_of_numbers_each_part() -> None:
 def test_count_with_where_filter_and_plural() -> None:
     rule_ = v2(
         sel("big", "charged", where=[WireCondition(field="amount", op="gt", value="1000")]),
-        WireNode(id="check", type="count", of="big", op="le", value=3),
+        wire_node(id="check", type="count", of="big", op="le", value=3),
     )
     assert render_rule(rule_) == (
         "For each order: there must be at most 3 charged events where amount is more than 1000."
@@ -84,14 +84,14 @@ def test_count_with_where_filter_and_plural() -> None:
     [("le", "at most"), ("lt", "fewer than"), ("eq", "exactly"), ("ge", "at least")],
 )
 def test_count_ops(op: str, words: str) -> None:
-    rule_ = v2(sel("c", "charged"), WireNode(id="check", type="count", of="c", op=op, value=2))
+    rule_ = v2(sel("c", "charged"), wire_node(id="check", type="count", of="c", op=op, value=2))
     assert f"there must be {words} 2 charged events" in render_rule(rule_)
 
 
 def test_field_compare() -> None:
     rule_ = v2(
         sel("a", "approved"),
-        WireNode(id="check", type="field_compare", of="a", a="approver", op="ne", b="requester"),
+        wire_node(id="check", type="field_compare", of="a", a="approver", op="ne", b="requester"),
     )
     assert render_rule(rule_) == (
         "For each order: on every approved event, approver must be different from requester."
@@ -102,7 +102,7 @@ def test_exemption_on_one_event_names_it() -> None:
     rule_ = v2(
         sel("s", "shipped", exclude=[WireCondition(field="payment_type", op="eq", value="card")]),
         sel("c", "cancelled"),
-        WireNode(id="check", type="none_after", of="s", after="c"),
+        wire_node(id="check", type="none_after", of="s", after="c"),
     )
     assert "(shipped events where payment type is card are ignored)" in render_rule(rule_)
 
@@ -111,7 +111,7 @@ def test_odd_duration_falls_back_to_short_form() -> None:
     rule_ = v2(
         sel("s", "refund_requested"),
         sel("d", "refund_completed"),
-        WireNode(id="check", type="every_followed_within", start="s", by="d", within="PT90M"),
+        wire_node(id="check", type="every_followed_within", start="s", by="d", within="PT90M"),
     )
     assert "within 1h30m" in render_rule(rule_)
 

@@ -33,8 +33,8 @@ Two systems:
 from __future__ import annotations
 
 from haqwa.ai.rule_wire import WireCondition as C
-from haqwa.ai.rule_wire import WireNode as N
 from haqwa.ai.rule_wire import WireRule
+from haqwa.ai.rule_wire import wire_node as N
 from haqwa.ai.vocab import Vocabulary
 
 SYSTEMS = {

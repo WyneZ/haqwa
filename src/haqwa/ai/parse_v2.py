@@ -41,7 +41,7 @@ from haqwa.core.spec import (
 
 from .client import GeminiClient
 from .render_v2 import render_rule
-from .rule_wire import WireCondition, WireNode, WireRule, from_rule_v2, to_rule_v2
+from .rule_wire import WireCondition, WireRule, from_rule_v2, to_rule_v2, wire_node
 from .vocab import Vocabulary
 
 
@@ -195,15 +195,15 @@ def _examples() -> list[tuple[str, WireRule]]:
         per="claim_id",
         root="check",
         nodes=[
-            WireNode(id="approvals", type="select", event="approved"),
-            WireNode(id="payments", type="select", event="paid"),
-            WireNode(
+            wire_node(id="approvals", type="select", event="approved"),
+            wire_node(id="payments", type="select", event="paid"),
+            wire_node(
                 id="big",
                 type="select",
                 event="paid",
                 where=[WireCondition(field="amount", op="gt", value="5000")],
             ),
-            WireNode(
+            wire_node(
                 id="four_eyes",
                 type="field_compare",
                 of="approvals",
@@ -211,7 +211,7 @@ def _examples() -> list[tuple[str, WireRule]]:
                 op="ne",
                 b="submitter",
             ),  # fmt: skip
-            WireNode(
+            wire_node(
                 id="cap",
                 type="sum_compare",
                 left_of="payments",
@@ -220,8 +220,8 @@ def _examples() -> list[tuple[str, WireRule]]:
                 right_of="approvals",
                 right_field="amount",
             ),
-            WireNode(id="big_once", type="count", of="big", op="le", value=1),
-            WireNode(id="check", type="all_of", children=["four_eyes", "cap", "big_once"]),
+            wire_node(id="big_once", type="count", of="big", op="le", value=1),
+            wire_node(id="check", type="all_of", children=["four_eyes", "cap", "big_once"]),
         ],
     )
     out.append(
