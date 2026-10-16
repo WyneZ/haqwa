@@ -1,7 +1,7 @@
-"""Deterministic interpreter for a validated v2 rule on one entity stream.
+"""Evaluate validated v2 rules against event traces.
 
-This is deliberately separate from the production v1 checkers. The caller sorts and
-groups events, validates the rule, and passes the whole-trace end for time rules.
+``evaluate_v2`` takes one entity's time-sorted events. ``check_v2`` sorts and groups
+a whole trace before evaluating each entity's events.
 """
 
 from __future__ import annotations

@@ -11,8 +11,7 @@ from .helpers import H, amo, ev
 
 def findings(violations):
     return [
-        (violation.entity, violation.offending_index, violation.message)
-        for violation in violations
+        (violation.entity, violation.offending_index, violation.message) for violation in violations
     ]
 
 
@@ -106,12 +105,15 @@ def test_three_v1_presets_match_check_on_shop_trace(shop_dir):
 
     for rule, result in zip(rules, report.results, strict=True):
         expanded = expand_v1(rule)
-        assert validate_rule_v2(
-            expanded,
-            event_map.vocabulary,
-            {"order_id", "amount", "payment_type"},
-            {"amount"},
-        ) == []
+        assert (
+            validate_rule_v2(
+                expanded,
+                event_map.vocabulary,
+                {"order_id", "amount", "payment_type"},
+                {"amount"},
+            )
+            == []
+        )
         actual = check_v2(expanded, events, event_map)
         assert findings(actual) == findings(result.violations)
 
