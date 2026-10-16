@@ -71,3 +71,31 @@ not to claim reliability.
    duplicate / unknown / cyclic / unused ids before anything reaches `core/`.
 3. Deep rules need a meaning check, not only schema validation: the confirmed-example
    self-test (core) is what catches an F4-type error.
+
+## Gate G1 — parse_v2 accuracy (smoke) · 2026-10-16 · gemini-3.6-flash
+
+Golden set: 16 rules (13 supported, 3 must be refused), `golden_v2.py`, reviewed by Claude
+on Hazel's delegation and then by an independent GPT review. Scorer: `eval_parse_v2.py`.
+Every run below used fresh Gemini calls (no cache).
+
+| Run | Wire design | Supported correct | Refusals | Wrong | Invalid | Pass |
+|---|---|---|---|---|---|---|
+| 1 | one node model, all fields optional | 11/13 | 3/3 | 0 | 2 | no |
+| 2 | one model per node type, required fields | 12/13 | 3/3 | 0 | 1 | no |
+| 3a | + vocabulary enums, `within_seconds` | 13/13 | 3/3 | 0 | 0 | yes |
+| 3b | same as 3a, second fresh run | 13/13 | 3/3 | 0 | 0 | yes |
+
+What each failure taught (raw answers in the run files):
+- Run 1: Gemini left out a field the node type needs (`by` on every_followed_within, `op` on
+  field_compare). Cause: all-optional schema. Fix: anyOf of per-type models with required
+  fields, so constrained decoding cannot omit them.
+- Run 2: right structure, corrupted strings ("refun d_requested", "P T24H"). Fix: event and
+  field names are enums built from the caller's vocabulary (`wire_schema(vocab)`), and
+  durations are an integer `within_seconds`; code builds the ISO string.
+- In every run, all invalid answers were caught by validation: no wrong rule was produced.
+  All three refusal cases (average, one-to-one matching, prompt injection) were refused.
+
+Limits: 16 rules, two fresh passes on the final design. 0 wrong in 32 answers bounds the
+wrong rate only below ~9% (95%, one-sided). This is a smoke gate, not a claim that parse
+quality equals v1. Enums cannot stop a wrong-but-existing name; the owner's review of the
+rendered meaning and the v2 self-test (B4) are the guards for that.
