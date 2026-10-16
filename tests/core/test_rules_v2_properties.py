@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from time import perf_counter
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from haqwa.core.checker import check
@@ -12,7 +12,7 @@ from haqwa.core.compiler import compile_spec
 from haqwa.core.events import Event, group_by, sort_events
 from haqwa.core.presets_v2 import expand_v1
 from haqwa.core.rules_v2_eval import evaluate_v2
-from haqwa.core.spec import Spec
+from haqwa.core.spec import ResetAfter, Spec
 
 PATTERNS = ("at_most_once", "never_after", "must_precede", "within_time")
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
@@ -122,6 +122,15 @@ def _findings_from_v2(rule, events):
 @given(st.data())
 def test_random_v1_rules_and_traces_match_expanded_v2(pattern, data):
     rule, events = data.draw(_case(pattern))
+    if pattern == "within_time":
+        # G3.2 deliberately restarts v2 deadlines when the reset is also the start.
+        # The v1 checker still skips that event, so this case is not a parity case.
+        assume(
+            not any(
+                isinstance(exception, ResetAfter) and exception.reset_after == rule.start
+                for exception in rule.exceptions
+            )
+        )
     assert _findings_from_v2(rule, events) == _findings_from_report(rule, events)
 
 
