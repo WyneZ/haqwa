@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import INVALID_EVENTS, HaqwaError
 from .events import Event
@@ -21,6 +21,7 @@ class TraceVocabulary(BaseModel):
     events: list[str]
     fields: list[str]
     field_values: dict[str, list[str]]
+    numeric_fields: list[str] = Field(default_factory=list, exclude_if=lambda value: not value)
 
 
 class TraceSummary(BaseModel):

@@ -208,11 +208,11 @@ def _has_cycle(graph: dict[str, list[str]]) -> bool:
 
 def validate_rule_v2(
     rule: RuleV2 | Mapping[str, Any],
-    vocab_events: Iterable[str],
-    vocab_fields: Iterable[str],
-    numeric_fields: Iterable[str],
+    vocab_events: Iterable[str] | None = None,
+    vocab_fields: Iterable[str] | None = None,
+    numeric_fields: Iterable[str] | None = None,
 ) -> list[str]:
-    """Return deterministic model and vocabulary problems; empty means valid."""
+    """Return model, graph, and supplied-vocabulary problems; empty means valid."""
     if not isinstance(rule, RuleV2):
         try:
             rule = RuleV2.model_validate(rule)
@@ -220,8 +220,10 @@ def validate_rule_v2(
             return [f"{'.'.join(map(str, error['loc']))}: {error['msg']}" for error in exc.errors()]
 
     problems: list[str] = []
-    events, fields, numeric = set(vocab_events), set(vocab_fields), set(numeric_fields)
-    if rule.per not in fields:
+    events = set(vocab_events) if vocab_events is not None else None
+    fields = set(vocab_fields) if vocab_fields is not None else None
+    numeric = set(numeric_fields) if numeric_fields is not None else None
+    if fields is not None and rule.per not in fields:
         problems.append(f"unknown entity field {rule.per!r}")
     ids = [node.id for node in rule.nodes]
     duplicates = sorted({node_id for node_id in ids if ids.count(node_id) > 1})
@@ -237,29 +239,33 @@ def validate_rule_v2(
     graph: dict[str, list[str]] = {}
     for node in rule.nodes:
         if isinstance(node, SelectNode):
-            if node.event not in events:
+            if events is not None and node.event not in events:
                 problems.append(f"{node.id}: unknown event {node.event!r}")
             for group, conditions in (("where", node.where), ("exclude", node.exclude)):
                 for condition in conditions:
-                    if condition.field not in fields:
+                    if fields is not None and condition.field not in fields:
                         problems.append(f"{node.id}.{group}: unknown field {condition.field!r}")
-                    if condition.op in ("gt", "ge", "lt", "le") and condition.field not in numeric:
+                    if (
+                        numeric is not None
+                        and condition.op in ("gt", "ge", "lt", "le")
+                        and condition.field not in numeric
+                    ):
                         problems.append(f"{node.id}.{group}: {condition.field!r} is not numeric")
         if isinstance(
             node, (CountNode, NoneAfterNode, EveryPrecededByNode, EveryFollowedWithinNode)
         ):
             for event in node.since:
-                if event not in events:
+                if events is not None and event not in events:
                     problems.append(f"{node.id}: unknown reset event {event!r}")
         if isinstance(node, SumCompareNode):
             for side_name, side in (("left", node.left), ("right", node.right)):
-                if side.field not in fields:
+                if fields is not None and side.field not in fields:
                     problems.append(f"{node.id}.{side_name}: unknown field {side.field!r}")
-                elif side.field not in numeric:
+                elif numeric is not None and side.field not in numeric:
                     problems.append(f"{node.id}.{side_name}: {side.field!r} is not numeric")
         if isinstance(node, FieldCompareNode):
             for field_name in (node.a, node.b):
-                if field_name not in fields:
+                if fields is not None and field_name not in fields:
                     problems.append(f"{node.id}: unknown field {field_name!r}")
         if isinstance(node, AllOfNode) and not node.children:
             problems.append(f"{node.id}: all_of needs at least one child")
