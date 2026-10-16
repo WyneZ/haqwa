@@ -22,6 +22,7 @@ from .clarify_v2 import (
 )
 from .core_v2_ports import ApplyPatch
 from .parse import ParseError
+from .render_v2 import render_rule
 from .vocab import Vocabulary
 
 
@@ -58,6 +59,7 @@ class AnswersV2Outcome(BaseModel):
     """Updated rule plus answer evidence held separately until Track B B2."""
 
     rule: RuleV2
+    meaning: str  # code-rendered meaning of the UPDATED rule, after Yes patches
     confirmed_examples: list[ConfirmedExample]
     mismatches: list[str]
 
@@ -129,8 +131,10 @@ def apply_answers_v2(
             raise ParseError([error["msg"] for error in exc.errors()]) from exc
         if example not in examples:
             examples.append(example)
+    final = _validated(updated, vocab)
     return AnswersV2Outcome(
-        rule=_validated(updated, vocab),
+        rule=final,
+        meaning=render_rule(final),
         confirmed_examples=examples,  # TODO(B2): move confirmed examples into RuleV2 here.
         mismatches=mismatches,
     )

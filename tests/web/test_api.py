@@ -228,6 +228,8 @@ def test_answers_yes_uses_injected_port(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["rule"]["nodes"][-1]["since"] == ["refunded"]
     assert response.json()["confirmed_examples"][0]["violation"] is False
+    # The owner sees what will really be enforced after the Yes patch.
+    assert "starts again after each refunded event" in response.json()["meaning"]
 
 
 def test_answers_provisional_yes_is_501_but_no_works(client: TestClient) -> None:

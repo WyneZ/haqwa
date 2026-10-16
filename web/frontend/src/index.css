@@ -1557,3 +1557,16 @@ input[type='file']::file-selector-button {
     }
   }
 }
+
+/* Confirmed screen: one block per rule with its final, code-rendered meaning. */
+.confirmed {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+  padding-left: 1.25rem;
+}
+
+.confirmed__source {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+}

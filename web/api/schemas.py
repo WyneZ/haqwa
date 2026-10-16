@@ -65,6 +65,7 @@ class AnswersRequest(BaseModel):
 
 class AnswersResponse(BaseModel):
     rule: RuleV2
+    meaning: str
     confirmed_examples: list[ConfirmedExample]
     mismatches: list[str]
 

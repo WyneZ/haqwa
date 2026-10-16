@@ -6,6 +6,7 @@
  * Python (`POST /api/v1/answers`). The web never decides anything in production.
  */
 import { DEMO_RESULTS } from './fixtures'
+import { patchText } from '../lib/words'
 import { DEMO_EXPLANATIONS, DEMO_RUNS, DEMO_SCENARIOS } from './runFixtures'
 import type {
   AnswerV2,
@@ -194,7 +195,15 @@ export async function mockApplyAnswers(rule: RuleV2, answers: AnswerV2[]): Promi
     const example = { timeline: q.timeline, violation }
     if (!examples.some((e) => same(e, example))) examples.push(example)
   }
-  return { rule: updated, confirmed_examples: examples, mismatches }
+  // Mock-only preview of the final meaning. The real API renders it in Python (render_v2);
+  // here we append the accepted decisions to the fixture's parsed meaning.
+  const parsed = DEMO_RESULTS.find((r) => r.status === 'supported' && r.rule.id === rule.id)
+  const accepted = answers
+    .filter(({ question: q, allowed }) => q.kind === 'decision' && allowed)
+    .map(({ question: q }) => (q.kind === 'decision' ? patchText(q.patch) : ''))
+  const base = parsed?.meaning ?? rule.source
+  const meaning = accepted.length ? `${base} Exceptions: ${[...new Set(accepted)].join(' ')}` : base
+  return { rule: updated, meaning, confirmed_examples: examples, mismatches }
 }
 
 /** Mock mode cannot run core's self-test: it always says the spec is fine. */

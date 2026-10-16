@@ -425,13 +425,21 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
           <section className="card card--done">
             <h2 className="card__title">✓ Your rules are confirmed</h2>
             <p>Haqwa will check exactly what you decided. Nothing is left to the AI.</p>
-            {Object.entries(confirmed).map(([index, result]) => {
-              const parsed = results[Number(index)]
-              return parsed.status === 'supported' ? (
-                <TechDetails key={index} rule={result.rule} meaning={parsed.meaning}
-                  confirmedExamples={result.confirmed_examples} />
-              ) : null
-            })}
+            <ol className="confirmed">
+              {Object.entries(confirmed).map(([index, result]) => (
+                <li key={index} className="confirmed__rule">
+                  <p className="confirmed__source">“{results[Number(index)].source}”</p>
+                  <p className="notice meaning">
+                    <strong>Haqwa will check:</strong> {result.meaning}
+                  </p>
+                  <TechDetails
+                    rule={result.rule}
+                    meaning={result.meaning}
+                    confirmedExamples={result.confirmed_examples}
+                  />
+                </li>
+              ))}
+            </ol>
             {unsupported.length > 0 && (
               <div className="notice notice--warn">
                 <p>These rules can’t be checked yet:</p>
