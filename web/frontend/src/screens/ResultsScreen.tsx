@@ -59,7 +59,14 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
         {heading}
       </h1>
 
-      {violations.length === 0 && source.kind !== 'trace' && (
+      {source.kind === 'agent' && response.events.length === 0 && (
+        <section className="card">
+          <h2 className="card__title">No shop activity to check yet</h2>
+          <p>Connect your agent and ask it to use the shop tools, then check again.</p>
+        </section>
+      )}
+
+      {violations.length === 0 && source.kind !== 'trace' && !(source.kind === 'agent' && response.events.length === 0) && (
         <section className="card card--pass">
           <h2 className="card__title">✓ All rules held</h2>
           <p>The agent did nothing your rules forbid.</p>
