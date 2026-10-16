@@ -8,11 +8,16 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from haqwa.ai.clarify import ClarifyOutcome, Question, WireClarify
-from haqwa.ai.client import GeminiQuotaError, GeminiUnavailable
+from haqwa.ai.clarify_v2 import ClarifyV2Outcome, Decision
+from haqwa.ai.client import GeminiBadOutput, GeminiClient, GeminiQuotaError, GeminiUnavailable
+from haqwa.ai.core_v2_ports import CoreV2Ports
 from haqwa.ai.explain import Explanation
+from haqwa.ai.parse_v2 import ParseV2Outcome
+from haqwa.ai.render_v2 import render_rule
+from haqwa.core.canonical import CanonicalExample
 from haqwa.core.report import Violation
-from haqwa.core.spec import AtMostOnce, TimelineEvent
+from haqwa.core.rules_v2 import RuleV2
+from haqwa.core.spec import TimelineEvent
 from web.api import main as api_main
 from web.api import routes
 from web.api.main import create_app
@@ -25,6 +30,45 @@ RULE = {
     "per": "order_id",
 }
 SPEC = {"version": 1, "rules": [RULE]}
+V2_RULE = {
+    "id": "no-double-charge",
+    "source": RULE["source"],
+    "version": 2,
+    "per": "order_id",
+    "root": "check",
+    "nodes": [
+        {"id": "charges", "type": "select", "event": "charged"},
+        {"id": "check", "type": "count", "of": "charges", "op": "le", "value": 1},
+    ],
+}
+RESET_PATCH = {"op": "add_reset", "node_id": "check", "event": "refunded"}
+DECISION = {
+    "id": "d1",
+    "kind": "decision",
+    "text": "Is a new charge allowed after a refund?",
+    "why": "Refunding can allow charging again.",
+    "patch": RESET_PATCH,
+    "timeline": [{"event": "charged"}, {"event": "refunded"}, {"event": "charged"}],
+}
+
+
+def fake_ports() -> CoreV2Ports:
+    """Supply deterministic test ports without importing future Track B functions."""
+    example = CanonicalExample(
+        label="Two charges",
+        timeline=(TimelineEvent(event="charged"),) * 2,
+        violation=True,
+    )
+
+    def apply_patch(rule, patch):
+        rule.nodes[-1].since.append(patch.event)
+        return rule
+
+    return CoreV2Ports(
+        apply_patch=apply_patch,
+        canonical_examples=lambda _: [example],
+        make_example=lambda *_: example,
+    )
 
 
 @pytest.fixture
@@ -63,36 +107,50 @@ def test_health_scenarios_and_openapi(client: TestClient) -> None:
 def test_clarify_supported_and_unsupported(client: TestClient, monkeypatch) -> None:
     ids = []
 
-    def fake_clarify(source, *, rule_id, vocab, client):
+    def fake_parse(source, *, rule_id, vocab, client):
         ids.append(rule_id)
         if source == "unsupported":
             from haqwa.ai.parse import ParseError
 
             raise ParseError(["outside vocabulary"])
-        rule = AtMostOnce.model_validate({**RULE, "id": rule_id})
-        return ClarifyOutcome(
-            source=source,
-            status="supported",
+        rule = RuleV2.model_validate({**V2_RULE, "id": rule_id, "source": source})
+        return ParseV2Outcome(source=source, status="supported", rule=rule, cached=True)
+
+    def fake_propose(rule, *, vocab, client, make_example):
+        return ClarifyV2Outcome(
             rule=rule,
-            questions=[
-                Question(
-                    id="c1",
-                    kind="confirmation",
-                    text="Is this allowed?",
-                    timeline=[TimelineEvent(event="charged")],
+            meaning=render_rule(rule),
+            decisions=[
+                Decision(
+                    id="d1",
+                    question=DECISION["text"],
+                    why=DECISION["why"],
+                    patch=RESET_PATCH,
+                    example=make_example(rule, RESET_PATCH),
                 )
             ],
+            dropped=[],
             cached=True,
         )
 
-    monkeypatch.setattr(routes, "clarify", fake_clarify)
-    response = client.post("/api/v1/clarify", json={"rules": ["Charge once", "unsupported"]})
+    client.app.dependency_overrides[routes.get_core_v2_ports] = fake_ports
+    monkeypatch.setattr(routes, "parse_v2", fake_parse)
+    monkeypatch.setattr(routes, "propose_decisions", fake_propose)
+    response = client.post(
+        "/api/v1/clarify", json={"rules": ["Charge once", "Charge once", "unsupported"]}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["results"][0]["status"] == "supported"
     assert body["results"][0]["rule"]["id"] == ids[0]
     assert "dropped" not in body["results"][0]
-    assert body["results"][1]["status"] == "unsupported"
+    assert body["results"][1]["rule"]["id"] != ids[0]
+    assert body["results"][0]["rule"]["version"] == 2
+    assert body["results"][0]["meaning"]
+    assert [q["id"] for q in body["results"][0]["questions"]] == ["c1", "d1"]
+    assert body["results"][0]["questions"][1]["patch"] == RESET_PATCH
+    assert body["results"][2]["status"] == "unsupported"
+    assert body["results"][2]["rule"] is body["results"][2]["questions"] is None
     assert body["cached"] is False
 
 
@@ -104,13 +162,7 @@ def test_clarify_uses_optional_vocabulary_in_fake_client(client: TestClient) -> 
         def generate(self, prompt, schema):
             self.prompts.append(prompt)
             return SimpleNamespace(
-                value=WireClarify.model_validate(
-                    {
-                        "rule_id": "rule",
-                        "parse": {"pattern": "unsupported", "reason": "outside the four patterns"},
-                        "ambiguities": [],
-                    }
-                ),
+                value=schema.model_validate({"unsupported_reason": "outside the supported AST"}),
                 cached=False,
             )
 
@@ -122,9 +174,9 @@ def test_clarify_uses_optional_vocabulary_in_fake_client(client: TestClient) -> 
     }
     assert client.post("/api/v1/clarify", json=payload).status_code == 200
     assert "leave_requested" in fake.prompts[-1]
-    assert "charged" not in fake.prompts[-1]
+    assert "charged" not in fake.prompts[-1].split("This system:", 1)[1]
     assert client.post("/api/v1/clarify", json={"rules": payload["rules"]}).status_code == 200
-    assert "charged" in fake.prompts[-1]
+    assert "charged" in fake.prompts[-1].split("This system:", 1)[1]
 
 
 def test_clarify_rejects_invalid_vocabulary(client: TestClient) -> None:
@@ -134,6 +186,8 @@ def test_clarify_rejects_invalid_vocabulary(client: TestClient) -> None:
         {**vocabulary, "events": []},
         {**vocabulary, "events": ["leave requested"]},
         {**vocabulary, "field_values": {"leave_id": ["x"] * 51}},
+        {**vocabulary, "numeric_fields": ["unknown"]},
+        {**vocabulary, "numeric_fields": ["leave_id"], "field_values": {"leave_id": ["x"]}},
     )
     for value in invalid:
         response = client.post("/api/v1/clarify", json={"rules": ["one"], "vocabulary": value})
@@ -152,13 +206,270 @@ def test_answers_and_invalid_rule(client: TestClient) -> None:
     }
     response = client.post(
         "/api/v1/answers",
-        json={"rule": RULE, "answers": [{"question": question, "allowed": False}]},
+        json={"rule": V2_RULE, "answers": [{"question": question, "allowed": False}]},
     )
     assert response.status_code == 200
-    assert response.json()["rule"]["confirmed_examples"][0]["violation"] is True
+    assert response.json()["confirmed_examples"][0]["violation"] is True
+    assert "confirmed_examples" not in response.json()["rule"]
     assert response.json()["mismatches"] == []
     bad = client.post("/api/v1/answers", json={"rule": {"pattern": "wrong"}, "answers": []})
     assert_problem(bad, "invalid_spec", 422)
+
+
+def test_answers_yes_uses_injected_port(client: TestClient) -> None:
+    client.app.dependency_overrides[routes.get_core_v2_ports] = fake_ports
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": DECISION, "allowed": True}],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["rule"]["nodes"][-1]["since"] == ["refunded"]
+    assert response.json()["confirmed_examples"][0]["violation"] is False
+
+
+def test_answers_provisional_yes_is_501_but_no_works(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": DECISION, "allowed": True}],
+        },
+    )
+    assert_problem(response, "not_implemented", 501)
+    assert response.json()["detail"] == "core apply_patch_v2 not merged yet"
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": DECISION, "allowed": False}],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["confirmed_examples"][0]["violation"] is True
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        {**DECISION, "patch": None},
+        {**DECISION, "expected_violation": True},
+        {
+            "id": "c1",
+            "kind": "confirmation",
+            "text": "Is this allowed?",
+            "timeline": [{"event": "charged"}],
+        },
+    ],
+)
+def test_answers_rejects_bad_question_body(client: TestClient, question) -> None:
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": question, "allowed": False}],
+        },
+    )
+    assert_problem(response, "invalid_request", 422)
+
+
+def test_answers_invalid_patched_rule_is_422(client: TestClient) -> None:
+    ports = fake_ports()
+    client.app.dependency_overrides[routes.get_core_v2_ports] = lambda: CoreV2Ports(
+        apply_patch=lambda r, p: r.model_copy(update={"root": "missing"}),
+        canonical_examples=ports.canonical_examples,
+        make_example=ports.make_example,
+    )
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": DECISION, "allowed": True}],
+        },
+    )
+    assert_problem(response, "invalid_spec", 422)
+
+
+def test_answers_accepts_custom_vocabulary(client: TestClient) -> None:
+    custom_rule = {
+        **V2_RULE,
+        "per": "employee_id",
+        "nodes": [
+            {"id": "charges", "type": "select", "event": "payroll_run"},
+            V2_RULE["nodes"][-1],
+        ],
+    }
+    payload = {
+        "rule": custom_rule,
+        "answers": [],
+        "vocabulary": {
+            "events": ["payroll_run"],
+            "fields": ["employee_id"],
+            "numeric_fields": [],
+        },
+    }
+    response = client.post("/api/v1/answers", json=payload)
+    assert response.status_code == 200
+    assert response.json()["rule"]["per"] == "employee_id"
+    payload["vocabulary"]["numeric_fields"] = ["missing"]
+    assert_problem(client.post("/api/v1/answers", json=payload), "invalid_request", 422)
+
+
+def test_answers_returns_confirmation_mismatch_without_recording(client: TestClient) -> None:
+    question = {
+        "id": "c1",
+        "kind": "confirmation",
+        "text": "Is this allowed?",
+        "timeline": [{"event": "charged"}, {"event": "charged"}],
+        "expected_violation": True,
+    }
+    response = client.post(
+        "/api/v1/answers",
+        json={
+            "rule": V2_RULE,
+            "answers": [{"question": question, "allowed": True}],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["confirmed_examples"] == []
+    assert response.json()["mismatches"] == ["c1: owner answered the opposite of 'not allowed'"]
+
+
+def test_cached_unsupported_parse_does_not_call_clarify(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(
+        routes,
+        "parse_v2",
+        lambda source, **_: ParseV2Outcome(
+            source=source,
+            status="unsupported",
+            reason="No exact AST",
+            cached=True,
+        ),
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("An unsupported parse must not ask for decision proposals")
+
+    monkeypatch.setattr(routes, "propose_decisions", forbidden)
+    response = client.post("/api/v1/clarify", json={"rules": ["Unsupported"]})
+    assert response.status_code == 200
+    assert response.json()["cached"] is True
+    result = response.json()["results"][0]
+    assert result["rule"] is result["meaning"] is result["questions"] is None
+    assert result["reason"] == "No exact AST"
+
+
+@pytest.mark.parametrize(
+    "parse_cached,clarify_cached",
+    [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ],
+)
+def test_clarify_cache_flag_requires_both_stages(
+    client: TestClient, monkeypatch, parse_cached, clarify_cached
+) -> None:
+    original = RuleV2.model_validate(V2_RULE)
+    monkeypatch.setattr(
+        routes,
+        "parse_v2",
+        lambda source, **kwargs: ParseV2Outcome(
+            source=source,
+            status="supported",
+            rule=original,
+            cached=parse_cached,
+        ),
+    )
+    monkeypatch.setattr(
+        routes,
+        "propose_decisions",
+        lambda rule, **kwargs: ClarifyV2Outcome(
+            rule=rule,
+            meaning=render_rule(rule),
+            decisions=[],
+            dropped=[],
+            cached=clarify_cached,
+        ),
+    )
+    response = client.post("/api/v1/clarify", json={"rules": ["One charge"]})
+    assert response.status_code == 200
+    assert response.json()["cached"] is (parse_cached and clarify_cached)
+
+
+@pytest.mark.parametrize("stage", ["parse_v2", "propose_decisions"])
+def test_clarify_bad_gemini_output_is_item_unsupported(
+    client: TestClient, monkeypatch, stage
+) -> None:
+    monkeypatch.setattr(
+        routes,
+        "parse_v2",
+        lambda source, **_: ParseV2Outcome(
+            source=source,
+            status="supported",
+            rule=RuleV2.model_validate(V2_RULE),
+            cached=True,
+        ),
+    )
+
+    def fail(*args, **kwargs):
+        raise GeminiBadOutput("bad structured output")
+
+    monkeypatch.setattr(routes, stage, fail)
+    response = client.post("/api/v1/clarify", json={"rules": ["One charge"]})
+    assert response.status_code == 200
+    assert response.json()["results"][0]["status"] == "unsupported"
+    assert response.json()["cached"] is False
+
+
+def test_clarify_numeric_fields_and_real_fake_sdk_flow(client: TestClient, tmp_path) -> None:
+    import json
+
+    class FakeSDK:
+        def __init__(self):
+            self.models = self
+            self.calls = 0
+
+        def generate_content(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                answer = {
+                    "per": "order_id",
+                    "root": "check",
+                    "nodes": [
+                        {
+                            "id": "charges",
+                            "type": "select",
+                            "event": "charged",
+                            "where": [{"field": "amount", "op": "gt", "value": "1000"}],
+                        },
+                        V2_RULE["nodes"][-1],
+                    ],
+                }
+            else:
+                answer = {"decisions": []}
+            return SimpleNamespace(text=json.dumps(answer))
+
+    sdk = FakeSDK()
+    gemini = GeminiClient(model="test", sdk=sdk, cache_dir=tmp_path)
+    client.app.dependency_overrides[routes.get_client] = lambda: gemini
+    payload = {
+        "rules": ["At most one charge above 1000"],
+        "vocabulary": {
+            "events": ["charged"],
+            "fields": ["order_id", "amount"],
+            "numeric_fields": ["amount"],
+        },
+    }
+    first = client.post("/api/v1/clarify", json=payload)
+    assert first.status_code == 200
+    assert first.json()["results"][0]["status"] == "supported"
+    assert first.json()["cached"] is False
+    assert client.post("/api/v1/clarify", json=payload).json()["cached"] is True
+    assert sdk.calls == 2
 
 
 def test_seal_and_self_test_failure(client: TestClient) -> None:
@@ -219,13 +530,13 @@ def test_errors_and_internal_redaction(client: TestClient, monkeypatch) -> None:
     def quota(*args, **kwargs):
         raise GeminiQuotaError("quota reached", per_day=True)
 
-    monkeypatch.setattr(routes, "clarify", quota)
+    monkeypatch.setattr(routes, "parse_v2", quota)
     assert_problem(client.post("/api/v1/clarify", json={"rules": ["one"]}), "gemini_quota", 429)
 
     def unavailable(*args, **kwargs):
         raise GeminiUnavailable("service down")
 
-    monkeypatch.setattr(routes, "clarify", unavailable)
+    monkeypatch.setattr(routes, "parse_v2", unavailable)
     assert_problem(
         client.post("/api/v1/clarify", json={"rules": ["one"]}), "gemini_unavailable", 503
     )
@@ -233,7 +544,7 @@ def test_errors_and_internal_redaction(client: TestClient, monkeypatch) -> None:
     def unexpected(*args, **kwargs):
         raise RuntimeError("secret stack detail")
 
-    monkeypatch.setattr(routes, "clarify", unexpected)
+    monkeypatch.setattr(routes, "parse_v2", unexpected)
     response = client.post("/api/v1/clarify", json={"rules": ["one"]})
     assert_problem(response, "internal_error", 500)
     assert "secret stack detail" not in response.text
