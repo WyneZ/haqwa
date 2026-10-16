@@ -21,12 +21,22 @@ class Vocabulary(BaseModel):
     events: list[str] = Field(min_length=1)
     fields: list[str] = Field(default_factory=list)
     field_values: dict[str, list[str]] = Field(default_factory=dict)
+    numeric_fields: list[str] = Field(
+        default_factory=list,
+        description="fields holding numbers (e.g. 'amount'); v2 sums and gt/ge/lt/le need them",
+    )
 
     @model_validator(mode="after")
     def _values_belong_to_fields(self) -> Vocabulary:
         unknown = sorted(set(self.field_values) - set(self.fields))
         if unknown:
             raise ValueError(f"field_values for unknown fields: {unknown}")
+        unknown_numeric = sorted(set(self.numeric_fields) - set(self.fields))
+        if unknown_numeric:
+            raise ValueError(f"numeric_fields for unknown fields: {unknown_numeric}")
+        closed_numeric = sorted(set(self.numeric_fields) & set(self.field_values))
+        if closed_numeric:
+            raise ValueError(f"fields cannot be both numeric and closed-value: {closed_numeric}")
         return self
 
     def event_problem(self, name: str | None, where: str) -> str | None:
