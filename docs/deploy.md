@@ -1,8 +1,9 @@
 # Deploying Haqwa to Cloud Run
 
 One container, one Cloud Run service. FastAPI serves the API (`/api/v1/...`),
-the agent MCP mounts (`/agent/timeout/mcp` and `/agent/stale/mcp`), the health
-check (`/healthz`) and the built React app (everything else).
+the agent MCP mounts (`/agent/timeout/mcp` and `/agent/stale/mcp`), the local
+health check (`/healthz`) and the built React app (everything else). Cloud Run's
+front end reserves `/healthz`, so verify the deployed service through the API.
 
 Owner: Wyne (see `docs/decisions.md`, 2026-10-09).
 
@@ -49,14 +50,13 @@ long-lived stream; the normal Cloud Run request timeout is sufficient.
 All names below (`haqwa`, `gemini-api-key`, `asia-southeast1`) are the team defaults, so
 both developers can follow the same steps in their own project.
 
-1. **Project + billing.** Create a Google Cloud project, link a billing account
-   (Cloud Run requires one even inside the free tier).
+1. **Project + billing.** Create a Google Cloud project and link a billing account.
 2. **Budget alert.** Billing → Budgets & alerts → budget of a few USD on this project with
    50/90/100 % email alerts. Alerts only notify; they do not stop spending.
 3. **Enable APIs:** Cloud Run Admin, Cloud Build, Artifact Registry, Secret Manager.
-4. **Gemini key (free tier).** In AI Studio, create the key in a project **without
-   billing** (decision 2026-09-28: free tier only). A key from a billed project is on the
-   paid tier. Check that AI Studio shows the key's tier as Free.
+4. **Gemini key (paid tier).** In AI Studio, create the key in the billing-enabled
+   project (decision 2026-10-11) and confirm that it is on the paid tier. The
+   rate-limited free tier was dropped for the demo.
 5. **Secret.** Secret Manager → Create secret → name `gemini-api-key`, value = the key.
 6. **Secret access.** Give the Cloud Run runtime service account
    (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`) the role
@@ -81,6 +81,11 @@ gcloud secrets add-iam-policy-binding gemini-api-key \
   --role="roles/secretmanager.secretAccessor"
 ```
 
+Pin the deployed secret to an explicit version. When rotating the key, first test
+the new key locally from `.env`, then add it with `gcloud secrets versions add
+gemini-api-key --data-file=-` and deploy using the new version number. Do not
+reuse a disabled or destroyed version.
+
 ## Deploy
 
 ### Option A — CLI (from the repo root)
@@ -89,7 +94,7 @@ gcloud secrets add-iam-policy-binding gemini-api-key \
 gcloud run deploy haqwa \
   --source . \
   --allow-unauthenticated \
-  --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
+  --set-secrets "GEMINI_API_KEY=gemini-api-key:<VERSION>" \
   --min-instances 0 \
   --max-instances 1 \
   --memory 512Mi
@@ -109,14 +114,14 @@ Build → GitHub → `WyneZ/haqwa`, branch `^main$`, build type **Dockerfile**
 - Billing: request-based; autoscaling min 0, max 1
 - Container: port 8080, memory 512 MiB
 - Variables & Secrets → Reference a secret → env var `GEMINI_API_KEY` →
-  secret `gemini-api-key`, version `latest`
+  secret `gemini-api-key`, version `<VERSION>` (an explicit version number)
 
 Every push to `main` then rebuilds and redeploys.
 
 ## Verify (after every deploy)
 
-1. `https://SERVICE_URL/healthz` returns `{"ok":true}`.
-2. `https://SERVICE_URL/api/v1/scenarios` returns the demo scenario list.
+1. `GET https://SERVICE_URL/api/v1/scenarios` returns 200 with JSON.
+2. Check that the JSON contains the demo scenario list.
 3. Open `https://SERVICE_URL/`, enter a new rule that is not in the fixtures, and check
    the questions are about **your** rule. Fixture answers mean the mock build slipped in.
 4. Run one scenario on the Test screen and see a verdict.
@@ -137,7 +142,7 @@ Every push to `main` then rebuilds and redeploys.
 | `Permission denied` on secret | step 6 (Secret Accessor role) missing |
 | Build fails at `uv sync --frozen` | `uv.lock` out of date: run `uv lock` and commit |
 | UI shows fixture answers | frontend built without `VITE_USE_MOCK=false` |
-| API returns `gemini_quota` (429) | free-tier rate limit; wait, or replay recorded demo scenarios |
+| API returns `gemini_quota` (429) | paid-tier quota or rate limit; wait, or replay recorded demo scenarios |
 | `/api/...` returns the HTML page | path typo; unknown `/api/*` paths return 404, everything else is the SPA |
 
 ## Cost guardrails
@@ -145,7 +150,7 @@ Every push to `main` then rebuilds and redeploys.
 - `--min-instances 0` (an always-on instance is billed while idle).
 - `--max-instances 1` caps compute.
 - Budget alert on the project.
-- Gemini key from a project without billing.
+- Gemini paid-tier key from the billing-enabled project.
 
 ## Two deployments
 
