@@ -506,8 +506,12 @@ returns RFC 9457 HTTP 501 with web-only code `not_implemented` and detail
 This flow is not ready for sealing. B5 replaces provisional functions in
 `ai/core_v2_ports.py` only; B2 must move confirmed examples into `RuleV2`.
 
-Track B review request: `validate_rule_v2` currently accepts only event names,
-field names and numeric field names; it cannot validate closed field values.
-An input rule with an invented `payment_type` value can therefore pass answers'
-final validation. Please define closed-value validation at the core boundary;
-stage 1 does not modify protected core files or imply that this check exists.
+Patches are client input on this stateless endpoint, so before a Yes patch is
+applied, `/answers` re-runs the same policy clarify uses (`patch_problems`: target
+node types, vocabulary names, exemptions only on closed-value fields with listed
+values). A rejected patch returns 422 `invalid_spec` and core is not called.
+
+Track B review request (nice to have, not blocking): `validate_rule_v2` checks event,
+field and numeric field names but not closed field values, so values already inside
+an incoming rule (not added by a patch) are not checked against `field_values`.
+Consider closed-value validation at the core boundary.

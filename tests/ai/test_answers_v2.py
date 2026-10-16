@@ -209,6 +209,45 @@ def test_core_validation_error_becomes_parse_error() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("patch", "reason"),
+    [
+        (exclude(condition={"field": "order_id", "op": "eq", "value": "o-1"}), "closed value"),
+        (exclude(condition={"field": "payment_type", "op": "eq", "value": "paypal"}), "outside"),
+        (exclude(select_ids=["check"]), "must be a select node"),
+        (reset(node_id="charges"), "reset target"),
+        (reset(event="invented"), "not in the vocabulary"),
+    ],
+)
+def test_yes_rechecks_client_patch_before_core(patch, reason) -> None:
+    # /answers is stateless: the patch is browser input, so clarify's policy runs again.
+    calls = []
+
+    def apply_patch(target, applied):
+        calls.append(applied)
+        return target
+
+    with pytest.raises(ParseError, match=reason):
+        apply_answers_v2(
+            rule(),
+            [AnswerV2(question=decision(patch=patch), allowed=True)],
+            vocab=SHOP,
+            apply_patch=apply_patch,
+        )
+    assert calls == []
+
+
+def test_no_answer_does_not_recheck_patch() -> None:
+    bad = exclude(condition={"field": "order_id", "op": "eq", "value": "o-1"})
+    result = apply_answers_v2(
+        rule(),
+        [AnswerV2(question=decision(patch=bad), allowed=False)],
+        vocab=SHOP,
+        apply_patch=lambda r, _: r,
+    )
+    assert result.confirmed_examples[0].violation is True
+
+
 def test_build_questions_keeps_decision_ids_and_numbers_confirmations() -> None:
     example = CanonicalExample("One charge", tuple(decision().timeline), False)
     decisions = [
