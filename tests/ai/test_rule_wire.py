@@ -6,14 +6,17 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from haqwa.ai.parse import ParseError
 from haqwa.ai.rule_wire import (
     WireCondition,
     WireNode,
     WireRule,
+    WireSelect,
     from_rule_v2,
     to_rule_v2,
+    wire_node,
 )
 from haqwa.ai.vocab import Vocabulary
 from haqwa.core.presets_v2 import expand_v1
@@ -49,7 +52,7 @@ def problems_of(wire: WireRule) -> list[str]:
 
 
 def sel(node_id: str, event: str, **kw: Any) -> WireNode:
-    return WireNode(id=node_id, type="select", event=event, **kw)
+    return wire_node(id=node_id, type="select", event=event, **kw)
 
 
 def rule(*nodes: WireNode, root: str = "check", per: str = "order_id") -> WireRule:
@@ -104,7 +107,7 @@ def test_sum_compare_refunds_not_above_charges() -> None:
     wire = rule(
         sel("refunds", "refunded"),
         sel("charges", "charged"),
-        WireNode(
+        wire_node(
             id="check",
             type="sum_compare",
             left_of="refunds",
@@ -123,7 +126,7 @@ def test_sum_compare_refunds_not_above_charges() -> None:
 def test_field_compare_four_eyes() -> None:
     wire = rule(
         sel("approvals", "approved"),
-        WireNode(
+        wire_node(
             id="check", type="field_compare", of="approvals", a="approver", op="ne", b="requester"
         ),
     )
@@ -135,8 +138,8 @@ def test_all_of_refund_needs_charge_and_amount_cap() -> None:
     wire = rule(
         sel("refunds", "refunded"),
         sel("charges", "charged"),
-        WireNode(id="prior", type="every_preceded_by", of="refunds", by="charges"),
-        WireNode(
+        wire_node(id="prior", type="every_preceded_by", of="refunds", by="charges"),
+        wire_node(
             id="cap",
             type="sum_compare",
             left_of="refunds",
@@ -145,7 +148,7 @@ def test_all_of_refund_needs_charge_and_amount_cap() -> None:
             right_of="charges",
             right_field="amount",
         ),
-        WireNode(id="check", type="all_of", children=["prior", "cap"]),
+        wire_node(id="check", type="all_of", children=["prior", "cap"]),
     )
     assert isinstance(convert(wire), RuleV2)
 
@@ -153,7 +156,7 @@ def test_all_of_refund_needs_charge_and_amount_cap() -> None:
 def test_numeric_where_value_becomes_number() -> None:
     wire = rule(
         sel("big", "charged", where=[WireCondition(field="amount", op="gt", value="1000")]),
-        WireNode(id="check", type="count", of="big", op="le", value=1),
+        wire_node(id="check", type="count", of="big", op="le", value=1),
     )
     result = convert(wire)
     assert isinstance(result, RuleV2)
@@ -165,7 +168,7 @@ def test_numeric_where_value_becomes_number() -> None:
 def test_decimal_value_becomes_float() -> None:
     wire = rule(
         sel("big", "charged", where=[WireCondition(field="amount", op="ge", value="99.5")]),
-        WireNode(id="check", type="count", of="big", op="le", value=1),
+        wire_node(id="check", type="count", of="big", op="le", value=1),
     )
     select = {n.id: n for n in convert(wire).nodes}["big"]  # type: ignore[union-attr]
     assert select.where[0].value == 99.5
@@ -177,7 +180,7 @@ def test_unsupported() -> None:
 
 
 def test_rule_id_and_source_come_from_caller_not_gemini() -> None:
-    wire = rule(sel("c", "charged"), WireNode(id="check", type="count", of="c", op="le", value=1))
+    wire = rule(sel("c", "charged"), wire_node(id="check", type="count", of="c", op="le", value=1))
     result = to_rule_v2(wire, rule_id="no-double-charge", source="Owner text", vocab=SHOP)
     assert isinstance(result, RuleV2)
     assert (result.id, result.source, result.version) == ("no-double-charge", "Owner text", 2)
@@ -186,17 +189,61 @@ def test_rule_id_and_source_come_from_caller_not_gemini() -> None:
 # ---- negative: wire-level problems (this module) ----------------------------------------
 
 
-def test_missing_required_field() -> None:
-    wire = rule(sel("c", "charged"), WireNode(id="check", type="count", of="c", op="le"))
-    assert "check (count): missing 'value'" in problems_of(wire)
+# The G1 run 1 failures (2026-10-16): Gemini left out `by` on every_followed_within and
+# `op` on field_compare. Required fields now live in the schema, so such an answer cannot
+# be decoded; if one ever arrives, it fails validation (GeminiBadOutput in the client).
+
+G1_RUN1_G3 = {
+    "per": "order_id",
+    "root": "rule",
+    "nodes": [
+        {"id": "request", "type": "select", "event": "refund_requested"},
+        {"id": "completion", "type": "select", "event": "refund_completed"},
+        {"id": "rule", "type": "every_followed_within", "start": "request", "within": "PT24H"},
+    ],
+}
+G1_RUN1_G14 = {"per": "order_id", "root": "rule", "nodes": [
+    {"id": "orders", "type": "select", "event": "order_created"},
+    {"id": "rule", "type": "field_compare", "of": "orders", "a": "order_id",
+     "b": "customer_id"}]}  # fmt: skip
 
 
-def test_stray_field_is_a_problem_not_dropped() -> None:
-    wire = rule(
-        sel("c", "charged", since=["refunded"]),  # resets belong on the checking node
-        WireNode(id="check", type="count", of="c", op="le", value=1),
-    )
-    assert any("['since'] do not belong to a select node" in p for p in problems_of(wire))
+@pytest.mark.parametrize("answer", [G1_RUN1_G3, G1_RUN1_G14], ids=["g3-no-by", "g14-no-op"])
+def test_real_g1_answers_missing_a_field_are_rejected(answer: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        WireRule.model_validate(answer)
+
+
+def test_every_node_type_marks_its_fields_required_for_gemini() -> None:
+    """The schema actually sent to the Developer API keeps `required` per node type."""
+    from google.genai import _transformers as t
+
+    class DeveloperApi:
+        vertexai = False
+
+    schema = t.t_schema(DeveloperApi(), WireRule).model_dump(exclude_none=True)
+    alternatives = schema["properties"]["nodes"]["items"]["any_of"]
+    required = {alt["properties"]["type"]["enum"][0]: set(alt["required"]) for alt in alternatives}
+    assert required == {
+        "select": {"id", "type", "event"},
+        "count": {"id", "type", "of", "op", "value"},
+        "none_after": {"id", "type", "of", "after"},
+        "every_preceded_by": {"id", "type", "of", "by"},
+        "every_followed_within": {"id", "type", "start", "by", "within"},
+        "sum_compare": {"id", "type", "left_of", "left_field", "op", "right_of", "right_field"},
+        "field_compare": {"id", "type", "of", "a", "op", "b"},
+        "all_of": {"id", "type", "children"},
+    }
+
+
+def test_select_has_no_reset_field() -> None:
+    """Resets belong on the checking node; a select cannot even express one."""
+    assert "since" not in WireSelect.model_fields
+
+
+def test_empty_required_string_is_a_problem() -> None:
+    wire = rule(sel("c", ""), wire_node(id="check", type="count", of="c", op="le", value=1))
+    assert "c (select): 'event' is empty" in problems_of(wire)
 
 
 def test_missing_per_root_nodes() -> None:
@@ -205,7 +252,7 @@ def test_missing_per_root_nodes() -> None:
 
 
 def test_unsupported_with_nodes_is_contradictory() -> None:
-    wire = rule(sel("c", "charged"), WireNode(id="check", type="count", of="c", op="le", value=1))
+    wire = rule(sel("c", "charged"), wire_node(id="check", type="count", of="c", op="le", value=1))
     wire.unsupported_reason = "not sure"
     assert "unsupported_reason is set" in problems_of(wire)[0]
 
@@ -213,7 +260,7 @@ def test_unsupported_with_nodes_is_contradictory() -> None:
 def test_non_numeric_value_for_numeric_field() -> None:
     wire = rule(
         sel("big", "charged", where=[WireCondition(field="amount", op="gt", value="a lot")]),
-        WireNode(id="check", type="count", of="big", op="le", value=1),
+        wire_node(id="check", type="count", of="big", op="le", value=1),
     )
     assert any("needs a number, got 'a lot'" in p for p in problems_of(wire))
 
@@ -221,7 +268,7 @@ def test_non_numeric_value_for_numeric_field() -> None:
 def test_closed_value_outside_vocabulary() -> None:
     wire = rule(
         sel("c", "charged", exclude=[WireCondition(field="payment_type", op="eq", value="crypto")]),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
     )
     assert any("crypto" in p for p in problems_of(wire))
 
@@ -229,7 +276,7 @@ def test_closed_value_outside_vocabulary() -> None:
 def test_in_needs_values_list() -> None:
     wire = rule(
         sel("c", "charged", exclude=[WireCondition(field="payment_type", op="in", value="card")]),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
     )
     assert any("op 'in' needs 'values'" in p for p in problems_of(wire))
 
@@ -239,7 +286,7 @@ def test_eq_with_values_list_is_a_problem() -> None:
         sel(
             "c", "charged", exclude=[WireCondition(field="payment_type", op="eq", values=["card"])]
         ),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
     )
     assert any("op 'eq' needs 'value'" in p for p in problems_of(wire))
 
@@ -251,22 +298,22 @@ def test_duplicate_ids() -> None:
     wire = rule(
         sel("c", "charged"),
         sel("c", "refunded"),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
     )
     assert any("duplicate node ids" in p for p in problems_of(wire))
 
 
 def test_unknown_reference() -> None:
     wire = rule(
-        sel("c", "charged"), WireNode(id="check", type="count", of="nope", op="le", value=1)
+        sel("c", "charged"), wire_node(id="check", type="count", of="nope", op="le", value=1)
     )
     assert any("unknown node id 'nope'" in p for p in problems_of(wire))
 
 
 def test_cycle() -> None:
     wire = rule(
-        WireNode(id="check", type="all_of", children=["other"]),
-        WireNode(id="other", type="all_of", children=["check"]),
+        wire_node(id="check", type="all_of", children=["other"]),
+        wire_node(id="other", type="all_of", children=["check"]),
     )
     assert any("cycle" in p for p in problems_of(wire))
 
@@ -275,13 +322,13 @@ def test_unreachable_node() -> None:
     wire = rule(
         sel("c", "charged"),
         sel("unused", "refunded"),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
     )
     assert any("unreachable nodes: ['unused']" in p for p in problems_of(wire))
 
 
 def test_event_outside_vocabulary() -> None:
-    wire = rule(sel("c", "paid"), WireNode(id="check", type="count", of="c", op="le", value=1))
+    wire = rule(sel("c", "paid"), wire_node(id="check", type="count", of="c", op="le", value=1))
     assert any("unknown event 'paid'" in p for p in problems_of(wire))
 
 
@@ -289,7 +336,7 @@ def test_sum_of_non_numeric_field() -> None:
     wire = rule(
         sel("a", "refunded"),
         sel("b", "charged"),
-        WireNode(
+        wire_node(
             id="check",
             type="sum_compare",
             left_of="a",
@@ -305,17 +352,17 @@ def test_sum_of_non_numeric_field() -> None:
 def test_depth_over_three() -> None:
     wire = rule(
         sel("c", "charged"),
-        WireNode(id="leaf", type="count", of="c", op="le", value=1),
-        WireNode(id="mid", type="all_of", children=["leaf"]),
-        WireNode(id="top", type="all_of", children=["mid"]),
-        WireNode(id="check", type="all_of", children=["top"]),
+        wire_node(id="leaf", type="count", of="c", op="le", value=1),
+        wire_node(id="mid", type="all_of", children=["leaf"]),
+        wire_node(id="top", type="all_of", children=["mid"]),
+        wire_node(id="check", type="all_of", children=["top"]),
     )
     assert any("depth exceeds 3" in p for p in problems_of(wire))
 
 
-def test_count_with_gt_rejected_by_core() -> None:
-    wire = rule(sel("c", "charged"), WireNode(id="check", type="count", of="c", op="gt", value=1))
-    assert problems_of(wire)  # core's CountNode allows only le/lt/eq/ge
+def test_count_with_gt_cannot_be_built() -> None:
+    with pytest.raises(ValidationError):  # count allows only le/lt/eq/ge, now in the schema
+        wire_node(id="check", type="count", of="c", op="gt", value=1)
 
 
 def test_root_is_select() -> None:
@@ -326,7 +373,7 @@ def test_root_is_select() -> None:
 def test_per_outside_vocabulary() -> None:
     wire = rule(
         sel("c", "charged"),
-        WireNode(id="check", type="count", of="c", op="le", value=1),
+        wire_node(id="check", type="count", of="c", op="le", value=1),
         per="invoice_id",
     )
     assert any("unknown entity field 'invoice_id'" in p for p in problems_of(wire))
