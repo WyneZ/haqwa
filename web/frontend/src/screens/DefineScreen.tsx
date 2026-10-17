@@ -235,7 +235,10 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
     if (fixing !== null && rule) {
       // Replace only this answer and go straight back to the review card.
       setAnswers((prev) => prev.map((a, i) => (i === fixing ? allowed : a)))
-      setMismatches([])
+      const question = rule.questions[fixing]
+      if (question.expected_violation === !allowed) {
+        setMismatches((prev) => prev.filter((m) => m.split(':')[0].trim() !== question.id))
+      }
       setFixing(null)
       setStep(rule.questions.length)
       return
@@ -297,6 +300,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
     ) ?? null
 
   const unsupported = results?.filter((r) => r.status === 'unsupported') ?? []
+  const confirmedCount = Object.keys(confirmed).length
 
   return (
     <div className="layout layout--define">
@@ -423,23 +427,35 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
 
         {results && current === null && (
           <section className="card card--done">
-            <h2 className="card__title">✓ Your rules are confirmed</h2>
-            <p>Haqwa will check exactly what you decided. Nothing is left to the AI.</p>
-            <ol className="confirmed">
-              {Object.entries(confirmed).map(([index, result]) => (
-                <li key={index} className="confirmed__rule">
-                  <p className="confirmed__source">“{results[Number(index)].source}”</p>
-                  <p className="notice meaning">
-                    <strong>Haqwa will check:</strong> {result.meaning}
-                  </p>
-                  <TechDetails
-                    rule={result.rule}
-                    meaning={result.meaning}
-                    confirmedExamples={result.confirmed_examples}
-                  />
-                </li>
-              ))}
-            </ol>
+            <h2 className="card__title">
+              {confirmedCount > 0 ? '✓ Supported rules confirmed' : 'No rules can be checked yet'}
+            </h2>
+            <p>
+              {confirmedCount > 0
+                ? unsupported.length > 0
+                  ? 'Haqwa will check your confirmed rules. The rules listed below will not be checked.'
+                  : 'Haqwa will check the rules you confirmed.'
+                : source.kind === 'shop'
+                  ? 'The online shop demo only knows its existing events. To check a new process, choose Your own events (JSON) and upload a trace containing those events.'
+                  : 'The uploaded events do not provide a checkable rule. Edit your policy or upload a trace with the events it describes.'}
+            </p>
+            {confirmedCount > 0 && (
+              <ol className="confirmed">
+                {Object.entries(confirmed).map(([index, result]) => (
+                  <li key={index} className="confirmed__rule">
+                    <p className="confirmed__source">“{results[Number(index)].source}”</p>
+                    <p className="notice meaning">
+                      <strong>Haqwa will check:</strong> {result.meaning}
+                    </p>
+                    <TechDetails
+                      rule={result.rule}
+                      meaning={result.meaning}
+                      confirmedExamples={result.confirmed_examples}
+                    />
+                  </li>
+                ))}
+              </ol>
+            )}
             {unsupported.length > 0 && (
               <div className="notice notice--warn">
                 <p>These rules can’t be checked yet:</p>
@@ -474,7 +490,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
               type="button"
               className="btn btn--primary"
               onClick={finish}
-              disabled={sealing || Object.keys(confirmed).length === 0}
+              disabled={sealing || confirmedCount === 0}
             >
               {sealing ? 'Checking your answers…' : 'Next: test an agent →'}
             </button>

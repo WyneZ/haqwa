@@ -323,8 +323,8 @@ export function TestScreen({
             {shown.source.kind === 'trace' && traceEvents.length > 0 && (
               <>
                 <p className="card__lead">
-                  Showing {traceEvents.length} of {shown.response.events.length} events (only those
-                  involved in a broken rule)
+                  Showing {traceEvents.length} of {shown.response.events.length} events: the events
+                  leading up to each broken rule
                 </p>
                 <Timeline events={traceEvents} repeats={false} />
               </>
@@ -338,7 +338,16 @@ export function TestScreen({
           </section>
         )}
 
-        {source.kind === 'shop' && <AgentConnectCard spec={spec} onRun={onRun} />}
+        {source.kind === 'shop' && (
+          <AgentConnectCard
+            spec={spec}
+            onRun={(agentRun) => {
+              onRun(agentRun)
+              onSeeResults()
+              window.scrollTo(0, 0)
+            }}
+          />
+        )}
       </main>
     </div>
   )
