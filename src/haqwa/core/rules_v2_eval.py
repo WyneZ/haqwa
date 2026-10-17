@@ -1,7 +1,7 @@
-"""Deterministic interpreter for a validated v2 rule on one entity stream.
+"""Evaluate validated v2 rules against event traces.
 
-This is deliberately separate from the production v1 checkers. The caller sorts and
-groups events, validates the rule, and passes the whole-trace end for time rules.
+``evaluate_v2`` takes one entity's time-sorted events. ``check_v2`` sorts and groups
+a whole trace before evaluating each entity's events.
 """
 
 from __future__ import annotations
@@ -172,6 +172,9 @@ def evaluate_v2(
             for index, event in enumerate(events):
                 if event.event in resets:
                     open_starts.clear()
+                    if selected[node.start][index]:
+                        # A start that is also a reset begins a fresh deadline.
+                        open_starts.append(event)
                     continue
                 if selected[node.by][index] and open_starts:
                     late = [opened for opened in open_starts if event.ts - opened.ts > window]

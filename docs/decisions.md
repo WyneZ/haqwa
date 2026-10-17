@@ -42,6 +42,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-10-12 · AGREED · Hazel acknowledges the 2026-10-09 move: deploy (Dockerfile, Cloud Run, Secret Manager, budget alert) is owned by Wyne; web/frontend stays Track A · Hazel + Wyne · one owner for the deployed demo; Wyne already runs it
 - 2026-10-12 · AGREED · Bring your own agent: per-session shop over two static MCP mounts, token in URL, in-memory sessions (max-instances 1), limits via env · Hazel + Wyne · judges and users can test any MCP agent; no Gemini cost on our side
 - 2026-10-14 · AGREED · Composable rule engine (v2 AST) on trackb/rule-engine; v1 patterns become presets proven equal by a golden corpus + property tests; not wired until after submission · Hazel + Wyne · rule coverage beyond 4 patterns without losing determinism
+- 2026-10-16 · AGREED · G3.2 restart-on-start now applies to v1 rules too (v1 rules run through expand_v1 on the v2 engine); the temporary v1 flag is removed. v1's old behavior was the 2026-10-06 bug (deadlines vanished), which clarify had worked around by dropping the question; that question is now kept · Hazel + Wyne · one semantics, and migration never changes a rule's meaning
 
 ## Track A (Hazel — ai/, web/, deploy)
 
