@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { DEMO_RESULTS } from '../src/api/fixtures.ts'
-import { mockApplyAnswers, mockCheckAgentSession, mockCreateAgentSession, mockRun, mockSeal } from '../src/api/mocks.ts'
+import { mockApplyAnswers, mockCheckAgentSession, mockCreateAgentSession, mockGetAgentSession, mockRun, mockSeal } from '../src/api/mocks.ts'
 import { toSpecRule } from '../src/lib/specRule.ts'
 
 const supported = () => DEMO_RESULTS.filter((result) => result.status === 'supported')
@@ -90,6 +90,10 @@ test('mock Define to Results uses v2 specs with fixture verdicts', async () => {
   const response = await mockRun(spec, 'payment_timeout_naive')
   assert.ok(response.report.results.some(r => r.status === 'violation'))
   const session = await mockCreateAgentSession('stale_state')
+  // main #37: before the agent has made any call, Check reports nothing checked.
+  const early = await mockCheckAgentSession(session.session_id, spec)
+  assert.ok(early?.report.results.every(r => r.checked_events === 0))
+  await mockGetAgentSession(session.session_id) // the mock agent makes its calls
   const checked = await mockCheckAgentSession(session.session_id, spec)
   assert.ok(checked?.report.results.some(r => r.rule_id === 'no-ship-after-cancel' && r.status === 'violation'))
 })
