@@ -56,7 +56,7 @@ class AnswerV2(BaseModel):
 
 
 class AnswersV2Outcome(BaseModel):
-    """Updated rule plus answer evidence held separately until Track B B2."""
+    """Updated rule (with its confirmed examples), its meaning, and mismatches."""
 
     rule: RuleV2
     meaning: str  # code-rendered meaning of the UPDATED rule, after Yes patches
@@ -83,7 +83,13 @@ def _validated(rule: RuleV2, vocab: Vocabulary) -> RuleV2:
         result = RuleV2.model_validate(rule.model_dump())
     except ValidationError as exc:
         raise ParseError([error["msg"] for error in exc.errors()]) from exc
-    if problems := validate_rule_v2(result, vocab.events, vocab.fields, vocab.numeric_fields):
+    if problems := validate_rule_v2(
+        result,
+        vocab.events,
+        vocab.fields,
+        vocab.numeric_fields,
+        field_values=vocab.field_values,
+    ):
         raise ParseError(problems)
     return result
 
@@ -99,7 +105,7 @@ def apply_answers_v2(
 
     The vocabulary is required for deterministic validation. Confirmation mismatches
     are not recorded. This function neither calls Gemini nor evaluates timelines.
-    Provisional NotImplementedError propagates for the HTTP adapter to map to 501.
+    Core patch errors (HaqwaError) propagate to the HTTP layer.
     """
     updated = _validated(rule, vocab)
     examples: list[ConfirmedExample] = []
@@ -131,11 +137,13 @@ def apply_answers_v2(
             raise ParseError([error["msg"] for error in exc.errors()]) from exc
         if example not in examples:
             examples.append(example)
-    final = _validated(updated, vocab)
+    # B2: the rule carries its confirmed examples (what seal self-tests). The response
+    # also lists them separately so the client contract stays unchanged.
+    final = _validated(updated.model_copy(update={"confirmed_examples": examples}), vocab)
     return AnswersV2Outcome(
         rule=final,
         meaning=render_rule(final),
-        confirmed_examples=examples,  # TODO(B2): move confirmed examples into RuleV2 here.
+        confirmed_examples=examples,
         mismatches=mismatches,
     )
 

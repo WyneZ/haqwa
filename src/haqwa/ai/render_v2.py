@@ -92,10 +92,19 @@ def _check(node: Any, nodes: dict[str, Any]) -> str:
             f"every {_events(nodes[node.start])} must be followed by a "
             f"{_events(nodes[node.by])} within {_duration(node.within)}"
         )
-        shared = (
-            f"one {_events(nodes[node.by])} covers every earlier open {_events(nodes[node.start])}"
-        )
-        return _with_extras(text, [nodes[node.start], nodes[node.by]], node.since, [shared])
+        start = nodes[node.start]
+        notes = [f"one {_events(nodes[node.by])} covers every earlier open {_events(start)}"]
+        # Core semantics (decision 2026-10-16, G3.2): a reset event clears open deadlines;
+        # when the reset is the start event itself, it also opens a new deadline.
+        if start.event in node.since:
+            notes.append(
+                f"a new {_events(start)} restarts the clock: earlier open "
+                f"{_events(start, 2)} no longer count"
+            )
+        for event in node.since:
+            if event != start.event:
+                notes.append(f"a {_words(event)} event cancels any open deadline")
+        return _with_extras(text, [start, nodes[node.by]], [], notes)
     if isinstance(node, SumCompareNode):
         left, right = nodes[node.left.of], nodes[node.right.of]
         text = (

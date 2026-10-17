@@ -16,7 +16,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 
 from haqwa.ai.client import GeminiBadOutput, GeminiQuotaError, GeminiUnavailable
-from haqwa.ai.core_v2_ports import provisional_ports
+from haqwa.ai.core_v2_ports import core_ports
 from haqwa.core.compiler import CompileError
 from haqwa.core.errors import (
     GEMINI_QUOTA,
@@ -86,7 +86,7 @@ def create_app() -> FastAPI:
     api = FastAPI(title="Haqwa API", version="1.0.0", lifespan=lifespan)
     api.state.settings = settings
     api.state.gemini_client = GeminiClient(cache_dir=settings.cache_dir)
-    api.state.core_v2_ports = provisional_ports()
+    api.state.core_v2_ports = core_ports()
     api.state.rate_limiter = RateLimiter(settings.rate_per_min, settings.rate_per_day)
     api.state.agent_create_limiter = RateLimiter(
         settings.agent_create_per_min, settings.agent_create_per_day

@@ -197,9 +197,6 @@ export function explainViolation(rule: RuleV2, violation: Violation): Promise<Ex
 /** Plain-English message for the owner. Never shows stack traces or raw JSON. */
 export function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.code === 'not_implemented') {
-      return 'Saving this decision needs a core update that is not merged yet. Answer No for now or try again later.'
-    }
     if (error.code === 'compile_failed') {
       return 'Some answers don’t match how Haqwa checks these rules. Please answer them again.'
     }

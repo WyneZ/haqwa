@@ -119,3 +119,37 @@ def test_odd_duration_falls_back_to_short_form() -> None:
 def test_same_rule_same_text() -> None:
     core_rule = expand_v1(PRESETS[0])
     assert render_rule(core_rule) == render_rule(core_rule)
+
+
+def _deadline(*since: str) -> RuleV2:
+    rule_ = v2(
+        sel("s", "refund_requested"),
+        sel("d", "refund_completed"),
+        wire_node(
+            id="check", type="every_followed_within", start="s", by="d", within_seconds=86400
+        ),
+    )
+    return rule_.model_copy(
+        update={
+            "nodes": [*rule_.nodes[:-1], rule_.nodes[-1].model_copy(update={"since": list(since)})]
+        }
+    )
+
+
+def test_deadline_restart_on_start_is_stated() -> None:
+    # Decision 2026-10-16 (G3.2): the start event as a reset restarts the clock.
+    text = render_rule(_deadline("refund_requested"))
+    assert "a new refund requested event restarts the clock" in text
+    assert "earlier open refund requested events no longer count" in text
+    assert "starts again" not in text
+
+
+def test_deadline_other_reset_cancels_open_deadline() -> None:
+    text = render_rule(_deadline("cancelled"))
+    assert "a cancelled event cancels any open deadline" in text
+    assert "restarts the clock" not in text
+
+
+def test_deadline_without_resets_has_no_restart_words() -> None:
+    text = render_rule(_deadline())
+    assert "restarts" not in text and "cancels" not in text

@@ -23,7 +23,6 @@ from haqwa.core.trace import summarize_trace
 from haqwa.demo import list_scenarios, run_scenario
 
 from .config import Settings
-from .errors import NOT_IMPLEMENTED
 from .schemas import (
     AnswersRequest,
     AnswersResponse,
@@ -129,8 +128,6 @@ def answers(
         outcome = apply_answers_v2(
             request.rule, request.answers, vocab=vocab, apply_patch=ports.apply_patch
         )
-    except NotImplementedError as exc:
-        raise HaqwaError(NOT_IMPLEMENTED, str(exc)) from exc
     except ParseError as exc:
         raise HaqwaError(INVALID_SPEC, str(exc)[:240]) from exc
     return AnswersResponse.model_validate(outcome.model_dump())

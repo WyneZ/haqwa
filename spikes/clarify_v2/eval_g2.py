@@ -1,11 +1,12 @@
-"""G2 discovery smoke gate: parse -> typed business decisions, using placeholder examples.
+"""G2 gate: parse -> typed business decisions, each with core's separating example.
 
 Run from the repository root:
     uv run python spikes/clarify_v2/eval_g2.py --dry-run
-    uv run --env-file .env python spikes/clarify_v2/eval_g2.py --fresh --label candidate
+    uv run --env-file .env python spikes/clarify_v2/eval_g2.py --fresh-clarify --label run4a
 
-The injected example builder is deliberately a placeholder. This gate measures
-decision discovery, not boundary timelines, verdicts, or correct patch application.
+`--fresh` bypasses the cache for every Gemini call. `--fresh-clarify` reuses cached parse
+answers (parse is gated by G1) and asks Gemini fresh only for decisions: 3 calls per run.
+Examples come from core `make_example_v2`; a decision without one is dropped (not found).
 """
 
 from __future__ import annotations
@@ -27,12 +28,11 @@ from haqwa.ai.clarify_v2 import (  # noqa: E402
     propose_decisions,
 )
 from haqwa.ai.client import GeminiClient, GeminiError  # noqa: E402
+from haqwa.ai.core_v2_ports import core_ports  # noqa: E402
 from haqwa.ai.parse import ParseError  # noqa: E402
 from haqwa.ai.parse_v2 import parse_v2  # noqa: E402
 from haqwa.ai.rule_wire import to_rule_v2  # noqa: E402
-from haqwa.core.canonical import CanonicalExample  # noqa: E402
 from haqwa.core.rules_v2 import RuleV2  # noqa: E402
-from haqwa.core.spec import TimelineEvent  # noqa: E402
 from spikes.clarify_v2.golden_g2 import (  # noqa: E402
     EXPECTED_IDS,
     RULES,
@@ -41,7 +41,7 @@ from spikes.clarify_v2.golden_g2 import (  # noqa: E402
 )
 
 RUNS = Path(__file__).resolve().parent / "runs"
-EXAMPLE_BUILDER = "placeholder; no boundary or patch-application validation"
+EXAMPLE_BUILDER = "core make_example_v2 (separating witness; no example -> decision dropped)"
 
 
 def _patch_key(patch: Patch) -> tuple:
@@ -69,16 +69,6 @@ def score_decisions(rule_id: str, rule: RuleV2, decisions: list[Decision]) -> di
         "missing": sorted(set(EXPECTED_IDS[rule_id]) - found),
         "noise": noise,
     }
-
-
-def _placeholder_example(rule: RuleV2, patch: Patch) -> CanonicalExample:
-    # This is not a separating witness and must never be used to approve a policy.
-    event = next(n.event for n in rule.nodes if n.type == "select")
-    return CanonicalExample(
-        label="PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
-        timeline=(TimelineEvent(event=event),),
-        violation=False,
-    )
 
 
 class _DryRunSDK:
@@ -114,6 +104,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="golden FakeSDK, no quota")
     parser.add_argument("--fresh", action="store_true", help="bypass the application cache")
+    parser.add_argument(
+        "--fresh-clarify",
+        action="store_true",
+        help="reuse cached parse answers; ask Gemini fresh only for decisions",
+    )
     parser.add_argument("--label", help="save runs/g2_<label>.json")
     args = parser.parse_args(argv)
     if args.label and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", args.label):
@@ -124,6 +119,13 @@ def main(argv: list[str] | None = None) -> int:
         sdk=dry,
         cache_dir=None if args.fresh or dry else Path(".haqwa_cache"),
     )
+    # Same SDK and model; only the cache differs, so decisions are sampled fresh.
+    clarify_client = (
+        GeminiClient(model=client.model, sdk=dry, cache_dir=None)
+        if args.fresh_clarify and not dry
+        else client
+    )
+    ports = core_ports()
     rows = []
     for rule_id, (text, _) in RULES.items():
         if dry:
@@ -145,8 +147,8 @@ def main(argv: list[str] | None = None) -> int:
             outcome = propose_decisions(
                 parsed.rule,
                 vocab=SHOP,
-                client=client,
-                make_example=_placeholder_example,
+                client=clarify_client,
+                make_example=ports.make_example,
             )
             row.update(
                 {
@@ -167,11 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         "gate": "G2",
         "dry_run": args.dry_run,
         "fresh": args.fresh,
+        "fresh_clarify": args.fresh_clarify,
         "model": client.model,
         "example_builder": EXAMPLE_BUILDER,
         "limitations": [
             "Discovery smoke gate only; dry-run tests plumbing, not Gemini quality.",
-            "Track B must define and verify restart-on-start (G3.2) semantics.",
             "Question wording and its consistency with the patch require human review.",
         ],
         "found": found,

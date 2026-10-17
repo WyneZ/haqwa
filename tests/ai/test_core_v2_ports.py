@@ -1,27 +1,33 @@
-"""Track B placeholders expose explicit limitations without calling Gemini."""
+"""core_ports() wires Track A patch models to Track B's real v2 functions (B5)."""
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from haqwa.ai.clarify_v2 import AddExclude, AddReset
+from haqwa.ai.core_v2_ports import core_ports
 
-import pytest
-
-from haqwa.ai.clarify_v2 import AddReset
-from haqwa.ai.core_v2_ports import provisional_ports
-
-from .test_clarify_v2 import reset, rule
+from .test_clarify_v2 import exclude, reset, rule
 
 
-def test_provisional_ports_are_frozen_and_explicit() -> None:
-    ports = provisional_ports()
-    original = rule()
-    patch = AddReset.model_validate(reset())
-    snapshot = original.model_dump_json()
-    example = ports.make_example(original, patch)
-    assert example is not None and example.label.startswith("PLACEHOLDER")
-    assert example.timeline and ports.canonical_examples(original) == []
-    assert original.model_dump_json() == snapshot
-    with pytest.raises(NotImplementedError, match="core apply_patch_v2 not merged yet"):
-        ports.apply_patch(original, patch)
-    with pytest.raises(FrozenInstanceError):
-        ports.apply_patch = lambda *_: original
+def test_apply_patch_accepts_track_a_reset_model() -> None:
+    patched = core_ports().apply_patch(rule(), AddReset.model_validate(reset()))
+    assert patched.nodes[-1].since == ["refunded"]
+
+
+def test_apply_patch_accepts_track_a_exclude_model() -> None:
+    patched = core_ports().apply_patch(rule(), AddExclude.model_validate(exclude()))
+    select = next(n for n in patched.nodes if n.id == "charges")
+    assert [(c.field, c.op, c.value) for c in select.exclude] == [
+        ("payment_type", "eq", "installment")
+    ]
+
+
+def test_make_example_separates_yes_from_no() -> None:
+    example = core_ports().make_example(rule(), AddReset.model_validate(reset()))
+    assert example is not None
+    assert [e.event for e in example.timeline].count("refunded") == 1
+    assert example.violation is True  # No keeps the rule: this timeline breaks it
+
+
+def test_canonical_examples_come_from_core() -> None:
+    examples = core_ports().canonical_examples(rule())
+    assert 1 <= len(examples) <= 3

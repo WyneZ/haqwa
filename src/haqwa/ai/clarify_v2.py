@@ -214,7 +214,7 @@ def propose_decisions(
             # patch even if it constructs its example using mutable nested lists.
             example = make_example(rule.model_copy(deep=True), patch.model_copy(deep=True))
             if example is None:
-                reasons.append("no example separates Yes from No")
+                reasons.append("no_separating_example")
         if reasons:
             dropped.append(DroppedDecision(gemini_id=proposal.id, reasons=reasons))
         else:
