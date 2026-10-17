@@ -1,0 +1,6 @@
+{
+  "model": "gemini-3.6-flash",
+  "shape": "s3",
+  "rule": "An order can have at most 3 refund requests.",
+  "response": "{\"per\":\"order_id\",\"root_id\":\"n1\",\"nodes\":[{\"id\":\"n1\",\"op\":\"compare\",\"cmp\":\"le\",\"child_ids\":[\"n2\",\"n3\"]},{\"id\":\"n2\",\"op\":\"count\",\"event\":\"refund_requested\"},{\"id\":\"n3\",\"op\":\"const\",\"value\":3}]}"
+}

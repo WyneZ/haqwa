@@ -16,6 +16,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 
 from haqwa.ai.client import GeminiBadOutput, GeminiQuotaError, GeminiUnavailable
+from haqwa.ai.core_v2_ports import core_ports
 from haqwa.core.compiler import CompileError
 from haqwa.core.errors import (
     GEMINI_QUOTA,
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     api = FastAPI(title="Haqwa API", version="1.0.0", lifespan=lifespan)
     api.state.settings = settings
     api.state.gemini_client = GeminiClient(cache_dir=settings.cache_dir)
+    api.state.core_v2_ports = core_ports()
     api.state.rate_limiter = RateLimiter(settings.rate_per_min, settings.rate_per_day)
     api.state.agent_create_limiter = RateLimiter(
         settings.agent_create_per_min, settings.agent_create_per_day
@@ -96,6 +98,7 @@ def create_app() -> FastAPI:
         if request.method == "POST" and request.url.path in (
             "/api/v1/clarify",
             "/api/v1/explain",
+            "/api/v1/policy-documents",
         ):
             try:
                 api.state.rate_limiter.check(client_ip(request))
@@ -105,7 +108,11 @@ def create_app() -> FastAPI:
 
     @api.middleware("http")
     async def trace_body_limit(request: Request, call_next):
-        if request.method == "POST" and request.url.path in {"/api/v1/traces", "/api/v1/runs"}:
+        if request.method == "POST" and request.url.path in {
+            "/api/v1/traces",
+            "/api/v1/runs",
+            "/api/v1/policy-documents",
+        }:
             length = request.headers.get("content-length")
             if length is not None:
                 try:

@@ -1,0 +1,193 @@
+{
+  "gate": "G2",
+  "dry_run": false,
+  "fresh": true,
+  "model": "gemini-3.6-flash",
+  "example_builder": "placeholder; no boundary or patch-application validation",
+  "limitations": [
+    "Discovery smoke gate only; dry-run tests plumbing, not Gemini quality.",
+    "Track B must define and verify restart-on-start (G3.2) semantics.",
+    "Question wording and its consistency with the patch require human review."
+  ],
+  "found": 5,
+  "expected": 6,
+  "recall": 0.8333333333333334,
+  "noise": 0,
+  "dropped": 0,
+  "errors": 0,
+  "passed": false,
+  "rules": [
+    {
+      "id": "R1",
+      "source": "A customer must not be charged twice for the same order.",
+      "expected": [
+        "G1.1",
+        "G1.2"
+      ],
+      "found": [
+        "G1.1",
+        "G1.2"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: there must be at most 1 charged event.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If a charge on an order is refunded, does that reset the limit to allow the order to be charged again?",
+          "why": "A refunded charge may indicate a correction or retry scenario where a subsequent charge is valid for the same order.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "charge_limit",
+            "event": "refunded"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "Should charges made via installment payment plans be exempt from the single-charge limit?",
+          "why": "Installment plans naturally require multiple charges for the same order over time.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "charged_event"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "source": "A cancelled order must never be shipped.",
+      "expected": [
+        "G2.1"
+      ],
+      "found": [
+        "G2.1"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: once a cancelled event has happened, a shipped event must never happen.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If an order is created again after being cancelled, does that lift the ban on shipping?",
+          "why": "Re-creating or re-opening an order under the same ID should allow it to be processed and shipped without triggering a violation.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "order_created"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "shipped",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "source": "A refund must be completed within 24 hours of the request.",
+      "expected": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "found": [
+        "G3.2",
+        "G3.5"
+      ],
+      "missing": [
+        "G3.6"
+      ],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: every refund requested event must be followed by a refund completed event within 24 hours (one refund completed event covers every earlier open refund requested event).",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If an order is cancelled, should any pending refund completion deadline for that order be removed?",
+          "why": "Cancelling an order may resolve or render pending refund requests moot, waiving the requirement to complete the refund within 24 hours.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "c1",
+            "event": "cancelled"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "If a customer submits another refund request before the previous one is completed, should the 24-hour deadline restart from the new request?",
+          "why": "A subsequent refund request could update the details or scope of the request, resetting the timer to grant 24 hours from the most recent request.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "c1",
+            "event": "refund_requested"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    }
+  ]
+}

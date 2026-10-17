@@ -12,20 +12,25 @@ from google.genai import errors as genai_errors
 
 from haqwa.ai.client import GeminiClient, GeminiQuotaError
 from haqwa.ai.explain import WireExplanation, build_prompt, explain_violation
+from haqwa.ai.render_v2 import render_rule
 from haqwa.core.events import Event
+from haqwa.core.presets_v2 import expand_v1
 from haqwa.core.report import Violation
 from haqwa.core.spec import AllowIf, AtMostOnce, Condition, ResetAfter
 
-RULE = AtMostOnce(
-    id="no-double-charge",
-    source="A customer must not be charged twice for the same order.",
-    pattern="at_most_once",
-    event="charged",
-    per="order_id",
-    exceptions=[
-        ResetAfter(reset_after="refunded"),
-        AllowIf(allow_if=Condition(field="payment_type", op="eq", value="installment")),
-    ],
+# The v1 shop rule expanded to v2 (core preset), so the fixture is a real RuleV2.
+RULE = expand_v1(
+    AtMostOnce(
+        id="no-double-charge",
+        source="A customer must not be charged twice for the same order.",
+        pattern="at_most_once",
+        event="charged",
+        per="order_id",
+        exceptions=[
+            ResetAfter(reset_after="refunded"),
+            AllowIf(allow_if=Condition(field="payment_type", op="eq", value="installment")),
+        ],
+    )
 )
 T0 = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
 VIOLATION = Violation(
@@ -75,11 +80,12 @@ def test_returns_advisory_text() -> None:
     assert result.cached is False
 
 
-def test_prompt_has_rule_decisions_entity_and_marked_timeline() -> None:
+def test_prompt_has_rule_meaning_entity_and_marked_timeline() -> None:
     prompt = build_prompt(RULE, VIOLATION)
     assert '"A customer must not be charged twice for the same order."' in prompt
-    assert "After 'refunded', the order_id starts fresh." in prompt
-    assert "payment_type eq 'installment'" in prompt
+    assert render_rule(RULE) in prompt  # code-generated meaning, owner decisions included
+    assert "it starts again after each refunded event" in prompt
+    assert "payment type is installment are ignored" in prompt
     assert "order_id A-2" in prompt
     assert ">> 2026-10-01T09:01:30+00:00  charged  (amount=120)" in prompt
     assert "ALREADY decided this is a violation" in prompt
@@ -103,9 +109,18 @@ def test_entity_key_is_not_repeated_in_event_lines() -> None:
     assert "order_id=A-2" not in build_prompt(RULE, VIOLATION)
 
 
-def test_rule_without_exceptions_says_none() -> None:
-    plain = RULE.model_copy(update={"exceptions": []})
-    assert "- (none)" in build_prompt(plain, VIOLATION)
+def test_rule_without_decisions_has_plain_meaning() -> None:
+    plain = RULE.model_copy(
+        update={
+            "nodes": [
+                RULE.nodes[0].model_copy(update={"exclude": []}),
+                RULE.nodes[1].model_copy(update={"since": []}),
+            ]
+        }
+    )
+    prompt = build_prompt(plain, VIOLATION)
+    assert "For each order: there must be at most 1 charged event." in prompt
+    assert "starts again" not in prompt and "ignored" not in prompt
 
 
 def test_second_call_is_cached(tmp_path: Path) -> None:

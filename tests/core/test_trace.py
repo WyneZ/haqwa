@@ -54,3 +54,17 @@ def test_declared_events_extend_only_vocabulary():
     )
     assert summary.vocabulary.events == ["leave_requested", "payroll_run"]
     assert summary.event_counts == {"leave_requested": 1}
+
+
+def test_numeric_fields_ignore_missing_and_null_but_reject_mixed_and_bool():
+    summary = summarize_trace(
+        [
+            event("a", 0, {"score": 1, "amount": 1.5, "mixed": 2, "flag": True, "null": None}),
+            event("b", 1, {"score": None, "amount": 2, "mixed": "2", "flag": 1}),
+            event("c", 2, {"score": 3}),
+        ]
+    )
+    assert summary.numeric_fields == ["amount", "score"]
+    assert summary.vocabulary.numeric_fields == ["amount", "score"]
+    assert summary.vocabulary.model_dump()["numeric_fields"] == ["amount", "score"]
+    assert summarize_trace([event("a", 0, {"only_null": None})]).numeric_fields == []

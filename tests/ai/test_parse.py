@@ -183,3 +183,27 @@ def test_vocabulary_needs_at_least_one_event() -> None:
 
 def test_vocabulary_values_text() -> None:
     assert SHOP.values_text() == "payment_type: card, installment"
+
+
+def test_vocabulary_numeric_fields_default_empty() -> None:
+    assert SHOP.numeric_fields == []
+
+
+def test_vocabulary_accepts_numeric_field() -> None:
+    vocab = Vocabulary(events=["a"], fields=["amount"], numeric_fields=["amount"])
+    assert vocab.numeric_fields == ["amount"]
+
+
+def test_vocabulary_rejects_numeric_unknown_field() -> None:
+    with pytest.raises(ValidationError, match="numeric_fields for unknown fields"):
+        Vocabulary(events=["a"], fields=["x"], numeric_fields=["amount"])
+
+
+def test_vocabulary_rejects_numeric_closed_field() -> None:
+    with pytest.raises(ValidationError, match="both numeric and closed-value"):
+        Vocabulary(
+            events=["a"],
+            fields=["tier"],
+            field_values={"tier": ["1", "2"]},
+            numeric_fields=["tier"],
+        )

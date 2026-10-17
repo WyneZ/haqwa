@@ -306,7 +306,8 @@ def _core_problems(rule: C1Rule, timeline: list[TimelineEvent], if_yes: RuleExce
        no times cannot show "too late");
     2. "Yes" really allows it: with `if_yes` added, the same timeline passes;
     3. "Yes" changes nothing else: every canonical example keeps core's verdict
-       (e.g. `reset_after` on the rule's own start event would cancel every deadline).
+       (e.g. `reset_after` on the rule's own start event restarts the clock
+       while preserving the basic cases).
     """
     with_yes = type(rule).model_validate(
         {**rule.model_dump(by_alias=True), "except": [*rule.exceptions, if_yes]}

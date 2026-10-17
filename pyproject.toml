@@ -15,8 +15,11 @@ dependencies = [
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",
+    "tzdata",
     "typer>=0.27.2",
     "uvicorn[standard]>=0.30",
+    "python-docx>=1.1",
+    "pypdf>=5.0",
 ]
 
 [project.scripts]
@@ -33,6 +36,7 @@ demo = [
 ]
 dev = [
     "httpx>=0.28",
+    "hypothesis==6.169.1",
     "mcp==1.30.0",
     "pytest>=9.1.1",
     "ruff>=0.16.8",

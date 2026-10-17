@@ -7,13 +7,15 @@ import {
   selfTestFailures,
   summarizeTrace,
 } from '../api/client'
-import type { ClarifyResult, LogEvent, Rule } from '../api/types'
+import type { AnswersResponse, ClarifyResult, LogEvent, SpecRule, TraceVocabulary } from '../api/types'
 import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
+import { PolicyUpload } from '../components/PolicyUpload'
 import { QuestionCard } from '../components/QuestionCard'
 import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
 import { TraceSummaryCard } from '../components/TraceSummaryCard'
 import { usePersistentState } from '../lib/persist'
+import { toSpecRule } from '../lib/specRule'
 import { HR_NAME, HR_RULES, type Source } from '../lib/source'
 import { readEventsFile, readHrSample } from '../lib/traceFile'
 import { entityNoun } from '../lib/words'
@@ -25,7 +27,7 @@ const DEMO_POLICY = [
 ].join('\n')
 
 /** Index of the first supported rule that is not confirmed yet, or null when all are done. */
-function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): number | null {
+function nextRule(results: ClarifyResult[], confirmed: Record<number, AnswersResponse>): number | null {
   const i = results.findIndex((r, idx) => r.status === 'supported' && !(idx in confirmed))
   return i === -1 ? null : i
 }
@@ -39,7 +41,7 @@ function nextRule(results: ClarifyResult[], confirmed: Record<number, Rule>): nu
 interface Props {
   source: Source
   onSourceChange: (source: Source, events: LogEvent[] | null) => void
-  onDone: (rules: Rule[], specYaml: string) => void
+  onDone: (rules: SpecRule[], specYaml: string) => void
 }
 
 export function DefineScreen({ source, onSourceChange, onDone }: Props) {
@@ -51,6 +53,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
   const choiceRequest = useRef(0)
   const [text, setText] = usePersistentState('define.text', DEMO_POLICY)
   const [results, setResults] = usePersistentState<ClarifyResult[] | null>('define.results', null)
+  const [interviewVocabulary, setInterviewVocabulary] = usePersistentState<TraceVocabulary | null>('define.vocabulary', null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -59,7 +62,8 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
   const [answers, setAnswers] = usePersistentState<boolean[]>('define.answers', [])
   // Question being re-asked from the review card ("Fix this answer"), or null.
   const [fixing, setFixing] = usePersistentState<number | null>('define.fixing', null)
-  const [confirmed, setConfirmed] = usePersistentState<Record<number, Rule>>('define.confirmed', {})
+  const [confirmed, setConfirmed] = usePersistentState<Record<number, AnswersResponse>>('define.confirmed', {})
+  const [answerHistory, setAnswerHistory] = usePersistentState<Record<number, boolean[]>>('define.answerHistory', {})
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -73,16 +77,20 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
   async function understand() {
     const requestId = choiceRequest.current
     const rules = text.split('\n').map((l) => l.trim()).filter(Boolean)
+    const vocabulary = source.kind === 'trace' ? source.summary.vocabulary : null
     setLoading(true)
     setLoadError(null)
     try {
       const res = await clarifyRules(
         rules,
-        source.kind === 'trace' ? source.summary.vocabulary : undefined,
+        vocabulary ?? undefined,
       )
       if (requestId !== choiceRequest.current) return
       setResults(res.results)
+      // Test may later load a different trace; answers must retain this interview's names.
+      setInterviewVocabulary(vocabulary)
       setConfirmed({})
+      setAnswerHistory({})
       setCurrent(nextRule(res.results, {}))
       resetAnswers()
     } catch (e) {
@@ -107,19 +115,19 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
    */
   async function finish() {
     const requestId = choiceRequest.current
-    const rules = Object.values(confirmed)
+    const rules = Object.values(confirmed).map(result => toSpecRule(result.rule, result.confirmed_examples))
     setSealing(true)
     setSealError(null)
     setRedo([])
     try {
-      const sealed = await sealSpec({ version: 1, rules })
+      const sealed = await sealSpec({ version: 2, rules }, interviewVocabulary ?? undefined)
       if (requestId !== choiceRequest.current) return
       onDone(rules, sealed.spec_yaml)
     } catch (e) {
       if (requestId !== choiceRequest.current) return
       const failedIds = new Set(selfTestFailures(e).map((f) => f.rule_id))
       const indexes = Object.entries(confirmed)
-        .filter(([, r]) => failedIds.has(r.id))
+        .filter(([, r]) => failedIds.has(r.rule.id))
         .map(([i]) => Number(i))
       setRedo(indexes)
       setSealError(friendlyError(e))
@@ -137,19 +145,29 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
     setRedo([])
     setSealError(null)
     resetAnswers()
+    const saved = answerHistory[index]
+    const result = results?.[index]
+    if (saved && result?.status === 'supported' && saved.length === result.questions.length) {
+      setAnswers(saved)
+      setStep(result.questions.length)
+    }
   }
 
   function editRules() {
     setResults(null)
+    setInterviewVocabulary(null)
     setCurrent(null)
     setConfirmed({})
+    setAnswerHistory({})
     resetAnswers()
   }
 
   function clearInterview() {
     setResults(null)
+    setInterviewVocabulary(null)
     setCurrent(null)
     setConfirmed({})
+    setAnswerHistory({})
     resetAnswers()
     setLoadError(null)
     setSealError(null)
@@ -253,13 +271,15 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
       const res = await applyAnswers(
         rule.rule,
         rule.questions.map((question, i) => ({ question, allowed: answers[i] })),
+        interviewVocabulary ?? undefined,
       )
       if (requestId !== choiceRequest.current) return
       if (res.mismatches.length) {
         setMismatches(res.mismatches)
         return
       }
-      const done = { ...confirmed, [current]: res.rule }
+      const done = { ...confirmed, [current]: res }
+      setAnswerHistory({ ...answerHistory, [current]: [...answers] })
       setConfirmed(done)
       setCurrent(nextRule(results, done))
       resetAnswers()
@@ -325,7 +345,8 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
         onTextChange={setText}
         onSubmit={understand}
         onEdit={editRules}
-        busy={loading}
+        busy={loading || saving || sealing}
+        onRedo={answerAgain}
         rows={rows}
         placeholder={
           choice === 'upload'
@@ -333,6 +354,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
             : undefined
         }
         canSubmit={choice === 'shop' || source.kind === 'trace'}
+        upload={<PolicyUpload disabled={loading} onUse={(rules) => setText(rules.join('\n'))} />}
       />
 
       <main className="stage stage--interview" aria-busy={loading}>
@@ -369,6 +391,10 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
               </p>
             </div>
 
+            <p className="notice meaning" aria-label="Haqwa understood">
+              <strong>Haqwa understood:</strong> {rule.meaning}
+            </p>
+
             {step < rule.questions.length ? (
               <QuestionCard
                 key={`${current}-${step}`}
@@ -397,7 +423,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
               />
             )}
 
-            <TechDetails rule={rule.rule} />
+            <TechDetails rule={rule.rule} meaning={rule.meaning} />
           </>
         )}
 
@@ -415,6 +441,23 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
                   ? 'The online shop demo only knows its existing events. To check a new process, choose Your own events (JSON) and upload a trace containing those events.'
                   : 'The uploaded events do not provide a checkable rule. Edit your policy or upload a trace with the events it describes.'}
             </p>
+            {confirmedCount > 0 && (
+              <ol className="confirmed">
+                {Object.entries(confirmed).map(([index, result]) => (
+                  <li key={index} className="confirmed__rule">
+                    <p className="confirmed__source">“{results[Number(index)].source}”</p>
+                    <p className="notice meaning">
+                      <strong>Haqwa will check:</strong> {result.meaning}
+                    </p>
+                    <TechDetails
+                      rule={result.rule}
+                      meaning={result.meaning}
+                      confirmedExamples={result.confirmed_examples}
+                    />
+                  </li>
+                ))}
+              </ol>
+            )}
             {unsupported.length > 0 && (
               <div className="notice notice--warn">
                 <p>These rules can’t be checked yet:</p>

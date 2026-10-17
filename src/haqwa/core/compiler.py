@@ -8,14 +8,18 @@ from typing import Any
 
 from .errors import COMPILE_FAILED, PATTERN_NOT_IMPLEMENTED, UNKNOWN_EVENT, HaqwaError
 from .events import EventMap, group_by, sort_events, synthetic_timeline
-from .patterns import REGISTRY, Evaluator, Finding
+from .patterns import REGISTRY, Finding
+from .presets_v2 import expand_v1
+from .rules_v2 import RuleV2, validate_rule_v2
+from .rules_v2_eval import check_v2, evaluate_v2
 from .spec import ConfirmedExample, Rule, Spec, TimelineEvent
+from .trace import TraceVocabulary
 
 
 @dataclass(frozen=True)
 class CompiledRule:
-    rule: Rule
-    evaluate: Evaluator
+    source_rule: Rule | RuleV2
+    rule: RuleV2
 
 
 @dataclass(frozen=True)
@@ -93,27 +97,27 @@ def rule_event_names(rule: Rule) -> set[str]:
     return names
 
 
-def run_timeline(
-    rule: Rule, timeline: Sequence[TimelineEvent], evaluate: Evaluator | None = None
-) -> list[Finding]:
+def run_timeline(rule: Rule | RuleV2, timeline: Sequence[TimelineEvent]) -> list[Finding]:
     """Run one rule on a C1 example timeline (one synthetic entity, increasing timestamps)."""
-    if evaluate is None:
+    legacy = not isinstance(rule, RuleV2)
+    if legacy:
         evaluate = REGISTRY.get(rule.pattern)
         if evaluate is None:
             raise HaqwaError(
                 PATTERN_NOT_IMPLEMENTED, f"pattern {rule.pattern!r} is not implemented yet"
             )
+    runnable = rule if isinstance(rule, RuleV2) else expand_v1(rule)
     events = synthetic_timeline(((t.event, t.data, t.at) for t in timeline), per=rule.per)
     # Items may name another entity via data[per]; evaluate each entity like check() does.
     events = sort_events(events)
     trace_end = events[-1].ts if events else None
     findings: list[Finding] = []
     for stream in group_by(events, rule.per).values():
-        findings += evaluate(rule, stream, trace_end)
+        findings += evaluate_v2(runnable, stream, trace_end)
     return findings
 
 
-def violates(rule: Rule, timeline: Sequence[TimelineEvent]) -> bool:
+def violates(rule: Rule | RuleV2, timeline: Sequence[TimelineEvent]) -> bool:
     """True if the rule reports a violation on this example timeline.
 
     Shared by the compile self-test, canonical examples and (later) question checks.
@@ -128,39 +132,61 @@ def validate_rule_events(rule: Rule, event_map: EventMap) -> None:
         raise HaqwaError(UNKNOWN_EVENT, f"rule {rule.id!r}: events not in event map: {unknown}")
 
 
-def self_test(rule: Rule, evaluate: Evaluator) -> list[SelfTestFailure]:
-    """Run each confirmed example as a synthetic event list; compare with the human answer."""
+def self_test_v2(rule: RuleV2) -> list[SelfTestFailure]:
+    """Check every confirmed timeline through v2 and retain the C3 failure shape."""
     failures: list[SelfTestFailure] = []
     for i, ex in enumerate(rule.confirmed_examples):
-        got = bool(run_timeline(rule, ex.timeline, evaluate))
+        events = synthetic_timeline(((t.event, t.data, t.at) for t in ex.timeline), per=rule.per)
+        got = bool(check_v2(rule, events))
         if got != ex.violation:
             failures.append(SelfTestFailure(rule.id, i, ex, ex.violation, got))
     return failures
 
 
-def compile_spec(spec: Spec, event_map: EventMap | None = None) -> CompiledSpec:
+def compile_spec(
+    spec: Spec,
+    event_map: EventMap | None = None,
+    *,
+    vocabulary: TraceVocabulary | None = None,
+) -> CompiledSpec:
     """Compile a validated spec. Raises CompileError on any problem.
 
-    Checks: pattern implemented, event names exist in the event map (if given),
-    and every confirmed example gives the human's answer.
+    Checks v1 patterns and mapped events, validates v2 vocabulary and graphs, then
+    runs every confirmed example through the v2 checker.
     """
     problems: list[str] = []
     failures: list[SelfTestFailure] = []
     compiled: list[CompiledRule] = []
     vocab = event_map.vocabulary if event_map else None
 
-    for rule in spec.rules:
-        evaluate = REGISTRY.get(rule.pattern)
-        if evaluate is None:
-            problems.append(f"rule {rule.id!r}: pattern {rule.pattern!r} is not implemented yet")
-            continue
-        if vocab is not None:
-            unknown = sorted(rule_event_names(rule) - vocab)
-            if unknown:
-                problems.append(f"rule {rule.id!r}: events not in event map: {unknown}")
+    for source in spec.rules:
+        if isinstance(source, RuleV2):
+            rule = source
+            rule_problems = validate_rule_v2(
+                rule,
+                vocabulary.events if vocabulary is not None else vocab,
+                vocabulary.fields if vocabulary is not None else None,
+                vocabulary.numeric_fields if vocabulary is not None else None,
+            )
+            if rule_problems:
+                problems.extend(f"rule {rule.id!r}: {problem}" for problem in rule_problems)
                 continue
-        failures += self_test(rule, evaluate)
-        compiled.append(CompiledRule(rule, evaluate))
+        else:
+            if source.pattern not in REGISTRY:
+                problems.append(
+                    f"rule {source.id!r}: pattern {source.pattern!r} is not implemented yet"
+                )
+                continue
+            if vocab is not None:
+                unknown = sorted(rule_event_names(source) - vocab)
+                if unknown:
+                    problems.append(f"rule {source.id!r}: events not in event map: {unknown}")
+                    continue
+            rule = expand_v1(source).model_copy(
+                update={"confirmed_examples": list(source.confirmed_examples)}
+            )
+        failures += self_test_v2(rule)
+        compiled.append(CompiledRule(source, rule))
 
     if problems or failures:
         raise CompileError(problems, failures)

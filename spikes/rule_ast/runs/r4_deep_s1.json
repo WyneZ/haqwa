@@ -1,0 +1,6 @@
+{
+  "model": "gemini-3.6-flash",
+  "shape": "s1",
+  "rule": "If an order is refunded, it must have been charged at least once, and the total refunded amount must not exceed the total charged amount.",
+  "response": "{\"per\":\"order_id\",\"check\":{\"op\":\"compare\",\"cmp\":\"le\",\"children\":[{\"op\":\"sum\",\"event\":\"refunded\",\"field\":\"amount\",\"children\":[]},{\"op\":\"sum\",\"event\":\"charged\",\"field\":\"amount\",\"children\":[]}]}}"
+}
