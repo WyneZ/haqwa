@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -11,7 +13,9 @@ from haqwa.ai import GeminiBadOutput, GeminiClient, ParseError
 from haqwa.ai.answers_v2 import apply_answers_v2, build_questions
 from haqwa.ai.clarify_v2 import propose_decisions
 from haqwa.ai.core_v2_ports import CoreV2Ports
+from haqwa.ai.document import DocumentError, extract_text
 from haqwa.ai.explain import explain_violation
+from haqwa.ai.extract import extract_rules
 from haqwa.ai.parse_v2 import parse_v2
 from haqwa.ai.vocab import Vocabulary
 from haqwa.core.checker import check
@@ -31,6 +35,8 @@ from .schemas import (
     ClarifyResult,
     ExplainRequest,
     ExplainResponse,
+    PolicyDocumentRequest,
+    PolicyDocumentResponse,
     RunRequest,
     RunResponse,
     ScenarioResponse,
@@ -184,3 +190,29 @@ def explain(
     """Explain a checker violation without changing its verdict."""
     result = explain_violation(request.rule, request.violation, client=client)
     return ExplainResponse.model_validate(result.model_dump())
+
+
+@router.post("/policy-documents", response_model=PolicyDocumentResponse)
+def policy_documents(
+    request: PolicyDocumentRequest, client: Annotated[GeminiClient, Depends(get_client)]
+) -> PolicyDocumentResponse:
+    """Read an uploaded policy file (not stored) and list the rules found in it.
+
+    The owner reviews the list before anything is parsed; nothing is checked here.
+    """
+    try:
+        data = base64.b64decode(request.content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HaqwaError(INVALID_REQUEST, "The file content is not valid base64.") from exc
+    try:
+        document = extract_text(request.filename, data)
+    except DocumentError as exc:
+        raise HaqwaError(INVALID_REQUEST, str(exc)) from exc
+    outcome = extract_rules(document.text, client=client)
+    return PolicyDocumentResponse(
+        filename=document.filename,
+        kind=document.kind,
+        chars=len(document.text),
+        rules=outcome.rules,
+        cached=outcome.cached,
+    )

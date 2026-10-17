@@ -1570,3 +1570,48 @@ input[type='file']::file-selector-button {
   margin: 0 0 var(--space-2);
   font-weight: 600;
 }
+
+/* Policy document upload: a quiet link under the policy text, then a checklist. */
+.upload {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.upload__result {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.upload__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upload__quote {
+  margin: var(--space-1) 0 0 1.5rem;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}

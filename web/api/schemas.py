@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from haqwa.ai.answers_v2 import AnswerV2, QuestionV2
+from haqwa.ai.extract import ExtractedRule
 from haqwa.core.events import Event
 from haqwa.core.report import Report, Violation
 from haqwa.core.rules_v2 import RuleV2
@@ -131,3 +132,16 @@ class ExplainResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     ok: bool
+
+
+class PolicyDocumentRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=1_400_000)  # about 1 MB of file
+
+
+class PolicyDocumentResponse(BaseModel):
+    filename: str
+    kind: str
+    chars: int
+    rules: list[ExtractedRule]
+    cached: bool
