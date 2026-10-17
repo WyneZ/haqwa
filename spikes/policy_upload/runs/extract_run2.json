@@ -1,0 +1,93 @@
+{
+  "eval": "policy-extract",
+  "dry_run": false,
+  "passed": true,
+  "files": [
+    {
+      "file": "golden_policy.md",
+      "chars": 1058,
+      "cached": false,
+      "rules": [
+        {
+          "text": "A customer must not be charged twice for the same order, unless the first charge was refunded.",
+          "quote": "A customer must not be charged twice for the same order, unless the first charge was refunded."
+        },
+        {
+          "text": "Orders above 1000 USD need a manager approval before they are charged.",
+          "quote": "Orders above 1000 USD need a manager approval before they are charged."
+        },
+        {
+          "text": "A cancelled order must never be shipped.",
+          "quote": "A cancelled order must never be shipped."
+        },
+        {
+          "text": "Every order must be charged before it is shipped.",
+          "quote": "Every order must be charged before it is shipped."
+        },
+        {
+          "text": "A refund must be completed within 24 hours of the request.",
+          "quote": "A refund must be completed within 24 hours of the request."
+        },
+        {
+          "text": "The total refunded amount for an order must never exceed the total amount charged for it.",
+          "quote": "The total refunded amount for an order must never exceed the total amount charged for it."
+        }
+      ],
+      "dropped": [],
+      "found": [
+        "E1 no double charge",
+        "E2 approval above 1000",
+        "E3 no ship after cancel",
+        "E4 charge before ship",
+        "E5 refund within 24h",
+        "E6 refunds not above charges"
+      ],
+      "missing": [],
+      "unmatched": [],
+      "forbidden": []
+    },
+    {
+      "file": "golden_policy.docx",
+      "chars": 1024,
+      "cached": false,
+      "rules": [
+        {
+          "text": "A customer must not be charged twice for the same order, unless the first charge was refunded.",
+          "quote": "A customer must not be charged twice for the same order, unless the first charge was refunded."
+        },
+        {
+          "text": "Orders above 1000 USD need a manager approval before they are charged.",
+          "quote": "Orders above 1000 USD need a manager approval before they are charged."
+        },
+        {
+          "text": "A cancelled order must never be shipped.",
+          "quote": "A cancelled order must never be shipped."
+        },
+        {
+          "text": "Every order must be charged before it is shipped.",
+          "quote": "Every order must be charged before it is shipped."
+        },
+        {
+          "text": "A refund must be completed within 24 hours of the request.",
+          "quote": "A refund must be completed within 24 hours of the request."
+        },
+        {
+          "text": "The total refunded amount for an order must never exceed the total amount charged for it.",
+          "quote": "The total refunded amount for an order must never exceed the total amount charged for it."
+        }
+      ],
+      "dropped": [],
+      "found": [
+        "E1 no double charge",
+        "E2 approval above 1000",
+        "E3 no ship after cancel",
+        "E4 charge before ship",
+        "E5 refund within 24h",
+        "E6 refunds not above charges"
+      ],
+      "missing": [],
+      "unmatched": [],
+      "forbidden": []
+    }
+  ]
+}
