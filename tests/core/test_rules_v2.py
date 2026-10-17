@@ -231,6 +231,24 @@ def test_select_accepts_v1_exclusions_including_two_conditions():
     assert problems(rule([selected, COUNT])) == []
 
 
+def test_closed_values_are_optional_and_check_where_and_exclude():
+    selected = {
+        **SELECT,
+        "where": [{"field": "payment_type", "op": "eq", "value": "wire"}],
+        "exclude": [
+            {"field": "payment_type", "op": "in", "value": ["card", "cash"]},
+        ],
+    }
+    data = rule([selected, COUNT])
+    assert problems(data) == []
+    assert validate_rule_v2(data, field_values={"other": ["wire"]}) == []
+    assert validate_rule_v2(data, field_values={"payment_type": ["wire", "card", "cash"]}) == []
+    assert validate_rule_v2(data, field_values={"payment_type": ["card"]}) == [
+        "a.where: value 'wire' for field 'payment_type' is not in the closed vocabulary",
+        "a.exclude: value 'cash' for field 'payment_type' is not in the closed vocabulary",
+    ]
+
+
 def test_depth_checks_each_path_to_a_shared_node():
     data = rule(
         [

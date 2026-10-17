@@ -9,9 +9,19 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    ValidationError,
+    model_validator,
+)
 
 from .errors import INVALID_SPEC, HaqwaError, validation_errors
+from .examples import ConfirmedExample, TimelineEvent
+from .rules_v2 import RuleV2
 
 
 class _Strict(BaseModel):
@@ -45,33 +55,6 @@ class AllowIf(_Strict):
 
 
 RuleException = ResetAfter | AllowIf
-
-
-# ---------- Confirmed examples (D3: same shape as C2 events) ----------
-class TimelineEvent(_Strict):
-    event: str
-    data: dict[str, Any] = Field(default_factory=dict)
-    # PROPOSED C1 change (needs Track A agreement): offset from the FIRST event of the
-    # timeline, ISO 8601 duration in YAML (e.g. PT65H). None -> events are 1 s apart.
-    at: timedelta | None = None
-
-
-class ConfirmedExample(_Strict):
-    timeline: list[TimelineEvent] = Field(min_length=1)
-    violation: bool
-
-    @model_validator(mode="after")
-    def _offsets_consistent(self) -> ConfirmedExample:
-        offsets = [t.at for t in self.timeline]
-        if all(o is None for o in offsets):
-            return self
-        if any(o is None for o in offsets):
-            raise ValueError("if one timeline item has `at`, every item must have it")
-        if offsets[0] != timedelta(0):
-            raise ValueError("the first timeline item must have `at: PT0S`")
-        if any(b < a for a, b in zip(offsets, offsets[1:], strict=False)):
-            raise ValueError("`at` offsets must not decrease")
-        return self
 
 
 # ---------- Rules (D1: discriminated union) ----------
@@ -117,17 +100,57 @@ Rule = Annotated[AtMostOnce | NeverAfter | MustPrecede | WithinTime, Field(discr
 
 
 # ---------- Spec ----------
+def _rule_version(value: Any) -> str | None:
+    if isinstance(value, dict):
+        version = value.get("version", 1)
+    else:
+        version = getattr(value, "version", 1)
+    if version == 1:
+        return "v1"
+    if version == 2:
+        return "v2"
+    return None
+
+
+SpecRule = Annotated[
+    Annotated[Rule, Tag("v1")] | Annotated[RuleV2, Tag("v2")],
+    Discriminator(_rule_version),
+]
+
+
 class Spec(_Strict):
-    version: Literal[1] = 1
-    rules: list[Rule]
+    version: Literal[1, 2] = 1
+    rules: list[SpecRule]
 
     @model_validator(mode="after")
-    def _unique_ids(self) -> Spec:
+    def _valid_rules(self) -> Spec:
         ids = [r.id for r in self.rules]
         dupes = {i for i in ids if ids.count(i) > 1}
         if dupes:
             raise ValueError(f"duplicate rule ids: {sorted(dupes)}")
+        has_v2 = any(isinstance(rule, RuleV2) for rule in self.rules)
+        if has_v2 and self.version != 2:
+            raise ValueError("a spec with v2 rules must have version 2")
+        if self.rules and not has_v2 and self.version != 1:
+            raise ValueError("a spec with only v1 rules must have version 1")
         return self
+
+
+def migrate_spec(spec: Spec) -> Spec:
+    """Expand every v1 rule into v2 while preserving confirmed examples and rule order."""
+    from .presets_v2 import expand_v1
+
+    if spec.version == 2 and all(isinstance(rule, RuleV2) for rule in spec.rules):
+        return spec
+    rules = [
+        rule
+        if isinstance(rule, RuleV2)
+        else expand_v1(rule).model_copy(
+            update={"confirmed_examples": list(rule.confirmed_examples)}
+        )
+        for rule in spec.rules
+    ]
+    return Spec(version=2, rules=rules)
 
 
 # ---------- D4: not part of a sealed spec ----------
@@ -208,6 +231,16 @@ def _timeline_item(t: TimelineEvent) -> _Flow:
     return item
 
 
+def _confirmed_examples_dict(examples: list[ConfirmedExample]) -> list[dict[str, Any]]:
+    return [
+        {
+            "timeline": _FlowList(_timeline_item(t) for t in ex.timeline),
+            "violation": ex.violation,
+        }
+        for ex in examples
+    ]
+
+
 def _rule_dict(rule: Rule) -> dict[str, Any]:
     d: dict[str, Any] = {"id": rule.id, "source": rule.source, "pattern": rule.pattern}
     for name in _PATTERN_FIELDS[rule.pattern]:
@@ -222,13 +255,21 @@ def _rule_dict(rule: Rule) -> dict[str, Any]:
             for x in rule.exceptions
         ]
     if rule.confirmed_examples:
-        d["confirmed_examples"] = [
-            {
-                "timeline": _FlowList(_timeline_item(t) for t in ex.timeline),
-                "violation": ex.violation,
-            }
-            for ex in rule.confirmed_examples
-        ]
+        d["confirmed_examples"] = _confirmed_examples_dict(rule.confirmed_examples)
+    return d
+
+
+def _rule_v2_dict(rule: RuleV2) -> dict[str, Any]:
+    d: dict[str, Any] = {
+        "id": rule.id,
+        "source": rule.source,
+        "per": rule.per,
+        "version": rule.version,
+        "nodes": [node.model_dump(mode="json", exclude_defaults=True) for node in rule.nodes],
+        "root": rule.root,
+    }
+    if rule.confirmed_examples:
+        d["confirmed_examples"] = _confirmed_examples_dict(rule.confirmed_examples)
     return d
 
 
@@ -238,7 +279,10 @@ def dump_spec(spec: Spec) -> str:
     `load_spec` -> `dump_spec` -> `load_spec` gives an equal spec, and dumping twice gives
     byte-identical text, so each Seal produces a clean git diff. Rule ids are never changed.
     """
-    data = {"version": spec.version, "rules": [_rule_dict(r) for r in spec.rules]}
+    data = {
+        "version": spec.version,
+        "rules": [_rule_v2_dict(r) if isinstance(r, RuleV2) else _rule_dict(r) for r in spec.rules],
+    }
     return yaml.dump(data, Dumper=_SpecDumper, sort_keys=False, allow_unicode=True, width=10_000)
 
 
