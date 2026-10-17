@@ -19,7 +19,7 @@ from haqwa.core.compiler import compile_spec
 from haqwa.core.errors import INVALID_REQUEST, INVALID_SPEC, HaqwaError
 from haqwa.core.events import parse_event_map, parse_events
 from haqwa.core.spec import dump_spec, parse_spec, suggest_rule_id
-from haqwa.core.trace import summarize_trace
+from haqwa.core.trace import TraceVocabulary, summarize_trace
 from haqwa.demo import list_scenarios, run_scenario
 
 from .config import Settings
@@ -134,11 +134,17 @@ def answers(
 
 
 @router.post("/seal", response_model=SealResponse)
-def seal(request: SealRequest) -> SealResponse:
-    """Validate and self-test a spec, then produce its deterministic YAML."""
+def seal(
+    request: SealRequest, settings: Annotated[Settings, Depends(get_settings)]
+) -> SealResponse:
+    """Validate and self-test a spec, then produce its deterministic YAML.
+
+    v2 rules are validated against the same vocabulary the interview used.
+    """
     spec = parse_spec(request.spec)
     event_map = parse_event_map(request.event_map) if request.event_map is not None else None
-    compile_spec(spec, event_map)
+    vocab = _vocabulary(request.vocabulary, settings)
+    compile_spec(spec, event_map, vocabulary=TraceVocabulary(**vocab.model_dump()))
     return SealResponse(ok=True, spec_yaml=dump_spec(spec))
 
 

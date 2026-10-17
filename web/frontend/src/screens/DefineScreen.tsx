@@ -119,7 +119,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
     setSealError(null)
     setRedo([])
     try {
-      const sealed = await sealSpec({ version: 2, rules })
+      const sealed = await sealSpec({ version: 2, rules }, interviewVocabulary ?? undefined)
       if (requestId !== choiceRequest.current) return
       onDone(rules, sealed.spec_yaml)
     } catch (e) {

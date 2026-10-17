@@ -73,6 +73,7 @@ class AnswersResponse(BaseModel):
 class SealRequest(BaseModel):
     spec: Any
     event_map: Any | None = None
+    vocabulary: VocabularyIn | None = None
 
 
 class SealResponse(BaseModel):
