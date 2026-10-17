@@ -367,7 +367,7 @@ MCP tool error, `Session not found or expired`; tool calls above the cap return
 or `session_limit` (429). Excess session creation uses the existing
 `rate_limited` code (429).
 
-### C3 v2 — clarify and answers (DRAFT, 2026-10-16)
+### C3 v2 — clarify, answers, explain, seal, runs (DRAFT, 2026-10-16; core wired 2026-10-17)
 
 **DRAFT: Wyne must review these shapes.** On `feat/ai-rule-ast`, v2 replaces v1
 inside the existing `/api/v1/clarify` and `/api/v1/answers` routes (Option A).
@@ -436,7 +436,7 @@ expected_violation}`. Timelines have at least one C1 `TimelineEvent`. Decisions
 retain their `d1..` ids and Gemini text/why, have a typed patch, and have
 `expected_violation: null`. Confirmations get `c1..` ids, text `"Is this allowed?"`,
 `why: null`, `patch: null`, and a boolean `expected_violation`. Decisions without
-an example are omitted. Confirmation cards precede decision cards.
+a separating example are omitted. Confirmation cards precede decision cards.
 
 Patches are `add_reset {node_id, event}` or `add_exclude {select_ids, condition}`.
 An exclusion condition is `{field, op: "eq"|"ne", value}` or
@@ -496,10 +496,9 @@ A confirmation answer opposite to its expected verdict adds a mismatch such as
 The resulting rule is validated against the vocabulary; invalid changes return a
 422 `invalid_spec` problem. Inconsistent question bodies return HTTP 422.
 
-Until B2, confirmed examples are returned **beside** the rule. The browser must keep
-them and resend the complete answer history when recomputing them; they are not
-persisted by this stateless endpoint. Opposite decision answers for the same timeline
-remain separate evidence for a future core self-test.
+Since B2 the returned `rule` carries `confirmed_examples` (what `/seal` self-tests);
+the top-level `confirmed_examples` repeats the same list. The endpoint is stateless:
+the browser resends the complete answer history when an owner answers again.
 
 **`POST /api/v1/explain`** keeps its shape (`{rule, violation}` → `{text, advisory,
 cached}`) but `rule` is now a `RuleV2`. The prompt gives Gemini the code-rendered
@@ -507,20 +506,17 @@ meaning (`render_v2`), which already includes the owner's resets and ignored eve
 so the explanation matches what core enforced. `violation` is the same core
 `Violation` that `check_v2` returns. Advisory only; it never changes the verdict.
 
-**Stage 1 provisional ports:** `make_example` returns a timeline labelled
-`PLACEHOLDER...`; it does not establish a separating witness. No confirmations are
-generated until Track B supplies `canonical_examples_v2`. Applying a new Yes decision
-returns RFC 9457 HTTP 501 with web-only code `not_implemented` and detail
-`"core apply_patch_v2 not merged yet"`. No/confirmation-only answers can still succeed.
-This flow is not ready for sealing. B5 replaces provisional functions in
-`ai/core_v2_ports.py` only; B2 must move confirmed examples into `RuleV2`.
+**Core ports (B5, 2026-10-17):** `ai/core_v2_ports.core_ports()` wires the routes to
+core `apply_patch_v2`, `canonical_examples_v2` (confirmation cards) and
+`make_example_v2` (decision timelines: a separating witness). A decision without a
+separating example is dropped with reason `no_separating_example` and never shown.
+`/seal` and `/runs` accept `{"version": 2, "rules": [RuleV2 with confirmed_examples]}`.
 
 Patches are client input on this stateless endpoint, so before a Yes patch is
 applied, `/answers` re-runs the same policy clarify uses (`patch_problems`: target
 node types, vocabulary names, exemptions only on closed-value fields with listed
 values). A rejected patch returns 422 `invalid_spec` and core is not called.
 
-Track B review request (nice to have, not blocking): `validate_rule_v2` checks event,
-field and numeric field names but not closed field values, so values already inside
-an incoming rule (not added by a patch) are not checked against `field_values`.
-Consider closed-value validation at the core boundary.
+`/answers` also passes the vocabulary's `field_values` to core `validate_rule_v2`
+(optional closed-value check added in B2), so values already inside an incoming rule
+are checked too.

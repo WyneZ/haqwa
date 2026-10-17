@@ -1,0 +1,220 @@
+{
+  "gate": "G2",
+  "dry_run": true,
+  "fresh": true,
+  "model": "g2-dry-run",
+  "example_builder": "placeholder; no boundary or patch-application validation",
+  "limitations": [
+    "Discovery smoke gate only; dry-run tests plumbing, not Gemini quality.",
+    "Track B must define and verify restart-on-start (G3.2) semantics.",
+    "Question wording and its consistency with the patch require human review."
+  ],
+  "found": 6,
+  "expected": 6,
+  "recall": 1.0,
+  "noise": 0,
+  "dropped": 0,
+  "errors": 0,
+  "passed": true,
+  "rules": [
+    {
+      "id": "R1",
+      "source": "A customer must not be charged twice for the same order.",
+      "expected": [
+        "G1.1",
+        "G1.2"
+      ],
+      "found": [
+        "G1.1",
+        "G1.2"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: there must be at most 1 charged event.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "r",
+            "event": "refunded"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "t"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "source": "A cancelled order must never be shipped.",
+      "expected": [
+        "G2.1"
+      ],
+      "found": [
+        "G2.1"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: once a cancelled event has happened, a shipped event must never happen.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "r",
+            "event": "order_created"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "shipped",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "source": "A refund must be completed within 24 hours of the request.",
+      "expected": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "found": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: every refund requested event must be followed by a refund completed event within 24 hours (one refund completed event covers every earlier open refund requested event).",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "r",
+            "event": "refund_requested"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "r",
+            "event": "cancelled"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d3",
+          "question": "Should this business exception be allowed?",
+          "why": "Golden dry-run proposal; no model quality is being measured.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "s",
+              "d"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    }
+  ]
+}

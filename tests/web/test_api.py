@@ -210,7 +210,8 @@ def test_answers_and_invalid_rule(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json()["confirmed_examples"][0]["violation"] is True
-    assert "confirmed_examples" not in response.json()["rule"]
+    # B2: the rule carries the same confirmed examples that seal will self-test.
+    assert response.json()["rule"]["confirmed_examples"] == response.json()["confirmed_examples"]
     assert response.json()["mismatches"] == []
     bad = client.post("/api/v1/answers", json={"rule": {"pattern": "wrong"}, "answers": []})
     assert_problem(bad, "invalid_spec", 422)
@@ -232,7 +233,8 @@ def test_answers_yes_uses_injected_port(client: TestClient) -> None:
     assert "starts again after each refunded event" in response.json()["meaning"]
 
 
-def test_answers_provisional_yes_is_501_but_no_works(client: TestClient) -> None:
+def test_answers_yes_uses_real_core_patch(client: TestClient) -> None:
+    # No port override: the app's default ports are Track B's core functions.
     response = client.post(
         "/api/v1/answers",
         json={
@@ -240,8 +242,9 @@ def test_answers_provisional_yes_is_501_but_no_works(client: TestClient) -> None
             "answers": [{"question": DECISION, "allowed": True}],
         },
     )
-    assert_problem(response, "not_implemented", 501)
-    assert response.json()["detail"] == "core apply_patch_v2 not merged yet"
+    assert response.status_code == 200
+    assert response.json()["rule"]["nodes"][-1]["since"] == ["refunded"]
+    assert "starts again after each refunded event" in response.json()["meaning"]
     response = client.post(
         "/api/v1/answers",
         json={
@@ -518,6 +521,47 @@ def test_seal_and_self_test_failure(client: TestClient) -> None:
     assert_problem(response, "compile_failed", 422)
     assert response.json()["ok"] is False
     assert response.json()["failures"][0]["rule_id"] == RULE["id"]
+
+
+V2_SPEC_RULE = {
+    **V2_RULE,
+    "source": "A customer must not be charged twice for the same order.",
+    "nodes": [
+        {"id": "charges", "type": "select", "event": "charged"},
+        {"id": "check", "type": "count", "of": "charges", "op": "le", "value": 1,
+         "since": ["refunded"]},
+    ],
+    "confirmed_examples": [
+        {"timeline": [{"event": "charged"}, {"event": "charged"}], "violation": True},
+        {
+            "timeline": [{"event": "charged"}, {"event": "refunded"}, {"event": "charged"}],
+            "violation": False,
+        },
+    ],
+}  # fmt: skip
+
+
+def test_seal_v2_spec_self_tests_confirmed_examples(client: TestClient) -> None:
+    # What the v2 UI sends after the interview: version 2, examples inside each rule.
+    response = client.post("/api/v1/seal", json={"spec": {"version": 2, "rules": [V2_SPEC_RULE]}})
+    assert response.status_code == 200
+    assert response.json()["spec_yaml"].startswith("version: 2")
+    wrong = {**V2_SPEC_RULE, "confirmed_examples": [{**V2_SPEC_RULE["confirmed_examples"][0],
+                                                     "violation": False}]}  # fmt: skip
+    response = client.post("/api/v1/seal", json={"spec": {"version": 2, "rules": [wrong]}})
+    assert_problem(response, "compile_failed", 422)
+    assert response.json()["failures"][0]["rule_id"] == V2_SPEC_RULE["id"]
+
+
+def test_runs_v2_spec_on_demo_scenario(client: TestClient) -> None:
+    spec = {"version": 2, "rules": [V2_SPEC_RULE]}
+    for scenario_id, expected in (
+        ("payment_timeout_naive", "violation"),
+        ("payment_timeout_fixed", "pass"),
+    ):
+        response = client.post("/api/v1/runs", json={"spec": spec, "scenario_id": scenario_id})
+        assert response.status_code == 200
+        assert response.json()["report"]["results"][0]["status"] == expected
 
 
 def test_runs_naive_fixed_and_unknown(client: TestClient) -> None:

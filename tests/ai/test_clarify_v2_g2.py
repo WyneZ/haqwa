@@ -1,4 +1,4 @@
-"""G2 discovery scoring uses no Gemini calls and no provisional core semantics."""
+"""G2 scoring uses no Gemini calls; examples come from core make_example_v2."""
 
 from __future__ import annotations
 
@@ -13,15 +13,18 @@ from spikes.clarify_v2.eval_g2 import main, score_decisions
 from spikes.clarify_v2.golden_g2 import RULES, SHOP, expected_patches
 
 
-def test_dry_run_finds_six_with_zero_noise(tmp_path, monkeypatch, capsys) -> None:
+def test_dry_run_finds_six_with_zero_noise(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("spikes.clarify_v2.eval_g2.RUNS", tmp_path)
     assert main(["--dry-run", "--fresh", "--label", "test"]) == 0
     report = json.loads((tmp_path / "g2_test.json").read_text(encoding="utf-8"))
     assert report["found"] == report["expected"] == 6
     assert report["noise"] == report["dropped"] == 0
     assert report["passed"]
-    assert report["example_builder"] == "placeholder; no boundary or patch-application validation"
-    assert "placeholder" in capsys.readouterr().out
+    assert report["example_builder"].startswith("core make_example_v2")
+    # Every found decision carries core's separating example, not a placeholder.
+    for row in report["rules"]:
+        for decision in row["decisions"]:
+            assert decision["example"] and "PLACEHOLDER" not in decision["example"]["label"]
     assert len(report["rules"]) == 3
 
 

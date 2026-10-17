@@ -1,7 +1,7 @@
-"""Track A's single integration point for the pending Track B v2 functions.
+"""Track A's single integration point for the Track B v2 functions (B5).
 
-When B5 lands, replace the provisional implementations with core imports in this
-file only. Keep patch conversion here if Track B's final patch types differ.
+Routes and tests depend on `CoreV2Ports`, so tests can inject fakes and the web layer
+never imports core patch internals directly.
 """
 
 from __future__ import annotations
@@ -10,8 +10,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from haqwa.core.canonical import CanonicalExample
-from haqwa.core.rules_v2 import RuleV2, SelectNode
-from haqwa.core.spec import TimelineEvent
+from haqwa.core.canonical_v2 import canonical_examples_v2, make_example_v2
+from haqwa.core.patches_v2 import apply_patch_v2
+from haqwa.core.rules_v2 import RuleV2
 
 from .clarify_v2 import Patch
 
@@ -29,23 +30,14 @@ class CoreV2Ports:
     make_example: MakeExample
 
 
-def provisional_ports() -> CoreV2Ports:
-    """Return explicit stage 1 placeholders until B5 supplies the core imports."""
+def core_ports() -> CoreV2Ports:
+    """The real Track B v2 operations (B5), adapted to Track A's patch models.
 
-    def make_example(rule: RuleV2, patch: Patch) -> CanonicalExample:
-        event = next(node.event for node in rule.nodes if isinstance(node, SelectNode))
-        return CanonicalExample(
-            label="PLACEHOLDER: no boundary timeline or verdict has been checked",
-            timeline=(TimelineEvent(event=event),),
-            violation=False,
-        )
-
-    def canonical_examples(rule: RuleV2) -> list[CanonicalExample]:
-        return []
-
-    def apply_patch(rule: RuleV2, patch: Patch) -> RuleV2:
-        raise NotImplementedError("core apply_patch_v2 not merged yet")
-
+    Core validates patches with its own strict models, so Track A's patch is passed as
+    plain data (same shape: decision 2026-10-16 "B5 interface").
+    """
     return CoreV2Ports(
-        apply_patch=apply_patch, canonical_examples=canonical_examples, make_example=make_example
+        apply_patch=lambda rule, patch: apply_patch_v2(rule, patch.model_dump()),
+        canonical_examples=canonical_examples_v2,
+        make_example=lambda rule, patch: make_example_v2(rule, patch.model_dump()),
     )

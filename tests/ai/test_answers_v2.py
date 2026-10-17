@@ -90,8 +90,9 @@ def test_no_does_not_apply_patch() -> None:
         vocab=SHOP,
         apply_patch=forbidden,
     )
-    assert result.rule == rule()
+    assert result.rule.nodes == rule().nodes
     assert result.confirmed_examples[0].violation is True
+    assert result.rule.confirmed_examples == result.confirmed_examples  # B2: inside the rule
 
 
 def test_duplicate_examples_and_patches_are_skipped() -> None:
@@ -120,7 +121,7 @@ def test_patch_already_in_rule_is_not_applied_again(kind) -> None:
         question = decision(patch=exclude())
 
     def forbidden(*_):
-        pytest.fail("An existing patch must not call the provisional port")
+        pytest.fail("An existing patch must not call the core patch port")
 
     result = apply_answers_v2(
         original,
@@ -128,7 +129,7 @@ def test_patch_already_in_rule_is_not_applied_again(kind) -> None:
         vocab=SHOP,
         apply_patch=forbidden,
     )
-    assert result.rule == original and len(result.confirmed_examples) == 1
+    assert result.rule.nodes == original.nodes and len(result.confirmed_examples) == 1
 
 
 @pytest.mark.parametrize("expected,allowed", [(True, True), (False, False)])
