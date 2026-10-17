@@ -526,3 +526,34 @@ values). A rejected patch returns 422 `invalid_spec` and core is not called.
 `/answers` also passes the vocabulary's `field_values` to core `validate_rule_v2`
 (optional closed-value check added in B2), so values already inside an incoming rule
 are checked too.
+
+### C3 — policy document upload (DRAFT, 2026-10-17; Wyne to review)
+
+`POST /api/v1/policy-documents` turns an uploaded policy file into a list of candidate
+rule sentences for the owner to review. Nothing is parsed, sealed or checked here; the
+owner's kept rules go into the policy text and then through `/clarify` as usual.
+
+Request (JSON, not multipart; the file is read in memory and never stored):
+
+```json
+{"filename": "policy.docx", "content_base64": "UEsDBBQABgAIAAAAIQ..."}
+```
+
+Response:
+
+```json
+{"filename": "policy.docx", "kind": "docx", "chars": 1834, "cached": false,
+ "rules": [{"text": "A refund must be completed within 24 hours of the request.",
+            "quote": "A refund must be completed within 24 hours of the request."}]}
+```
+
+- Types: `.txt` / `.md` (UTF-8), `.docx` (python-docx: paragraphs and tables), `.pdf`
+  (pypdf: text layer only; scanned PDFs are refused). `.doc` is refused with "Save it as
+  .docx". Limits: 1 MB file, 20,000 characters of text, up to 15 rules.
+- `ai/extract.py`: one Gemini call returns `{rule, quote}` items; code keeps an item only
+  if its quote (≥ 10 characters) appears in the document text (case, spacing and curly
+  quotes ignored), so a rule can never be invented. Duplicates and over-long rules are
+  dropped. The document is marked as data, not instructions, in the prompt.
+- Errors: unusable file → 422 `invalid_request` with a plain-English `detail`; Gemini
+  errors map as for `/clarify`. The route shares the Gemini rate limiter.
+

@@ -9,6 +9,7 @@ import {
 } from '../api/client'
 import type { AnswersResponse, ClarifyResult, LogEvent, SpecRule, TraceVocabulary } from '../api/types'
 import { PolicyPanel, type RuleRow } from '../components/PolicyPanel'
+import { PolicyUpload } from '../components/PolicyUpload'
 import { QuestionCard } from '../components/QuestionCard'
 import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
@@ -353,6 +354,7 @@ export function DefineScreen({ source, onSourceChange, onDone }: Props) {
             : undefined
         }
         canSubmit={choice === 'shop' || source.kind === 'trace'}
+        upload={<PolicyUpload disabled={loading} onUse={(rules) => setText(rules.join('\n'))} />}
       />
 
       <main className="stage stage--interview" aria-busy={loading}>

@@ -98,6 +98,7 @@ def create_app() -> FastAPI:
         if request.method == "POST" and request.url.path in (
             "/api/v1/clarify",
             "/api/v1/explain",
+            "/api/v1/policy-documents",
         ):
             try:
                 api.state.rate_limiter.check(client_ip(request))
@@ -107,7 +108,11 @@ def create_app() -> FastAPI:
 
     @api.middleware("http")
     async def trace_body_limit(request: Request, call_next):
-        if request.method == "POST" and request.url.path in {"/api/v1/traces", "/api/v1/runs"}:
+        if request.method == "POST" and request.url.path in {
+            "/api/v1/traces",
+            "/api/v1/runs",
+            "/api/v1/policy-documents",
+        }:
             length = request.headers.get("content-length")
             if length is not None:
                 try:

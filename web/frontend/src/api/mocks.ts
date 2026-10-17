@@ -19,6 +19,7 @@ import type {
   ClarifyResult,
   Explanation,
   LogEvent,
+  PolicyDocumentResult,
   RuleV2,
   RunResponse,
   Scenario,
@@ -218,6 +219,14 @@ export async function mockApplyAnswers(rule: RuleV2, answers: AnswerV2[]): Promi
   const base = parsed?.meaning ?? rule.source
   const meaning = accepted.length ? `${base} Exceptions: ${[...new Set(accepted)].join(' ')}` : base
   return { rule: updated, meaning, confirmed_examples: examples, mismatches }
+}
+
+/** MOCK ONLY: pretends the uploaded file contains the three demo rules. */
+export async function mockPolicyDocument(filename: string): Promise<PolicyDocumentResult> {
+  await delay(600)
+  const rules = DEMO_RESULTS.map((r) => ({ text: r.source, quote: r.source }))
+  const chars = rules.map((r) => r.text).join('\n').length
+  return { filename, kind: 'text', chars, rules, cached: true }
 }
 
 /** Mock mode cannot run core's self-test: it always says the spec is fine. */

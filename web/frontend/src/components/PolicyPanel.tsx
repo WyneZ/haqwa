@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 export type RuleStatus = 'waiting' | 'asking' | 'confirmed' | 'unsupported'
 
 export interface RuleRow {
@@ -22,6 +24,8 @@ interface Props {
   placeholder?: string
   canSubmit?: boolean
   onRedo?: (index: number) => void
+  /** Shown under the text while writing, e.g. the policy document upload. */
+  upload?: ReactNode
 }
 
 /** Left column: the policy text, then one status line per rule. */
@@ -35,6 +39,7 @@ export function PolicyPanel({
   placeholder,
   canSubmit = true,
   onRedo,
+  upload,
 }: Props) {
   const editing = rows === null
   return (
@@ -52,6 +57,7 @@ export function PolicyPanel({
         readOnly={!editing}
         rows={7}
       />
+      {editing && upload}
       {editing ? (
         <button
           type="button"

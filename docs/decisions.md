@@ -64,6 +64,7 @@ How to add a decision (avoids merge conflicts that already deleted lines twice):
 - 2026-09-29 · Track A: MVP web API is stateless (browser holds the draft spec); no database; Seal returns `rules.spec.yaml` for download; Firestore moves to the roadmap · Track A (Hazel), to confirm with Track B in the C3 review · brief §9 "no DB at first", §10 multi-user out of scope, principle "the spec is a file"
 - 2026-10-17 · Hazel decides (owner): "cancelling the order allows a new charge" (R1) is a real owner question; added to the clarify golden set as G1.7 · Hazel · run 4a showed it is a plausible business decision
 - 2026-10-17 · Clarify v2 finds decisions by code-enumerated candidates: code lists every reset / closed-value exemption that core's `make_example_v2` proves relaxes the rule; Gemini only chooses candidate ids (an enum) and words the Yes/No question · Hazel (Track A design; contract text in C3 v2) · Gemini proposing patches from memory missed valid decisions (G3.6 in 3 of 6 runs); prompt tuning only overfit; G2 then passed twice (7/7, noise 0)
+- 2026-10-17 · PROPOSED (C3 change; Wyne to confirm) · Policy document upload (brief stretch goal): `POST /api/v1/policy-documents` takes `{filename, content_base64}` (.txt/.md/.docx/.pdf, 1 MB, 20,000 chars), Gemini proposes `{rule, quote}` and code keeps a rule only if its quote is in the document; the owner ticks rules before `/clarify`. New dependencies `python-docx` and `pypdf` · Hazel · real policies live in documents; verbatim quotes stop invented rules
 
 ## Track B (Wyne — core/, cli, adapters, demo)
 

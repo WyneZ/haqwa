@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { DEMO_RESULTS } from '../src/api/fixtures.ts'
-import { mockApplyAnswers, mockCheckAgentSession, mockCreateAgentSession, mockGetAgentSession, mockRun, mockSeal } from '../src/api/mocks.ts'
+import { mockApplyAnswers, mockCheckAgentSession, mockCreateAgentSession, mockGetAgentSession, mockPolicyDocument, mockRun, mockSeal } from '../src/api/mocks.ts'
 import { toSpecRule } from '../src/lib/specRule.ts'
 
 const supported = () => DEMO_RESULTS.filter((result) => result.status === 'supported')
@@ -106,4 +106,11 @@ test('mock answers return the final meaning: parsed meaning plus accepted decisi
   assert.ok(yes.meaning.includes('Exceptions:'))
   const no = await mockApplyAnswers(original.rule, decisions.map(question => ({ question, allowed: false })))
   assert.equal(no.meaning, original.meaning)
+})
+
+test('mock policy upload returns the demo rules, each backed by a quote', async () => {
+  const result = await mockPolicyDocument('policy.docx')
+  assert.equal(result.filename, 'policy.docx')
+  assert.deepEqual(result.rules.map(r => r.text), supported().map(r => r.source))
+  assert.ok(result.rules.every(r => r.quote.length > 0))
 })

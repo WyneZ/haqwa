@@ -272,3 +272,18 @@ export interface ApiProblem {
   code?: string
   failures?: SelfTestFailure[] // compile_failed only
 }
+
+/** One rule found in an uploaded policy document, with the document text behind it. */
+export interface ExtractedRule {
+  text: string
+  quote: string
+}
+
+/** POST /policy-documents: the rules Gemini found; every quote is verified in the document. */
+export interface PolicyDocumentResult {
+  filename: string
+  kind: 'text' | 'docx' | 'pdf'
+  chars: number
+  rules: ExtractedRule[]
+  cached: boolean
+}

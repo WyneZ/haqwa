@@ -14,6 +14,7 @@ import {
   mockExplain,
   mockGetAgentSession,
   mockListScenarios,
+  mockPolicyDocument,
   mockRun,
   mockSeal,
 } from './mocks'
@@ -27,6 +28,7 @@ import type {
   ClarifyResponse,
   Explanation,
   LogEvent,
+  PolicyDocumentResult,
   RuleV2,
   RunResponse,
   Scenario,
@@ -37,6 +39,8 @@ import type {
   TraceVocabulary,
   Violation,
 } from './types'
+
+import { fileToBase64, MAX_POLICY_BYTES } from '../lib/policyFile'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 const BASE = '/api/v1'
@@ -88,6 +92,21 @@ export function clarifyRules(
   return USE_MOCK
     ? mockClarify(rules)
     : request<ClarifyResponse>('/clarify', { rules, ...(vocabulary ? { vocabulary } : {}) })
+}
+
+/**
+ * Upload one policy document (.txt, .md, .docx, .pdf; not stored) and get the rules found
+ * in it. The owner picks which ones to use; nothing is parsed or checked here.
+ */
+export async function readPolicyDocument(file: File): Promise<PolicyDocumentResult> {
+  if (file.size > MAX_POLICY_BYTES) {
+    throw new Error('The file is larger than 1 MB. Upload only the policy section.')
+  }
+  if (USE_MOCK) return mockPolicyDocument(file.name)
+  return request<PolicyDocumentResult>('/policy-documents', {
+    filename: file.name,
+    content_base64: await fileToBase64(file),
+  })
 }
 
 /** C3 trace summary; mock mode mirrors only the fields needed for presentation. */

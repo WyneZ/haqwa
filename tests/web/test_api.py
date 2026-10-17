@@ -688,3 +688,52 @@ def test_seal_uses_request_vocabulary(client: TestClient) -> None:
         "/api/v1/seal", json={"spec": spec, "vocabulary": {"events": ["something_else"]}}
     )
     assert bad.status_code == 422
+
+
+def test_policy_document_lists_quoted_rules(client: TestClient) -> None:
+    import base64
+    import json
+
+    document = "Refunds\n\nA refund must be completed within 24 hours of the request."
+
+    class FakeSDK:
+        def __init__(self):
+            self.models = self
+
+        def generate_content(self, **kwargs):
+            quote = "A refund must be completed within 24 hours of the request."
+            answer = {
+                "rules": [{"rule": quote, "quote": quote}, {"rule": "Invented.", "quote": "x" * 20}]
+            }
+            return SimpleNamespace(text=json.dumps(answer))
+
+    gemini = GeminiClient(model="test", sdk=FakeSDK(), cache_dir=None)
+    client.app.dependency_overrides[routes.get_client] = lambda: gemini
+    response = client.post(
+        "/api/v1/policy-documents",
+        json={
+            "filename": "policy.md",
+            "content_base64": base64.b64encode(document.encode()).decode(),
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["filename"] == "policy.md" and body["kind"] == "text"
+    assert body["chars"] == len(document)
+    assert [r["text"] for r in body["rules"]] == [
+        "A refund must be completed within 24 hours of the request."
+    ]  # the invented rule's quote is not in the document, so it is never shown
+
+
+@pytest.mark.parametrize(
+    ("payload", "detail"),
+    [
+        ({"filename": "p.txt", "content_base64": "not base64!"}, "base64"),
+        ({"filename": "p.doc", "content_base64": "dGV4dA=="}, "Save it as .docx"),
+        ({"filename": "p.txt", "content_base64": "Y2Fm6Q=="}, "UTF-8"),
+    ],
+)
+def test_policy_document_refuses_bad_files(client: TestClient, payload, detail) -> None:
+    response = client.post("/api/v1/policy-documents", json=payload)
+    assert_problem(response, "invalid_request", 422)
+    assert detail in response.json()["detail"]
