@@ -1,4 +1,4 @@
-"""Typed clarification proposals are tested without Gemini quota or core patch logic."""
+"""Clarify v2: code lists candidate changes, Gemini (faked here) only chooses and words them."""
 
 from __future__ import annotations
 
@@ -12,16 +12,20 @@ from haqwa.ai.clarify_v2 import (
     AddExclude,
     AddReset,
     build_decision_prompt,
-    decision_schema,
+    choice_schema,
+    enumerate_candidates,
+    patch_key,
     propose_decisions,
     to_core_patches,
 )
 from haqwa.ai.client import GeminiBadOutput, GeminiClient
+from haqwa.ai.core_v2_ports import core_ports
 from haqwa.ai.parse import ParseError
 from haqwa.ai.render_v2 import render_rule
 from haqwa.ai.vocab import Vocabulary
 from haqwa.core.canonical import CanonicalExample
-from haqwa.core.rules_v2 import RuleV2
+from haqwa.core.errors import INVALID_REQUEST, HaqwaError
+from haqwa.core.rules_v2 import ConditionV2, RuleV2
 from haqwa.core.spec import TimelineEvent
 
 from .test_parse_v2 import FakeSDK
@@ -37,6 +41,7 @@ EXAMPLE = CanonicalExample(
     timeline=(TimelineEvent(event="charged"),),
     violation=True,
 )
+CORE = core_ports().make_example
 
 
 def rule(*, deadline: bool = False) -> RuleV2:
@@ -72,12 +77,12 @@ def rule(*, deadline: bool = False) -> RuleV2:
 
 
 def reset(node_id: str = "check", event: str = "refunded") -> dict[str, Any]:
-    """Build a wire reset proposal."""
+    """Build a reset patch."""
     return {"op": "add_reset", "node_id": node_id, "event": event}
 
 
 def exclude(**changes: Any) -> dict[str, Any]:
-    """Build an installment exemption proposal."""
+    """Build an installment exemption patch."""
     return {
         "op": "add_exclude",
         "select_ids": ["charges"],
@@ -86,192 +91,244 @@ def exclude(**changes: Any) -> dict[str, Any]:
     }
 
 
-def proposal(patch: dict[str, Any], gid: str = "proposal") -> dict[str, Any]:
-    """Wrap one patch in an owner-facing decision."""
+def keys(patches: list[dict[str, Any]]) -> set[tuple]:
+    """Comparable keys for expected patches."""
     return {
-        "id": gid,
-        "question": "Should this exception be allowed?",
-        "why": "The owner must decide this business exception.",
-        "patch": patch,
+        patch_key(
+            AddReset.model_validate(p) if p["op"] == "add_reset" else AddExclude.model_validate(p)
+        )
+        for p in patches
     }
 
 
-def run(proposals: list[dict[str, Any]], *, target: RuleV2 | None = None, example=EXAMPLE):
-    """Exercise the real client and dynamic response validation with a fake SDK."""
-    sdk = FakeSDK({"decisions": proposals})
-    seen = []
+def choice(candidate: str, question: str = "Is this allowed?") -> dict[str, Any]:
+    """One Gemini choice of a listed candidate."""
+    return {"candidate": candidate, "question": question, "why": "The owner must decide."}
 
-    def make_example(original, patch):
-        seen.append((original, patch))
-        return example
 
+def run(choices: list[dict[str, Any]], *, target: RuleV2 | None = None, make_example=CORE):
+    """Exercise the real client and the per-rule schema with a fake SDK."""
+    sdk = FakeSDK({"decisions": choices})
     outcome = propose_decisions(
         target or rule(),
         vocab=SHOP,
         client=GeminiClient(model="test", sdk=sdk, cache_dir=None),
         make_example=make_example,
     )
-    return outcome, sdk, seen
+    return outcome, sdk
 
 
-def test_keeps_reset_and_exclude_without_changing_rule() -> None:
+def ids_by_key(target: RuleV2) -> dict[tuple, str]:
+    """Candidate id for each candidate patch, as code numbers them."""
+    return {patch_key(c.patch): c.id for c in enumerate_candidates(target, SHOP, CORE)}
+
+
+# ---- candidates: code lists every change that matters ----------------------------------
+
+
+def test_count_candidates_are_every_reset_and_exemption_except_the_counted_event() -> None:
+    candidates = enumerate_candidates(rule(), SHOP, CORE)
+    expected = [reset(event=e) for e in ("refunded", "cancelled", "refund_requested")]
+    expected += [reset(event="refund_completed")]
+    expected += [
+        exclude(condition={"field": "payment_type", "op": "eq", "value": v})
+        for v in ("card", "installment")
+    ]
+    assert {patch_key(c.patch) for c in candidates} == keys(expected)
+    assert [c.id for c in candidates] == [f"p{i}" for i in range(1, len(candidates) + 1)]
+    # Each example breaks today's rule and is allowed with the change: Yes = apply it.
+    assert all(c.example.violation for c in candidates)
+
+
+def test_deadline_candidates_include_restart_on_start_but_not_the_completion_event() -> None:
+    candidates = enumerate_candidates(rule(deadline=True), SHOP, CORE)
+    found = {patch_key(c.patch) for c in candidates}
+    assert keys([reset(event="refund_requested")]) <= found  # G3.2 restart is always listed
+    assert not keys([reset(event="refund_completed")]) & found  # would switch the rule off
+    exemption = exclude(select_ids=["request", "completion"])
+    assert keys([exemption]) <= found  # covers both sides of the deadline
+    restart = next(
+        c for c in candidates if patch_key(c.patch) in keys([reset(event="refund_requested")])
+    )
+    assert "restarts the deadline clock" in restart.text
+
+
+def test_changes_already_in_the_rule_are_not_candidates() -> None:
     original = rule()
-    snapshot = original.model_dump_json()
-    result, sdk, seen = run([proposal(reset(), "a"), proposal(exclude(), "b")], target=original)
-    assert len(sdk.prompts) == 1
-    assert len(result.decisions) == len(seen) == 2
-    assert not result.dropped and not result.cached
-    assert result.rule == original and original.model_dump_json() == snapshot
-    assert result.meaning == render_rule(original)
-    assert result.decisions[0].example == EXAMPLE
-    assert [d.id for d in result.decisions] == ["d1", "d2"]
+    original.nodes[-1].since.append("refunded")
+    original.nodes[0].exclude.append(
+        ConditionV2(field="payment_type", op="eq", value="installment")
+    )
+    found = {patch_key(c.patch) for c in enumerate_candidates(original, SHOP, CORE)}
+    assert not found & keys([reset(), exclude()])
 
 
 @pytest.mark.parametrize(
-    "patch",
+    "example",
     [
-        reset("charges"),
-        reset(event="invented"),
-        reset("missing"),
-        exclude(select_ids=["check"]),
-        exclude(select_ids=["missing"]),
-        exclude(select_ids=[]),
-        exclude(select_ids=["charges", "charges"]),
-        exclude(condition={"field": "payment_type", "op": "eq", "value": "store_credit"}),
-        exclude(condition={"field": "amount", "op": "eq", "value": "100"}),
-        exclude(condition={"field": "invented", "op": "eq", "value": "installment"}),
-        exclude(condition={"field": "payment_type", "op": "in", "values": ["store_credit"]}),
-        exclude(condition={"field": "payment_type", "op": "eq", "value": "card,installment"}),
-        exclude(condition={"field": "payment_type", "op": "in", "values": []}),
-        {"op": "add_reset", "node_id": "check"},
+        None,  # core found no timeline that separates Yes from No
+        CanonicalExample("stricter", (TimelineEvent(event="charged"),), violation=False),
     ],
 )
-def test_bad_proposal_is_dropped_without_losing_valid_sibling(patch) -> None:
-    outcome, _, seen = run([proposal(patch, "bad"), proposal(reset(), "good")])
-    assert len(outcome.decisions) == 1 and len(seen) == 1
-    assert outcome.dropped[0].gemini_id == "bad"
-    assert outcome.dropped[0].reasons
+def test_changes_without_a_relaxing_example_are_not_candidates(example) -> None:
+    assert enumerate_candidates(rule(), SHOP, lambda *_: example) == []
 
 
-def test_duplicate_patch_is_dropped_even_with_different_question_id() -> None:
-    result, _, _ = run([proposal(reset(), "a"), proposal(reset(), "b")])
-    assert len(result.decisions) == 1
-    assert "duplicate" in " ".join(result.dropped[0].reasons)
+def test_core_rejecting_a_patch_skips_only_that_candidate() -> None:
+    def builder(target, patch):
+        if isinstance(patch, AddExclude):
+            raise HaqwaError(INVALID_REQUEST, "rejected by core")
+        return EXAMPLE
+
+    candidates = enumerate_candidates(rule(), SHOP, builder)
+    assert candidates and all(isinstance(c.patch, AddReset) for c in candidates)
 
 
-def test_equivalent_singleton_in_and_eq_are_duplicates() -> None:
-    second = exclude(condition={"field": "payment_type", "op": "in", "values": ["installment"]})
-    result, _, _ = run([proposal(exclude(), "a"), proposal(second, "b")])
-    assert len(result.decisions) == 1
-    assert result.dropped
-
-
-@pytest.mark.parametrize("kind", ["reset", "exclude"])
-def test_noop_is_dropped(kind) -> None:
+def test_builder_cannot_mutate_the_rule_or_the_candidate_patch() -> None:
     original = rule()
-    if kind == "reset":
-        original.nodes[-1].since.append("refunded")
-        patch = reset()
-    else:
-        from haqwa.core.rules_v2 import ConditionV2
+    snapshot = original.model_dump_json()
 
-        original.nodes[0].exclude.append(
-            ConditionV2(field="payment_type", op="eq", value="installment")
+    def builder(target, patch):
+        target.nodes.clear()
+        if isinstance(patch, AddExclude):
+            patch.select_ids.clear()
+        return EXAMPLE
+
+    candidates = enumerate_candidates(original, SHOP, builder)
+    assert original.model_dump_json() == snapshot
+    assert all(
+        c.patch.select_ids == ["charges"] for c in candidates if isinstance(c.patch, AddExclude)
+    )
+
+
+# ---- Gemini chooses from the list -------------------------------------------------------
+
+
+def test_chosen_candidates_become_decisions_with_core_examples() -> None:
+    original = rule()
+    snapshot = original.model_dump_json()
+    ids = ids_by_key(original)
+    refund, installment = ids[next(iter(keys([reset()])))], ids[next(iter(keys([exclude()])))]
+    outcome, sdk = run(
+        [choice(refund, "  Can an order be charged again after a refund?  "), choice(installment)],
+        target=original,
+    )
+    assert len(sdk.prompts) == 1 and not outcome.dropped and not outcome.cached
+    assert [d.id for d in outcome.decisions] == ["d1", "d2"]
+    first = outcome.decisions[0]
+    assert first.question == "Can an order be charged again after a refund?"
+    assert keys([reset()]) == {patch_key(first.patch)}
+    assert [e.event for e in first.example.timeline] == ["charged", "refunded", "charged"]
+    assert outcome.rule == original and original.model_dump_json() == snapshot
+    assert outcome.meaning == render_rule(original)
+
+
+def test_zero_choices_is_valid() -> None:
+    outcome, _ = run([])
+    assert not outcome.decisions and not outcome.dropped
+
+
+def test_duplicate_choice_is_dropped_and_sibling_kept() -> None:
+    outcome, _ = run([choice("p1"), choice("p1"), choice("p2")])
+    assert [d.patch for d in outcome.decisions] == [
+        c.patch for c in enumerate_candidates(rule(), SHOP, CORE)[:2]
+    ]
+    assert outcome.dropped[0].gemini_id == "p1"
+    assert "duplicate" in outcome.dropped[0].reasons[0]
+
+
+@pytest.mark.parametrize("field", ["question", "why"])
+def test_blank_text_is_dropped(field) -> None:
+    outcome, _ = run([{**choice("p1"), field: "   "}, choice("p2")])
+    assert len(outcome.decisions) == 1
+    assert "non-whitespace" in outcome.dropped[0].reasons[0]
+
+
+def test_unlisted_candidate_id_is_bad_output() -> None:
+    with pytest.raises(GeminiBadOutput):
+        run([choice("p99")])
+
+
+def test_unexpected_envelope_or_choice_fields_are_bad_output() -> None:
+    with pytest.raises(GeminiBadOutput):
+        run([{**choice("p1"), "patch": reset()}])
+    sdk = FakeSDK({"decisions": [], "apply_rule": True})
+    with pytest.raises(GeminiBadOutput):
+        propose_decisions(
+            rule(), vocab=SHOP, client=GeminiClient(sdk=sdk, cache_dir=None), make_example=CORE
         )
-        patch = exclude()
-    result, _, seen = run([proposal(patch)], target=original)
-    assert not result.decisions and not seen
-    assert "already present" in " ".join(result.dropped[0].reasons)
 
 
-def test_no_separating_example_is_dropped() -> None:
-    result, _, _ = run([proposal(reset())], example=None)
-    assert not result.decisions
-    assert "separat" in " ".join(result.dropped[0].reasons)
-
-
-def test_zero_decisions_is_valid() -> None:
-    result, _, seen = run([])
-    assert not result.decisions and not result.dropped and not seen
-
-
-def test_schema_has_rule_specific_enums_and_no_provider_incompatible_features() -> None:
-    schema = decision_schema(rule(deadline=True), SHOP).model_json_schema()
-    definitions = schema["$defs"]
-    reset_schema = next(v for v in definitions.values() if "node_id" in v.get("properties", {}))
-    exclude_schema = next(
-        v for v in definitions.values() if "select_ids" in v.get("properties", {})
+def test_no_candidates_means_no_gemini_call() -> None:
+    sdk = FakeSDK({"decisions": []})
+    outcome = propose_decisions(
+        rule(),
+        vocab=SHOP,
+        client=GeminiClient(sdk=sdk, cache_dir=None),
+        make_example=lambda *_: None,
     )
-    target = reset_schema["properties"]["node_id"]
-    assert target.get("enum", [target.get("const")]) == ["check"]
-    assert set(exclude_schema["properties"]["select_ids"]["items"]["enum"]) == {
-        "request",
-        "completion",
-    }
-    assert set(reset_schema["required"]) == {"op", "node_id", "event"}
-    assert schema["properties"]["decisions"]["maxItems"] == 3
+    assert not sdk.prompts and not outcome.decisions and outcome.cached
+
+
+def test_invalid_input_rule_prevents_gemini_call() -> None:
+    sdk = FakeSDK({"decisions": []})
+    with pytest.raises(ParseError):
+        propose_decisions(
+            rule().model_copy(update={"root": "missing"}),
+            vocab=SHOP,
+            client=GeminiClient(sdk=sdk, cache_dir=None),
+            make_example=CORE,
+        )
+    assert not sdk.prompts
+
+
+def test_second_call_is_cached(tmp_path) -> None:
+    sdk = FakeSDK({"decisions": [choice("p1")]})
+    client = GeminiClient(model="test", sdk=sdk, cache_dir=tmp_path)
+    kwargs = {"vocab": SHOP, "client": client, "make_example": CORE}
+    first = propose_decisions(rule(), **kwargs)
+    second = propose_decisions(rule(), **kwargs)
+    assert not first.cached and second.cached and len(sdk.prompts) == 1
+    assert first.decisions == second.decisions
+
+
+# ---- schema and prompt ------------------------------------------------------------------
+
+
+def test_schema_enumerates_ids_caps_choices_and_is_provider_safe() -> None:
+    schema_model = choice_schema(("p1", "p2"))
+    schema = schema_model.model_json_schema()
     text = json.dumps(schema)
+    assert '"p1"' in text and '"p2"' in text
+    assert schema["properties"]["decisions"]["maxItems"] == 4
     assert "oneOf" not in text and "additionalProperties" not in text
-    assert "anyOf" in text
-
-
-def test_schema_without_resettable_nodes_omits_reset_branch() -> None:
-    original = RuleV2.model_validate(
-        {
-            "id": "fields",
-            "source": "Different fields",
-            "version": 2,
-            "per": "order_id",
-            "root": "check",
-            "nodes": [
-                {"id": "charges", "type": "select", "event": "charged"},
-                {
-                    "id": "check",
-                    "type": "field_compare",
-                    "of": "charges",
-                    "a": "order_id",
-                    "op": "ne",
-                    "b": "payment_type",
-                },
-            ],
-        }
-    )
-    assert '"add_reset"' not in json.dumps(decision_schema(original, SHOP).model_json_schema())
-
-
-def test_schema_caps_decisions_at_three() -> None:
     with pytest.raises(ValidationError):
-        decision_schema(rule(), SHOP).model_validate({"decisions": [proposal(reset())] * 4})
+        schema_model.model_validate({"decisions": [choice("p3")]})
+    with pytest.raises(ValidationError):
+        schema_model.model_validate({"decisions": [choice("p1")] * 5})
 
 
-def test_prompt_is_deterministic_and_has_meaning_targets_and_noise_controls() -> None:
-    prompt = build_decision_prompt(rule(), SHOP)
-    assert prompt == build_decision_prompt(rule(), SHOP)
+def test_prompt_lists_every_candidate_with_its_example_and_guidance() -> None:
+    target = rule(deadline=True)
+    candidates = enumerate_candidates(target, SHOP, CORE)
+    prompt = build_decision_prompt(target, candidates)
+    assert prompt == build_decision_prompt(target, candidates)
+    assert json.dumps(target.source) in prompt and render_rule(target) in prompt
+    for candidate in candidates:
+        assert f"- {candidate.id}: {candidate.text}." in prompt
+    assert "refund requested -> refund requested at +12h -> refund completed at +1d 1s" in prompt
     for text in [
-        render_rule(rule()),
-        "charges",
-        "count",
-        "calendar hours",
-        "confirmation",
-        "closed",
-        "0 to 3",
+        "EVERY change",
+        "0 to 4",
+        "restarts the clock",
         "installment",
+        "Yes means the\n  change applies",
+        "Do not decide pass/fail",
     ]:
         assert text in prompt
 
 
-def test_prompt_has_per_node_checklist() -> None:
-    # G2 run 1 missed "a new request restarts the clock" without this checklist.
-    prompt = build_decision_prompt(rule(), SHOP)
-    for text in [
-        "count: which event resets the count",
-        "none_after: which later event lifts the ban",
-        "every_preceded_by: which event clears the prerequisite",
-        "does the clock restart",
-        "START event itself",
-        "this rule's own business",
-    ]:
-        assert text in prompt
+# ---- core adapter -----------------------------------------------------------------------
 
 
 def test_to_core_patches_expands_two_select_exclude() -> None:
@@ -284,7 +341,6 @@ def test_to_core_patches_expands_two_select_exclude() -> None:
 
     mapped = to_core_patches(patch, add_reset=lambda *args: args, add_exclude=add_exclude)
     assert mapped == ["request", "completion"]
-    assert [c[0] for c in calls] == ["request", "completion"]
     assert all(c[1].value == "installment" for c in calls)
 
 
@@ -294,105 +350,3 @@ def test_to_core_patches_maps_reset() -> None:
         add_reset=lambda *args: args,
         add_exclude=lambda *args: args,
     ) == [("check", "refunded")]
-
-
-def test_duplicate_excludes_ignore_target_and_membership_order() -> None:
-    first = exclude(
-        select_ids=["request", "completion"],
-        condition={"field": "payment_type", "op": "in", "values": ["card", "installment"]},
-    )
-    second = exclude(
-        select_ids=["completion", "request"],
-        condition={"field": "payment_type", "op": "in", "values": ["installment", "card"]},
-    )
-    outcome, _, _ = run([proposal(first, "a"), proposal(second, "b")], target=rule(deadline=True))
-    assert len(outcome.decisions) == 1 and len(outcome.dropped) == 1
-
-
-def test_builder_cannot_mutate_original_rule_or_retained_patch() -> None:
-    original = rule()
-    snapshot = original.model_dump_json()
-    sdk = FakeSDK({"decisions": [proposal(exclude())]})
-
-    def builder(target, patch):
-        target.nodes.clear()
-        patch.select_ids.clear()
-        return EXAMPLE
-
-    outcome = propose_decisions(
-        original,
-        vocab=SHOP,
-        client=GeminiClient(sdk=sdk, cache_dir=None),
-        make_example=builder,
-    )
-    assert original.model_dump_json() == snapshot
-    assert outcome.decisions[0].patch.select_ids == ["charges"]
-
-
-def test_cache_preserves_schema_rejection_evidence(tmp_path) -> None:
-    sdk = FakeSDK({"decisions": [proposal(reset("charges"), "bad")]})
-    client = GeminiClient(model="test", sdk=sdk, cache_dir=tmp_path)
-    kwargs = {"vocab": SHOP, "client": client, "make_example": lambda *_: EXAMPLE}
-    first = propose_decisions(rule(), **kwargs)
-    second = propose_decisions(rule(), **kwargs)
-    assert not first.cached and second.cached and len(sdk.prompts) == 1
-    assert first.dropped == second.dropped
-
-
-@pytest.mark.parametrize(
-    "patch",
-    [
-        {**reset(), "unsupported_key": "ignored changes are unsafe"},
-        exclude(
-            condition={
-                "field": "payment_type",
-                "op": "eq",
-                "value": "installment",
-                "values": ["card"],
-            }
-        ),
-    ],
-)
-def test_unexpected_patch_fields_are_retained_as_drops(patch) -> None:
-    outcome, _, _ = run([proposal(patch, "bad"), proposal(reset(), "good")])
-    assert len(outcome.decisions) == 1
-    assert outcome.dropped[0].gemini_id == "bad"
-    assert "unexpected fields" in " ".join(outcome.dropped[0].reasons)
-
-
-def test_unexpected_envelope_fields_are_not_silently_ignored() -> None:
-    sdk = FakeSDK({"decisions": [], "apply_rule": True})
-    with pytest.raises(GeminiBadOutput):
-        propose_decisions(
-            rule(),
-            vocab=SHOP,
-            client=GeminiClient(sdk=sdk, cache_dir=None),
-            make_example=lambda *_: EXAMPLE,
-        )
-
-
-def test_invalid_input_rule_prevents_gemini_call() -> None:
-    sdk = FakeSDK({"decisions": []})
-    with pytest.raises(ParseError):
-        propose_decisions(
-            rule().model_copy(update={"root": "missing"}),
-            vocab=SHOP,
-            client=GeminiClient(sdk=sdk, cache_dir=None),
-            make_example=lambda *_: EXAMPLE,
-        )
-    assert not sdk.prompts
-
-
-def test_rule_specific_schema_does_not_leak_other_rules_targets() -> None:
-    first = decision_schema(rule(), SHOP)
-    second = decision_schema(rule(deadline=True), SHOP)
-    assert '"charges"' in json.dumps(first.model_json_schema())
-    assert '"charges"' not in json.dumps(second.model_json_schema())
-    assert '"completion"' not in json.dumps(first.model_json_schema())
-
-
-def test_whitespace_question_is_dropped_before_example_builder() -> None:
-    bad = {**proposal(reset()), "question": "   "}
-    result, _, seen = run([bad])
-    assert not result.decisions and not seen
-    assert "non-whitespace" in " ".join(result.dropped[0].reasons)

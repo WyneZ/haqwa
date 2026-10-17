@@ -506,6 +506,12 @@ meaning (`render_v2`), which already includes the owner's resets and ignored eve
 so the explanation matches what core enforced. `violation` is the same core
 `Violation` that `check_v2` returns. Advisory only; it never changes the verdict.
 
+**How decisions are found (2026-10-17, Hazel):** code lists every candidate change
+(a reset event on a checking node, or a closed-value exemption over all selects of a
+check) that core's `make_example_v2` shows relaxes the rule; Gemini only chooses up to 4
+of those candidate ids (an enum in the schema) and words the question and why. Gemini
+cannot invent a patch, and no Gemini call is made when there is no candidate.
+
 **Core ports (B5, 2026-10-17):** `ai/core_v2_ports.core_ports()` wires the routes to
 core `apply_patch_v2`, `canonical_examples_v2` (confirmation cards) and
 `make_example_v2` (decision timelines: a separating witness). A decision without a
