@@ -503,7 +503,9 @@ def test_clarify_numeric_fields_and_real_fake_sdk_flow(client: TestClient, tmp_p
     assert first.json()["results"][0]["status"] == "supported"
     assert first.json()["cached"] is False
     assert client.post("/api/v1/clarify", json=payload).json()["cached"] is True
-    assert sdk.calls == 2
+    # Parse only: with one event and no closed values no change can matter, so code
+    # finds no candidate decisions and clarify does not call Gemini at all.
+    assert sdk.calls == 1
 
 
 def test_seal_and_self_test_failure(client: TestClient) -> None:

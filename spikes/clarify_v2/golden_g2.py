@@ -13,7 +13,7 @@ from spikes.rule_ast.golden_v2 import GOLDEN, SYSTEMS
 SHOP = SYSTEMS["shop"]
 RULES = {f"R{gid[1:]}": (text, wire) for gid, _, text, wire in GOLDEN if gid in {"g1", "g2", "g3"}}
 EXPECTED_IDS = {
-    "R1": ["G1.1", "G1.2"],
+    "R1": ["G1.1", "G1.2", "G1.7"],
     "R2": ["G2.1"],
     "R3": ["G3.2", "G3.5", "G3.6"],
 }
@@ -51,7 +51,7 @@ def expected_patches(rule_id: str, rule: RuleV2) -> dict[str, Patch]:
         )
 
     if rule_id == "R1":
-        return {"G1.1": reset("refunded"), "G1.2": exclude()}
+        return {"G1.1": reset("refunded"), "G1.2": exclude(), "G1.7": reset("cancelled")}
     if rule_id == "R2":
         return {"G2.1": reset("order_created")}
     return {"G3.2": reset("refund_requested"), "G3.5": reset("cancelled"), "G3.6": exclude()}

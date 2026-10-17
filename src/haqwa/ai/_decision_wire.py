@@ -1,29 +1,17 @@
-"""Required patch wire models and rule-specific structured-output schemas."""
+"""Patch models (owner-answer edits) and the Gemini schema for choosing candidates."""
 
 from __future__ import annotations
 
-from typing import Any, Literal, Union, get_args
+from typing import Any, Literal
 
-from pydantic import (
-    BaseModel,
-    Field,
-    ModelWrapValidatorHandler,
-    PrivateAttr,
-    ValidationError,
-    create_model,
-    model_validator,
-)
+from pydantic import BaseModel, Field, create_model, model_validator
 
 from haqwa.core.rules_v2 import (
     CountNode,
     EveryFollowedWithinNode,
     EveryPrecededByNode,
     NoneAfterNode,
-    RuleV2,
-    SelectNode,
 )
-
-from .vocab import Vocabulary
 
 RESETTABLE = (CountNode, NoneAfterNode, EveryPrecededByNode, EveryFollowedWithinNode)
 
@@ -67,110 +55,38 @@ class AddExclude(_Wire):
 Patch = AddReset | AddExclude
 
 
-class WireDecision(_Wire):
-    id: str = Field(min_length=1, description="short proposal identifier")
-    question: str = Field(min_length=1, description="plain-English Yes/No; Yes adds the patch")
-    why: str = Field(min_length=1, description="why this is a real business choice")
-    patch: Patch
+MAX_DECISIONS = 4
+
+
+class WireChoice(_Wire):
+    candidate: str = Field(description="id of one listed candidate change, e.g. 'p3'")
+    question: str = Field(description="plain-English Yes/No; Yes applies it")
+    why: str = Field(description="why the owner must decide this")
+
+
+class WireChoices(_Wire):
+    decisions: list[WireChoice] = Field(max_length=MAX_DECISIONS)
 
 
 class DroppedDecision(BaseModel):
-    """One rejected proposal, retained as evidence rather than silently repaired."""
+    """One rejected choice, retained as evidence rather than silently repaired."""
 
     gemini_id: str
     reasons: list[str]
 
 
-class WireDecisions(_Wire):
-    decisions: list[WireDecision] = Field(max_length=3, description="0 to 3 real decisions")
-    _dropped: list[DroppedDecision] = PrivateAttr(default_factory=list)
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def _retain_invalid_proposals(
-        cls, value: Any, handler: ModelWrapValidatorHandler
-    ) -> WireDecisions:
-        # The schema still constrains every proposal. At the local trust boundary, a
-        # bad member becomes evidence without hiding valid siblings. Raw cached JSON
-        # passes through this same validator, so drop evidence survives cache hits.
-        if not isinstance(value, dict) or not isinstance(value.get("decisions"), list):
-            return handler(value)
-        if len(value["decisions"]) > 3:
-            return handler(value)
-        item_model = get_args(cls.model_fields["decisions"].annotation)[0]
-        valid, dropped = [], []
-        for index, proposal in enumerate(value["decisions"]):
-            try:
-                valid.append(item_model.model_validate(proposal))
-            except ValidationError as exc:
-                identifier = (
-                    proposal.get("id", f"proposal-{index + 1}")
-                    if isinstance(proposal, dict)
-                    else f"proposal-{index + 1}"
-                )
-                dropped.append(
-                    DroppedDecision(
-                        gemini_id=str(identifier),
-                        reasons=[
-                            f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()
-                        ],
-                    )
-                )
-        result = handler({**value, "decisions": valid})
-        result._dropped = dropped
-        return result
-
-
-def decision_schema(rule: RuleV2, vocab: Vocabulary) -> type[WireDecisions]:
-    """Build a nonrecursive anyOf schema with vocabulary and eligible target enums."""
-    targets = tuple(n.id for n in rule.nodes if isinstance(n, RESETTABLE))
-    selects = tuple(n.id for n in rule.nodes if isinstance(n, SelectNode))
-    patches: list[Any] = []
-    if targets:
-        patches.append(
-            create_model(
-                "DecisionAddReset",
-                __base__=AddReset,
-                node_id=(Literal[targets], Field(description="resettable check id")),
-                event=(Literal[tuple(vocab.events)], Field(description="reset event name")),
-            )
-        )
-    if selects and vocab.fields:
-        field = Literal[tuple(vocab.fields)]
-        scalar = create_model(
-            "DecisionScalarCondition",
-            __base__=ScalarCondition,
-            field=(field, Field(description="closed-value field name")),
-        )
-        membership = create_model(
-            "DecisionMembershipCondition",
-            __base__=MembershipCondition,
-            field=(field, Field(description="closed-value field name")),
-        )
-        patches.append(
-            create_model(
-                "DecisionAddExclude",
-                __base__=AddExclude,
-                select_ids=(list[Literal[selects]], Field(min_length=1)),
-                condition=(scalar | membership, Field(description="exemption condition")),
-            )
-        )
-    if not patches:
-        # A valid rule normally has selectors. An empty capability set must never
-        # widen to arbitrary targets; an empty decisions list is its only response.
-        return create_model(
-            "DecisionResponse",
-            __base__=WireDecisions,
-            decisions=(list[WireDecision], Field(max_length=0)),
-        )
-    patch_type = patches[0] if len(patches) == 1 else Union[tuple(patches)]  # noqa: UP007
-    decision = create_model(
-        "WireDecision",
-        __base__=WireDecision,
-        patch=(patch_type, Field(description="typed change if the owner answers Yes")),
+def choice_schema(candidate_ids: tuple[str, ...]) -> type[WireChoices]:
+    """Gemini may only name a listed candidate: ids are an enum built per rule."""
+    choice = create_model(
+        "WireChoice",
+        __base__=WireChoice,
+        candidate=(Literal[candidate_ids], Field(description="id of one listed candidate")),
     )
     return create_model(
-        "DecisionResponse",
-        __base__=WireDecisions,
-        decisions=(list[decision], Field(max_length=3, description="0 to 3 real decisions")),
+        "ChoiceResponse",
+        __base__=WireChoices,
+        decisions=(
+            list[choice],
+            Field(max_length=MAX_DECISIONS, description="0 to 4 real owner decisions"),
+        ),
     )

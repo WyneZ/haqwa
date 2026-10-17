@@ -25,6 +25,7 @@ from haqwa.ai.clarify_v2 import (  # noqa: E402
     AddReset,
     Decision,
     Patch,
+    enumerate_candidates,
     propose_decisions,
 )
 from haqwa.ai.client import GeminiClient, GeminiError  # noqa: E402
@@ -87,14 +88,18 @@ def _dry_answers(rule_id: str) -> list[dict[str, Any]]:
     text, wire = RULES[rule_id]
     rule = to_rule_v2(wire, rule_id=rule_id.lower(), source=text, vocab=SHOP)
     assert isinstance(rule, RuleV2)
+    # The dry run "chooses" exactly the golden candidates, by the ids code assigns.
+    ids = {
+        _patch_key(c.patch): c.id
+        for c in enumerate_candidates(rule, SHOP, core_ports().make_example)
+    }
     decisions = [
         {
-            "id": gid,
+            "candidate": ids[_patch_key(patch)],
             "question": "Should this business exception be allowed?",
-            "why": "Golden dry-run proposal; no model quality is being measured.",
-            "patch": patch.model_dump(),
+            "why": "Golden dry-run choice; no model quality is being measured.",
         }
-        for gid, patch in expected_patches(rule_id, rule).items()
+        for patch in expected_patches(rule_id, rule).values()
     ]
     return [wire.model_dump(exclude_defaults=True), {"decisions": decisions}]
 
@@ -163,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             row["error"] = str(exc)
         rows.append(row)
     found = sum(len(r["found"]) for r in rows)
+    expected = sum(len(ids) for ids in EXPECTED_IDS.values())
     noise = sum(len(r["noise"]) for r in rows)
     errors = sum("error" in r for r in rows)
     report = {
@@ -177,12 +183,12 @@ def main(argv: list[str] | None = None) -> int:
             "Question wording and its consistency with the patch require human review.",
         ],
         "found": found,
-        "expected": 6,
-        "recall": found / 6,
+        "expected": expected,
+        "recall": found / expected,
         "noise": noise,
         "dropped": sum(len(r["dropped"]) for r in rows),
         "errors": errors,
-        "passed": found == 6 and noise == 0 and errors == 0,
+        "passed": found == expected and noise == 0 and errors == 0,
         "rules": rows,
     }
     print(json.dumps(report, indent=2))
