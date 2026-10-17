@@ -1,0 +1,345 @@
+{
+  "gate": "G2",
+  "dry_run": false,
+  "fresh": false,
+  "fresh_clarify": true,
+  "model": "gemini-3.6-flash",
+  "example_builder": "core make_example_v2 (separating witness; no example -> decision dropped)",
+  "limitations": [
+    "Discovery smoke gate only; dry-run tests plumbing, not Gemini quality.",
+    "Question wording and its consistency with the patch require human review."
+  ],
+  "found": 7,
+  "expected": 7,
+  "recall": 1.0,
+  "noise": 0,
+  "dropped": 0,
+  "errors": 0,
+  "passed": true,
+  "rules": [
+    {
+      "id": "R1",
+      "source": "A customer must not be charged twice for the same order.",
+      "expected": [
+        "G1.1",
+        "G1.2",
+        "G1.7"
+      ],
+      "found": [
+        "G1.1",
+        "G1.2",
+        "G1.7"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": true,
+      "meaning": "For each order: there must be at most 1 charged event.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If a charge on an order is refunded, should charging the order again be allowed?",
+          "why": "Refunding reverses a payment, so charging again may be necessary if the order is re-processed.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "refunded"
+          },
+          "example": {
+            "label": "Reset at refunded",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "refunded",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0.5S"
+              },
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT1S"
+              }
+            ],
+            "violation": true
+          }
+        },
+        {
+          "id": "d2",
+          "question": "If an order is cancelled after being charged, should charging it again be allowed?",
+          "why": "Cancellation stops an order, but re-charging might be needed if the order is re-instated.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "cancelled"
+          },
+          "example": {
+            "label": "Reset at cancelled",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "cancelled",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0.5S"
+              },
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT1S"
+              }
+            ],
+            "violation": true
+          }
+        },
+        {
+          "id": "d3",
+          "question": "Should orders paid via installment plans be allowed to have multiple charge events?",
+          "why": "Installment payment methods require multiple recurring charges for the same order.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "charges"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "Charged 2 times",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1",
+                  "payment_type": "installment"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "charged",
+                "data": {
+                  "order_id": "example-1",
+                  "payment_type": "installment"
+                },
+                "at": "PT1S"
+              }
+            ],
+            "violation": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "source": "A cancelled order must never be shipped.",
+      "expected": [
+        "G2.1"
+      ],
+      "found": [
+        "G2.1"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": true,
+      "meaning": "For each order: once a cancelled event has happened, a shipped event must never happen.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If an order is created again after being cancelled, should it be allowed to ship?",
+          "why": "The owner must decide whether re-creating a cancelled order lifts the restriction against shipping it.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "r_none_after",
+            "event": "order_created"
+          },
+          "example": {
+            "label": "Reset at order_created",
+            "timeline": [
+              {
+                "event": "cancelled",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "order_created",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0.5S"
+              },
+              {
+                "event": "shipped",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT1S"
+              }
+            ],
+            "violation": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "source": "A refund must be completed within 24 hours of the request.",
+      "expected": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "found": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": true,
+      "meaning": "For each order: every refund requested event must be followed by a refund completed event within 24 hours (one refund completed event covers every earlier open refund requested event).",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If an order is cancelled after a refund request, should that cancel the 24-hour deadline to complete the refund?",
+          "why": "Cancelling an order may void or override open refund SLA deadlines.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "cancelled"
+          },
+          "example": {
+            "label": "Reset at cancelled",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "cancelled",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT12H0.5S"
+              },
+              {
+                "event": "refund_completed",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "P1DT1S"
+              }
+            ],
+            "violation": true
+          }
+        },
+        {
+          "id": "d2",
+          "question": "If a new refund request is submitted for an order, should it restart the 24-hour completion clock?",
+          "why": "The business owner must decide if repeat start events reset the processing timeline.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "refund_requested"
+          },
+          "example": {
+            "label": "Reset at refund_requested",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "refund_requested",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "PT12H0.5S"
+              },
+              {
+                "event": "refund_completed",
+                "data": {
+                  "order_id": "example-1"
+                },
+                "at": "P1DT1S"
+              }
+            ],
+            "violation": true
+          }
+        },
+        {
+          "id": "d3",
+          "question": "Should refund requests for installment payments be exempt from the 24-hour completion rule?",
+          "why": "Installment refunds involve third-party lenders and typically require longer processing times.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "request",
+              "completion"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "Refund completed one second late after refund requested",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {
+                  "order_id": "example-1",
+                  "payment_type": "installment"
+                },
+                "at": "PT0S"
+              },
+              {
+                "event": "refund_completed",
+                "data": {
+                  "order_id": "example-1",
+                  "payment_type": "installment"
+                },
+                "at": "P1DT1S"
+              }
+            ],
+            "violation": true
+          }
+        }
+      ]
+    }
+  ]
+}
