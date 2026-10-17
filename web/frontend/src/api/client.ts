@@ -136,8 +136,10 @@ export function applyAnswers(
  * C3 endpoint 3: core compiles the confirmed rules and replays every owner answer
  * (self-test). Throws ApiError `compile_failed` with `failures` if core disagrees.
  */
-export function sealSpec(spec: Spec): Promise<SealResponse> {
-  return USE_MOCK ? mockSeal(spec) : request<SealResponse>('/seal', { spec })
+export function sealSpec(spec: Spec, vocabulary?: TraceVocabulary): Promise<SealResponse> {
+  return USE_MOCK
+    ? mockSeal(spec)
+    : request<SealResponse>('/seal', { spec, ...(vocabulary ? { vocabulary } : {}) })
 }
 
 /** C3 endpoint 4: the demo scenarios (agents + faults). */

@@ -677,3 +677,14 @@ def test_runs_uploaded_events_and_exactly_one_source(client: TestClient) -> None
     )
     oversized = client.post("/api/v1/runs", content=b" " * 5_000_001)
     assert_problem(oversized, "invalid_request", 422)
+
+
+def test_seal_uses_request_vocabulary(client: TestClient) -> None:
+    """/seal validates v2 rules against the vocabulary the interview used."""
+    spec = {"version": 2, "rules": [V2_RULE]}
+    ok = client.post("/api/v1/seal", json={"spec": spec})
+    assert ok.status_code == 200
+    bad = client.post(
+        "/api/v1/seal", json={"spec": spec, "vocabulary": {"events": ["something_else"]}}
+    )
+    assert bad.status_code == 422
