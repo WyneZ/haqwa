@@ -21,6 +21,7 @@ SHOP_VOCAB = Vocabulary(
     ],
     fields=["order_id", "customer_id", "payment_type", "amount", "time"],
     field_values={"payment_type": ["card", "installment"]},
+    numeric_fields=["amount"],
 )
 
 

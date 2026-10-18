@@ -1,0 +1,62 @@
+[
+  {
+    "rule": "r2_count",
+    "shape": "s1",
+    "valid": true,
+    "per_ok": true,
+    "depth": 2,
+    "expected_depth": 2,
+    "unknown_names": [],
+    "matches_expected": true
+  },
+  {
+    "rule": "r2_count",
+    "shape": "s3",
+    "valid": true,
+    "per_ok": true,
+    "depth": 2,
+    "expected_depth": 2,
+    "unknown_names": [],
+    "matches_expected": true
+  },
+  {
+    "rule": "r3_sum",
+    "shape": "s1",
+    "valid": true,
+    "per_ok": true,
+    "depth": 2,
+    "expected_depth": 2,
+    "unknown_names": [],
+    "matches_expected": true
+  },
+  {
+    "rule": "r3_sum",
+    "shape": "s3",
+    "valid": true,
+    "per_ok": true,
+    "depth": 2,
+    "expected_depth": 2,
+    "unknown_names": [],
+    "matches_expected": true
+  },
+  {
+    "rule": "r4_deep",
+    "shape": "s1",
+    "valid": true,
+    "per_ok": true,
+    "depth": 2,
+    "expected_depth": 4,
+    "unknown_names": [],
+    "matches_expected": false
+  },
+  {
+    "rule": "r4_deep",
+    "shape": "s3",
+    "valid": true,
+    "per_ok": true,
+    "depth": 4,
+    "expected_depth": 4,
+    "unknown_names": [],
+    "matches_expected": false
+  }
+]

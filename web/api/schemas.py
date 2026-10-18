@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
-from haqwa.ai.clarify import Answer, Question
+from haqwa.ai.answers_v2 import AnswerV2, QuestionV2
+from haqwa.ai.extract import ExtractedRule
 from haqwa.core.events import Event
 from haqwa.core.report import Report, Violation
-from haqwa.core.spec import Rule
+from haqwa.core.rules_v2 import RuleV2
+from haqwa.core.spec import ConfirmedExample
 from haqwa.core.trace import TraceSummary
 
 NAME = r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
@@ -25,6 +27,9 @@ class VocabularyIn(BaseModel):
     field_values: dict[
         str, Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=50)]
     ] = Field(default_factory=dict, max_length=100)
+    numeric_fields: list[Annotated[str, StringConstraints(pattern=NAME)]] = Field(
+        default_factory=list, max_length=100
+    )
 
 
 class ClarifyRequest(BaseModel):
@@ -41,9 +46,10 @@ class ClarifyRequest(BaseModel):
 
 class ClarifyResult(BaseModel):
     source: str
-    status: str
-    rule: Rule | None = None
-    questions: list[Question] | None = None
+    status: Literal["supported", "unsupported"]
+    rule: RuleV2 | None = None
+    meaning: str | None = None
+    questions: list[QuestionV2] | None = None
     reason: str | None = None
 
 
@@ -53,18 +59,22 @@ class ClarifyResponse(BaseModel):
 
 
 class AnswersRequest(BaseModel):
-    rule: Rule
-    answers: list[Answer]
+    rule: RuleV2
+    answers: list[AnswerV2]
+    vocabulary: VocabularyIn | None = None
 
 
 class AnswersResponse(BaseModel):
-    rule: Rule
+    rule: RuleV2
+    meaning: str
+    confirmed_examples: list[ConfirmedExample]
     mismatches: list[str]
 
 
 class SealRequest(BaseModel):
     spec: Any
     event_map: Any | None = None
+    vocabulary: VocabularyIn | None = None
 
 
 class SealResponse(BaseModel):
@@ -110,7 +120,7 @@ class TraceResponse(BaseModel):
 
 
 class ExplainRequest(BaseModel):
-    rule: Rule
+    rule: RuleV2
     violation: Violation
 
 
@@ -122,3 +132,16 @@ class ExplainResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     ok: bool
+
+
+class PolicyDocumentRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=1_400_000)  # about 1 MB of file
+
+
+class PolicyDocumentResponse(BaseModel):
+    filename: str
+    kind: str
+    chars: int
+    rules: list[ExtractedRule]
+    cached: bool

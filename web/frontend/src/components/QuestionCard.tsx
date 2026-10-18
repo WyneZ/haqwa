@@ -1,8 +1,8 @@
-import type { Question } from '../api/types'
+import type { QuestionV2 } from '../api/types'
 import { entityCount, plainWords, timelineLabels } from '../lib/words'
 
 interface Props {
-  question: Question
+  question: QuestionV2
   index: number // 0-based
   total: number
   noun: string // "order"
@@ -66,6 +66,10 @@ export function QuestionCard({
       <h2 id="q-title" className="card__question">
         {plainWords(question.text)}
       </h2>
+
+      {question.kind === 'decision' && question.why && (
+        <p className="card__lead">{question.why}</p>
+      )}
 
       <div className="card__actions">
         <button type="button" className="btn btn--yes" onClick={() => onAnswer(true)}>

@@ -1,7 +1,7 @@
 /**
  * The ONLY place the UI talks to the server.
  *
- * Mock mode (default until the FastAPI app exists) answers from real data in
+ * Mock mode (default for the demo) answers from recorded data in
  * `fixtures.ts` and `runFixtures.ts`. Set VITE_USE_MOCK=false (e.g. in
  * web/frontend/.env.local) to call the real `/api/v1` endpoints. Screens never know
  * which one they are using.
@@ -14,11 +14,12 @@ import {
   mockExplain,
   mockGetAgentSession,
   mockListScenarios,
+  mockPolicyDocument,
   mockRun,
   mockSeal,
 } from './mocks'
 import type {
-  Answer,
+  AnswerV2,
   AnswersResponse,
   AgentFault,
   AgentSession,
@@ -27,7 +28,8 @@ import type {
   ClarifyResponse,
   Explanation,
   LogEvent,
-  Rule,
+  PolicyDocumentResult,
+  RuleV2,
   RunResponse,
   Scenario,
   SealResponse,
@@ -37,6 +39,8 @@ import type {
   TraceVocabulary,
   Violation,
 } from './types'
+
+import { fileToBase64, MAX_POLICY_BYTES } from '../lib/policyFile'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 const BASE = '/api/v1'
@@ -90,6 +94,21 @@ export function clarifyRules(
     : request<ClarifyResponse>('/clarify', { rules, ...(vocabulary ? { vocabulary } : {}) })
 }
 
+/**
+ * Upload one policy document (.txt, .md, .docx, .pdf; not stored) and get the rules found
+ * in it. The owner picks which ones to use; nothing is parsed or checked here.
+ */
+export async function readPolicyDocument(file: File): Promise<PolicyDocumentResult> {
+  if (file.size > MAX_POLICY_BYTES) {
+    throw new Error('The file is larger than 1 MB. Upload only the policy section.')
+  }
+  if (USE_MOCK) return mockPolicyDocument(file.name)
+  return request<PolicyDocumentResult>('/policy-documents', {
+    filename: file.name,
+    content_base64: await fileToBase64(file),
+  })
+}
+
 /** C3 trace summary; mock mode mirrors only the fields needed for presentation. */
 export async function summarizeTrace(events: unknown[], extraEvents: string[]): Promise<TraceSummary> {
   if (!USE_MOCK) {
@@ -124,18 +143,22 @@ export async function summarizeTrace(events: unknown[], extraEvents: string[]): 
 }
 
 /** C3 endpoint 2: one rule + the owner's Yes/No answers -> updated rule. */
-export function applyAnswers(rule: Rule, answers: Answer[]): Promise<AnswersResponse> {
+export function applyAnswers(
+  rule: RuleV2, answers: AnswerV2[], vocabulary?: TraceVocabulary,
+): Promise<AnswersResponse> {
   return USE_MOCK
     ? mockApplyAnswers(rule, answers)
-    : request<AnswersResponse>('/answers', { rule, answers })
+    : request<AnswersResponse>('/answers', { rule, answers, ...(vocabulary ? { vocabulary } : {}) })
 }
 
 /**
  * C3 endpoint 3: core compiles the confirmed rules and replays every owner answer
  * (self-test). Throws ApiError `compile_failed` with `failures` if core disagrees.
  */
-export function sealSpec(spec: Spec): Promise<SealResponse> {
-  return USE_MOCK ? mockSeal(spec) : request<SealResponse>('/seal', { spec })
+export function sealSpec(spec: Spec, vocabulary?: TraceVocabulary): Promise<SealResponse> {
+  return USE_MOCK
+    ? mockSeal(spec)
+    : request<SealResponse>('/seal', { spec, ...(vocabulary ? { vocabulary } : {}) })
 }
 
 /** C3 endpoint 4: the demo scenarios (agents + faults). */
@@ -186,7 +209,7 @@ export function checkEvents(spec: Spec, events: LogEvent[]): Promise<RunResponse
 }
 
 /** C3 endpoint 6: plain-English explanation of one violation. Advisory only. */
-export function explainViolation(rule: Rule, violation: Violation): Promise<Explanation> {
+export function explainViolation(rule: RuleV2, violation: Violation): Promise<Explanation> {
   return USE_MOCK
     ? mockExplain(rule, violation)
     : request<Explanation>('/explain', { rule, violation })

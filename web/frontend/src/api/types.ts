@@ -1,8 +1,7 @@
 /**
- * C3 Web API shapes (docs/contracts.md, LOCKED 2026-09-28).
+ * C3 v2 Web API shapes (docs/contracts.md, DRAFT 2026-10-16).
  *
- * Hand-written for now. When the FastAPI app exists, these are generated from its
- * OpenAPI schema (decision 2026-09-29) and this file is replaced.
+ * Hand-written until the agreed OpenAPI generation step. Rules use only the v2 AST.
  */
 
 export type Scalar = string | number | boolean
@@ -11,71 +10,145 @@ export interface TimelineEvent {
   event: string
   data: Record<string, Scalar>
   /** Offset from the first event, ISO 8601 duration (e.g. "P1DT1H"). Set by core for time rules. */
-  at?: string
+  at?: string | null
 }
 
-export interface Condition {
+export interface ConditionV2 {
   field: string
-  op: 'eq' | 'ne' | 'in'
+  op: 'eq' | 'ne' | 'in' | 'gt' | 'ge' | 'lt' | 'le'
   value: Scalar | Scalar[]
 }
-
-export type RuleException = { reset_after: string } | { allow_if: Condition }
 
 export interface ConfirmedExample {
   timeline: TimelineEvent[]
   violation: boolean
 }
 
-export type Pattern = 'at_most_once' | 'never_after' | 'must_precede' | 'within_time'
+export interface SelectNode {
+  id: string
+  type: 'select'
+  event: string
+  where: ConditionV2[]
+  exclude: ConditionV2[]
+}
 
-/** C1 rule. Pattern-specific fields are optional here; `pattern` says which are set. */
-export interface Rule {
+export interface CountNode {
+  id: string
+  type: 'count'
+  of: string
+  op: 'le' | 'lt' | 'eq' | 'ge'
+  value: number
+  since: string[]
+}
+
+export interface NoneAfterNode {
+  id: string
+  type: 'none_after'
+  of: string
+  after: string
+  since: string[]
+}
+
+export interface EveryPrecededByNode {
+  id: string
+  type: 'every_preceded_by'
+  of: string
+  by: string
+  since: string[]
+}
+
+export interface EveryFollowedWithinNode {
+  id: string
+  type: 'every_followed_within'
+  start: string
+  by: string
+  within: string
+  since: string[]
+}
+
+export interface SumCompareNode {
+  id: string
+  type: 'sum_compare'
+  left: { of: string; field: string }
+  op: Exclude<ConditionV2['op'], 'in'>
+  right: { of: string; field: string }
+}
+
+export interface FieldCompareNode {
+  id: string
+  type: 'field_compare'
+  of: string
+  a: string
+  op: 'eq' | 'ne'
+  b: string
+}
+
+export interface AllOfNode {
+  id: string
+  type: 'all_of'
+  children: string[]
+}
+
+export type NodeV2 = SelectNode | CountNode | NoneAfterNode | EveryPrecededByNode
+  | EveryFollowedWithinNode | SumCompareNode | FieldCompareNode | AllOfNode
+
+export interface RuleV2 {
   id: string
   source: string
-  pattern: Pattern
+  version: 2
   per: string
-  event: string
-  after?: string
-  requires?: string
-  start?: string
-  within?: string // ISO 8601 duration, e.g. "PT24H" or "P1D"
-  except: RuleException[]
-  confirmed_examples: ConfirmedExample[]
+  root: string
+  nodes: NodeV2[]
 }
 
-export interface Question {
+/** B2 target shape; the sidecar-to-rule bridge lives only in lib/specRule.ts. */
+export type SpecRule = RuleV2 & { confirmed_examples: ConfirmedExample[] }
+
+export type PatchCondition =
+  | { field: string; op: 'eq' | 'ne'; value: string }
+  | { field: string; op: 'in'; values: string[] }
+
+export type Patch =
+  | { op: 'add_reset'; node_id: string; event: string }
+  | { op: 'add_exclude'; select_ids: string[]; condition: PatchCondition }
+
+interface QuestionBase {
   id: string // "d1", "d2" … decisions; "c1", "c2" … confirmations
-  kind: 'decision' | 'confirmation'
   text: string
   timeline: TimelineEvent[]
-  if_yes?: RuleException // decision only
-  expected_violation?: boolean // confirmation only
 }
 
+export type QuestionV2 = QuestionBase & (
+  | { kind: 'decision'; why: string | null; patch: Patch; expected_violation: null }
+  | { kind: 'confirmation'; why: null; patch: null; expected_violation: boolean }
+)
+
 export type ClarifyResult =
-  | { source: string; status: 'supported'; rule: Rule; questions: Question[] }
-  | { source: string; status: 'unsupported'; reason: string }
+  | { source: string; status: 'supported'; rule: RuleV2; meaning: string; questions: QuestionV2[]; reason: null }
+  | { source: string; status: 'unsupported'; rule: null; meaning: null; questions: null; reason: string | null }
 
 export interface ClarifyResponse {
   cached: boolean
   results: ClarifyResult[]
 }
 
-export interface Answer {
-  question: Question
+export interface AnswerV2 {
+  question: QuestionV2
   allowed: boolean
 }
 
 export interface AnswersResponse {
-  rule: Rule
+  rule: RuleV2
+  /** Code-rendered meaning of the UPDATED rule (after Yes decisions). What core will enforce. */
+  meaning: string
+  confirmed_examples: ConfirmedExample[]
   mismatches: string[]
 }
 
 /** C1 spec: what screen 1 hands to screen 2. */
 export interface Spec {
-  version: 1
-  rules: Rule[]
+  version: 2
+  rules: SpecRule[]
 }
 
 /** C3 endpoint 4: one demo scenario (Track B `demo.list_scenarios()`). */
@@ -118,6 +191,7 @@ export interface TraceVocabulary {
   events: string[]
   fields: string[]
   field_values: Record<string, string[]>
+  numeric_fields?: string[]
 }
 
 export interface TraceSummary {
@@ -197,4 +271,19 @@ export interface ApiProblem {
   detail?: string
   code?: string
   failures?: SelfTestFailure[] // compile_failed only
+}
+
+/** One rule found in an uploaded policy document, with the document text behind it. */
+export interface ExtractedRule {
+  text: string
+  quote: string
+}
+
+/** POST /policy-documents: the rules Gemini found; every quote is verified in the document. */
+export interface PolicyDocumentResult {
+  filename: string
+  kind: 'text' | 'docx' | 'pdf'
+  chars: number
+  rules: ExtractedRule[]
+  cached: boolean
 }

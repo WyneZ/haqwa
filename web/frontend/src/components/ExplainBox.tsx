@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { explainViolation, friendlyError } from '../api/client'
-import type { Rule, Violation } from '../api/types'
+import type { RuleV2, Violation } from '../api/types'
 import { usePersistentState } from '../lib/persist'
 
 interface Props {
-  rule: Rule
+  rule: RuleV2
   violation: Violation
 }
 
