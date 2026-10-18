@@ -2,7 +2,7 @@
  * Turn rule/event names into plain words for a non-technical policy owner.
  * Presentation only: no rule logic lives here.
  */
-import type { Rule, RuleException, TimelineEvent } from '../api/types'
+import type { NodeV2, Patch, RuleV2, TimelineEvent } from '../api/types'
 
 /** "refund_requested" -> "Refund requested" */
 export function humanize(name: string): string {
@@ -15,7 +15,7 @@ export function humanize(name: string): string {
  * or no offset -> "".
  * Same short form as core's `fmt_duration`, so cards and core messages read alike.
  */
-export function offsetText(at?: string): string {
+export function offsetText(at?: string | null): string {
   if (!at) return ''
   const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)(?:\.\d+)?S)?)?$/.exec(at)
   if (!m) return ''
@@ -132,13 +132,34 @@ export function entityNoun(per: string): string {
 }
 
 /** Short title for the rule list, e.g. "No double charge" -> falls back to the id. */
-export function ruleTitle(rule: Pick<Rule, 'id'>): string {
+export function ruleTitle(rule: Pick<RuleV2, 'id'>): string {
   return humanize(rule.id.replace(/-/g, ' '))
 }
 
-/** Technical one-liner for an exception, shown only under "Show technical details". */
-export function exceptionText(e: RuleException): string {
-  if ('reset_after' in e) return `reset_after: ${e.reset_after}`
-  const { field, op, value } = e.allow_if
-  return `allow_if: ${field} ${op} ${Array.isArray(value) ? value.join(', ') : String(value)}`
+/** Display a proposed patch, without applying it or generating a rule's meaning. */
+export function patchText(patch: Patch): string {
+  if (patch.op === 'add_reset') return `Reset after ${plainWords(patch.event)}.`
+  const condition = patch.condition
+  const op = { eq: 'is', ne: 'is not', in: 'is one of' }[condition.op]
+  const value = condition.op === 'in' ? condition.values.join(', ') : condition.value
+  return `Ignore events where ${plainWords(condition.field)} ${op} ${value}.`
+}
+
+/** Exact AST parameters for technical details; no evaluation or English meaning rendering. */
+export function nodeText(node: NodeV2): string {
+  const since = 'since' in node ? ` since [${node.since.join(', ')}]` : ''
+  let detail: string
+  switch (node.type) {
+    case 'select':
+      detail = `select(event=${node.event}) where ${JSON.stringify(node.where)} exclude ${JSON.stringify(node.exclude)}`
+      break
+    case 'count': detail = `count(of=${node.of}) ${node.op} ${node.value}`; break
+    case 'none_after': detail = `none_after(of=${node.of}, after=${node.after})`; break
+    case 'every_preceded_by': detail = `every_preceded_by(of=${node.of}, by=${node.by})`; break
+    case 'every_followed_within': detail = `every_followed_within(start=${node.start}, by=${node.by}, within=${node.within})`; break
+    case 'sum_compare': detail = `sum_compare(${node.left.of}.${node.left.field} ${node.op} ${node.right.of}.${node.right.field})`; break
+    case 'field_compare': detail = `field_compare(of=${node.of}, ${node.a} ${node.op} ${node.b})`; break
+    case 'all_of': detail = `all_of(children=[${node.children.join(', ')}])`; break
+  }
+  return `${node.id}: ${detail}${since}`
 }

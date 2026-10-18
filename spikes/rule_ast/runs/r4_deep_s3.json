@@ -1,0 +1,6 @@
+{
+  "model": "gemini-3.6-flash",
+  "shape": "s3",
+  "rule": "If an order is refunded, it must have been charged at least once, and the total refunded amount must not exceed the total charged amount.",
+  "response": "{\"per\":\"order_id\",\"root_id\":\"n1\",\"nodes\":[{\"id\":\"n1\",\"op\":\"or\",\"child_ids\":[\"n2\",\"n3\"]},{\"id\":\"n2\",\"op\":\"not\",\"child_ids\":[\"n6\"]},{\"id\":\"n3\",\"op\":\"and\",\"child_ids\":[\"n9\",\"n12\"]},{\"id\":\"n4\",\"op\":\"count\",\"event\":\"refunded\"},{\"id\":\"n5\",\"op\":\"const\",\"value\":0},{\"id\":\"n6\",\"op\":\"compare\",\"cmp\":\"gt\",\"child_ids\":[\"n4\",\"n5\"]},{\"id\":\"n7\",\"op\":\"count\",\"event\":\"charged\"},{\"id\":\"n8\",\"op\":\"const\",\"value\":1},{\"id\":\"n9\",\"op\":\"compare\",\"cmp\":\"ge\",\"child_ids\":[\"n7\",\"n8\"]},{\"id\":\"n10\",\"op\":\"sum\",\"event\":\"refunded\",\"field\":\"amount\"},{\"id\":\"n11\",\"op\":\"sum\",\"event\":\"charged\",\"field\":\"amount\"},{\"id\":\"n12\",\"op\":\"compare\",\"cmp\":\"le\",\"child_ids\":[\"n10\",\"n11\"]}]}"
+}

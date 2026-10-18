@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import INVALID_EVENTS, HaqwaError
 from .events import Event
@@ -21,6 +21,7 @@ class TraceVocabulary(BaseModel):
     events: list[str]
     fields: list[str]
     field_values: dict[str, list[str]]
+    numeric_fields: list[str] = Field(default_factory=list, exclude_if=lambda value: not value)
 
 
 class TraceSummary(BaseModel):
@@ -32,6 +33,7 @@ class TraceSummary(BaseModel):
     last_ts: datetime | None
     fields: list[str]
     field_values: dict[str, list[str]]
+    numeric_fields: list[str] = Field(default_factory=list, exclude_if=lambda value: not value)
     entity_candidates: list[str]
     vocabulary: TraceVocabulary
 
@@ -42,6 +44,8 @@ def summarize_trace(events: Iterable[Event], *, extra_events: Iterable[str] = ()
     presence: Counter[str] = Counter()
     values: dict[str, set[str]] = {}
     open_fields: set[str] = set()
+    observed_numeric: set[str] = set()
+    observed_non_numeric: set[str] = set()
     first_ts: datetime | None = None
     last_ts: datetime | None = None
     count = 0
@@ -54,6 +58,11 @@ def summarize_trace(events: Iterable[Event], *, extra_events: Iterable[str] = ()
         last_ts = event.ts if last_ts is None else max(last_ts, event.ts)
         for field, value in event.data.items():
             presence[field] += 1
+            if value is not None:
+                if type(value) in (int, float):
+                    observed_numeric.add(field)
+                else:
+                    observed_non_numeric.add(field)
             if field.endswith("_id") or not isinstance(value, str):
                 open_fields.add(field)
                 continue
@@ -62,6 +71,7 @@ def summarize_trace(events: Iterable[Event], *, extra_events: Iterable[str] = ()
             if len(field_values) > MAX_CLOSED_VALUES:
                 open_fields.add(field)
     fields = sorted(presence)
+    numeric_fields = sorted(observed_numeric - observed_non_numeric)
     closed = {field: sorted(values[field]) for field in fields if field not in open_fields}
     event_counts = dict(sorted(counts.items()))
     return TraceSummary(
@@ -71,10 +81,14 @@ def summarize_trace(events: Iterable[Event], *, extra_events: Iterable[str] = ()
         last_ts=last_ts,
         fields=fields,
         field_values=closed,
+        numeric_fields=numeric_fields,
         entity_candidates=[
             field for field in fields if field.endswith("_id") and presence[field] * 10 >= count * 9
         ],
         vocabulary=TraceVocabulary(
-            events=sorted(set(event_counts).union(extra_events)), fields=fields, field_values=closed
+            events=sorted(set(event_counts).union(extra_events)),
+            fields=fields,
+            field_values=closed,
+            numeric_fields=numeric_fields,
         ),
     )

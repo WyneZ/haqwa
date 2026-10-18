@@ -1,0 +1,220 @@
+{
+  "gate": "G2",
+  "dry_run": false,
+  "fresh": true,
+  "model": "gemini-3.6-flash",
+  "example_builder": "placeholder; no boundary or patch-application validation",
+  "limitations": [
+    "Discovery smoke gate only; dry-run tests plumbing, not Gemini quality.",
+    "Track B must define and verify restart-on-start (G3.2) semantics.",
+    "Question wording and its consistency with the patch require human review."
+  ],
+  "found": 6,
+  "expected": 6,
+  "recall": 1.0,
+  "noise": 0,
+  "dropped": 0,
+  "errors": 0,
+  "passed": true,
+  "rules": [
+    {
+      "id": "R1",
+      "source": "A customer must not be charged twice for the same order.",
+      "expected": [
+        "G1.1",
+        "G1.2"
+      ],
+      "found": [
+        "G1.1",
+        "G1.2"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: there must be at most 1 charged event.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "Does refunding an order reset the limit, allowing a new charge for the same order?",
+          "why": "If a transaction is refunded, a merchant may need to process a replacement charge for the same order.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "refunded"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "Are installment payment plans exempt from the single-charge limit?",
+          "why": "Installment payment plans intentionally charge a customer multiple times for a single order.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "charged"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "charged",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "source": "A cancelled order must never be shipped.",
+      "expected": [
+        "G2.1"
+      ],
+      "found": [
+        "G2.1"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: once a cancelled event has happened, a shipped event must never happen.",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "If an order is created or re-opened after being cancelled, does that lift the ban and allow it to be shipped?",
+          "why": "Re-creating or re-opening an order after cancellation is a business workflow where shipping should be permitted again under the same order timeline.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "order_created"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "shipped",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "source": "A refund must be completed within 24 hours of the request.",
+      "expected": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "found": [
+        "G3.2",
+        "G3.5",
+        "G3.6"
+      ],
+      "missing": [],
+      "noise": [],
+      "dropped": [],
+      "parse_cached": false,
+      "meaning": "For each order: every refund requested event must be followed by a refund completed event within 24 hours (one refund completed event covers every earlier open refund requested event).",
+      "clarify_cached": false,
+      "decisions": [
+        {
+          "id": "d1",
+          "question": "Does cancelling an order remove the 24-hour deadline to complete a refund?",
+          "why": "If an order is cancelled, completing a refund under this specific timeline rule may no longer be required or applicable.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "cancelled"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d2",
+          "question": "If a refund is requested again before completion, does the 24-hour deadline restart from the new request?",
+          "why": "A subsequent refund request could supersede the initial request and reset the timer.",
+          "patch": {
+            "op": "add_reset",
+            "node_id": "rule",
+            "event": "refund_requested"
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        },
+        {
+          "id": "d3",
+          "question": "Should orders paid via installment plans be exempt from the 24-hour refund completion requirement?",
+          "why": "Installment payments typically involve external payment gateways or financing partners that require extra processing time.",
+          "patch": {
+            "op": "add_exclude",
+            "select_ids": [
+              "start",
+              "finish"
+            ],
+            "condition": {
+              "field": "payment_type",
+              "op": "eq",
+              "value": "installment"
+            }
+          },
+          "example": {
+            "label": "PLACEHOLDER ONLY: no core boundary timeline or verdict was checked",
+            "timeline": [
+              {
+                "event": "refund_requested",
+                "data": {},
+                "at": null
+              }
+            ],
+            "violation": false
+          }
+        }
+      ]
+    }
+  ]
+}
