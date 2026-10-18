@@ -14,6 +14,7 @@ import { QuestionCard } from '../components/QuestionCard'
 import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
 import { TraceSummaryCard } from '../components/TraceSummaryCard'
+import { LiveVocabularyForm } from '../components/LiveVocabularyForm'
 import { usePersistentState } from '../lib/persist'
 import { toSpecRule } from '../lib/specRule'
 import { HR_NAME, HR_RULES, type Source } from '../lib/source'
@@ -47,9 +48,10 @@ interface Props {
 }
 
 export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onDone }: Props) {
-  const [choice, setChoice] = useState<'shop' | 'hr' | 'upload'>(
-    source.kind === 'shop' ? 'shop' : source.name === HR_NAME ? 'hr' : 'upload',
+  const [choice, setChoice] = usePersistentState<'upload' | 'live' | 'demo' | null>(
+    'evidence.choice', source.kind === 'trace' ? (source.name === HR_NAME ? 'demo' : 'upload') : source.kind === 'live' ? 'live' : null,
   )
+  const [demo, setDemo] = usePersistentState<'shop' | 'hr'>('evidence.demo', source.kind === 'trace' && source.name === HR_NAME ? 'hr' : 'shop')
   const [sourceBusy, setSourceBusy] = useState(false)
   const [sourceError, setSourceError] = useState<string | null>(null)
   const choiceRequest = useRef(0)
@@ -79,7 +81,9 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
   async function understand() {
     const requestId = choiceRequest.current
     const rules = text.split('\n').map((l) => l.trim()).filter(Boolean)
-    const vocabulary = source.kind === 'trace' ? source.summary.vocabulary : null
+    const vocabulary = source.kind === 'trace'
+      ? source.summary.vocabulary
+      : source.kind === 'live' ? source.vocabulary : null
     setLoading(true)
     setLoadError(null)
     try {
@@ -182,19 +186,24 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
     onSourceChange({ kind: 'trace', name, summary, extraEvents }, log)
   }
 
-  async function choose(next: 'shop' | 'hr' | 'upload') {
+  function choose(next: 'upload' | 'live' | 'demo') {
     const requestId = ++choiceRequest.current
     setChoice(next)
     setSourceBusy(false)
     setSourceError(null)
     clearInterview()
     onSourceChange({ kind: 'shop' }, null)
-    if (next === 'shop') {
-      return
-    }
-    if (next === 'upload') {
-      return
-    }
+    if (next === 'demo' && demo === 'hr') void chooseDemo('hr', requestId)
+  }
+
+  async function chooseDemo(next: 'shop' | 'hr', existingRequest?: number) {
+    const requestId = existingRequest ?? ++choiceRequest.current
+    setDemo(next)
+    setSourceBusy(false)
+    setSourceError(null)
+    clearInterview()
+    onSourceChange({ kind: 'shop' }, null)
+    if (next === 'shop') return
     setSourceBusy(true)
     try {
       await loadTrace(HR_NAME, await readHrSample(), ['payroll_run'], requestId)
@@ -332,49 +341,58 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
       <main className="layout layout--evidence">
         <section className="card source-picker" aria-labelledby="source-title">
           <h1 id="source-title" className="card__title">Choose evidence for your policy</h1>
-          <div className="source-picker__options">
-            <label>
-              <input type="radio" name="source" checked={choice === 'shop'} onChange={() => void choose('shop')} />
-              Online shop demo
-            </label>
-            <label>
-              <input type="radio" name="source" checked={choice === 'hr'} onChange={() => void choose('hr')} />
-              HR leave sample
-            </label>
-            <label>
-              <input type="radio" name="source" checked={choice === 'upload'} onChange={() => void choose('upload')} />
-              Your own events (JSON)
-            </label>
+          <div className="evidence-choices" role="group" aria-label="Evidence choices">
+            <button type="button" className={`evidence-card${choice === 'upload' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'upload'} onClick={() => choose('upload')}>
+              <span className="evidence-card__letter">A</span><strong>Upload an event log (JSON)</strong>
+              <span>Use events your agent already recorded.</span>
+            </button>
+            <button type="button" className={`evidence-card${choice === 'live' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'live'} onClick={() => choose('live')}>
+              <span className="evidence-card__letter">B</span><strong>Connect my agent (live)</strong>
+              <span>Name the events your agent will send while you test.</span>
+            </button>
+            <button type="button" className={`evidence-card${choice === 'demo' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'demo'} onClick={() => choose('demo')}>
+              <span className="evidence-card__letter">C</span><strong>Try a demo</strong>
+              <span>Explore with Online shop or HR events.</span>
+            </button>
           </div>
           {choice === 'upload' && (
-            <input
-              type="file"
-              accept=".json,application/json"
-              aria-label="Choose events file"
-              onChange={(event) => void upload(event)}
-            />
+            <div className="evidence-detail">
+              <input type="file" accept=".json,application/json" aria-label="Choose events file" onChange={(event) => void upload(event)} />
+              <details>
+                <summary>Event JSON format</summary>
+                <code>{'[{"event": "leave_requested", "ts": "2026-09-01T09:00:00Z", "data": {"leave_id": "L-1"}}]'}</code>
+              </details>
+              {source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
+            </div>
           )}
-          {choice !== 'shop' && (
-            <details>
-              <summary>Event JSON format</summary>
-              <code>{'[{"event": "leave_requested", "ts": "2026-09-01T09:00:00Z", "data": {"leave_id": "L-1"}}]'}</code>
-            </details>
+          {choice === 'live' && (
+            <div className="evidence-detail">
+              <LiveVocabularyForm onUse={(vocabulary) => {
+                ++choiceRequest.current
+                clearInterview()
+                onSourceChange({ kind: 'live', vocabulary }, null)
+                onPhaseChange('meaning')
+              }} />
+            </div>
+          )}
+          {choice === 'demo' && (
+            <div className="evidence-detail">
+              <p>Demo agents only know the demo events; use A or B for your own policy.</p>
+              <div className="demo-options" role="group" aria-label="Demo events">
+                <button type="button" className={`btn ${demo === 'shop' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={demo === 'shop'} onClick={() => void chooseDemo('shop')}>Online shop</button>
+                <button type="button" className={`btn ${demo === 'hr' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={demo === 'hr'} onClick={() => void chooseDemo('hr')}>HR</button>
+              </div>
+              <button type="button" className="btn btn--ghost" onClick={() => { setText(demo === 'shop' ? DEMO_POLICY : HR_RULES); clearInterview(); onPhaseChange('policy') }}>Use the demo policy</button>
+              {demo === 'hr' && source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
+            </div>
           )}
           {sourceBusy && <p className="card__lead" role="status">Reading events…</p>}
           {sourceError && <p className="notice notice--error" role="alert">{sourceError}</p>}
-          {source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
           <div className="upload__actions">
             <button type="button" className="btn btn--link" onClick={() => { editRules(); onPhaseChange('policy') }}>
               ← Edit policy
             </button>
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={sourceBusy || (choice !== 'shop' && source.kind !== 'trace')}
-              onClick={() => onPhaseChange('meaning')}
-            >
-              Next: understand policy →
-            </button>
+            {choice !== 'live' && <button type="button" className="btn btn--primary" disabled={sourceBusy || !choice || (choice === 'upload' && source.kind !== 'trace') || (choice === 'demo' && demo === 'hr' && source.kind !== 'trace')} onClick={() => onPhaseChange('meaning')}>Next: understand policy →</button>}
           </div>
         </section>
       </main>
@@ -479,8 +497,10 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
                   ? 'Haqwa will check your confirmed rules. The rules listed below will not be checked.'
                   : 'Haqwa will check the rules you confirmed.'
                 : source.kind === 'shop'
-                  ? 'The online shop demo only knows its existing events. To check a new process, choose Your own events (JSON) and upload a trace containing those events.'
-                  : 'The uploaded events do not provide a checkable rule. Edit your policy or upload a trace with the events it describes.'}
+                  ? 'The online shop demo only knows its existing events. Choose A or B to check your own policy.'
+                  : source.kind === 'live'
+                    ? 'The event names you listed do not provide a checkable rule. Edit your policy or change the event names.'
+                    : 'The uploaded events do not provide a checkable rule. Edit your policy or upload a trace with the events it describes.'}
             </p>
             {confirmedCount > 0 && (
               <ol className="confirmed">

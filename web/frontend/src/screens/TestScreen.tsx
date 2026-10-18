@@ -85,8 +85,10 @@ export function TestScreen({
     run &&
     (source.kind === 'trace'
       ? run.source.kind === 'trace'
-      : run.source.kind === 'agent' ||
-        (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id))
+      : source.kind === 'shop' && (
+          run.source.kind === 'agent' ||
+          (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id)
+        ))
       ? run
       : null
   const kinds = shown?.response.report.results.map(verdictKind) ?? []
@@ -94,6 +96,7 @@ export function TestScreen({
   const untested = kinds.filter((k) => k === 'untested').length
 
   async function start() {
+    if (source.kind === 'live') return
     if (source.kind === 'shop' && !chosen) return
     if (source.kind === 'trace' && !events) return
     setRunning(true)
@@ -170,9 +173,11 @@ export function TestScreen({
             H
           </span>
           <p>
-            {source.kind === 'trace'
-              ? "I'll check every event in your log against your rules. The checker decides; the AI only explains."
-              : 'Pick a run to check. Scripted agents show the classic mistakes; live runs are a real Gemini agent that we recorded.'}
+            {source.kind === 'live'
+              ? 'Your agent can send these events during a live test.'
+              : source.kind === 'trace'
+                ? "I'll check every event in your log against your rules. The checker decides; the AI only explains."
+                : 'Pick a run to check. Scripted agents show the classic mistakes; live runs are a real Gemini agent that we recorded.'}
           </p>
         </div>
 
@@ -186,6 +191,13 @@ export function TestScreen({
           <p className="notice notice--loading" role="status">
             Loading demo runs…
           </p>
+        )}
+
+        {source.kind === 'live' && (
+          <section className="card test-picker">
+            <h2 className="card__title">Connect my agent</h2>
+            <p className="card__lead">Live activity will appear here when you connect your agent.</p>
+          </section>
         )}
 
         {source.kind === 'trace' && (
