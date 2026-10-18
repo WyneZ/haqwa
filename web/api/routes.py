@@ -17,10 +17,11 @@ from haqwa.ai.document import DocumentError, extract_text
 from haqwa.ai.explain import explain_violation
 from haqwa.ai.extract import extract_rules
 from haqwa.ai.parse_v2 import parse_v2
+from haqwa.ai.suggest import suggest_vocabulary
 from haqwa.ai.vocab import Vocabulary
 from haqwa.core.checker import check
 from haqwa.core.compiler import compile_spec
-from haqwa.core.errors import INVALID_REQUEST, INVALID_SPEC, HaqwaError
+from haqwa.core.errors import GEMINI_BAD_OUTPUT, INVALID_REQUEST, INVALID_SPEC, HaqwaError
 from haqwa.core.events import parse_event_map, parse_events
 from haqwa.core.spec import dump_spec, parse_spec, suggest_rule_id
 from haqwa.core.trace import TraceVocabulary, summarize_trace
@@ -42,6 +43,8 @@ from .schemas import (
     ScenarioResponse,
     SealRequest,
     SealResponse,
+    SuggestRequest,
+    SuggestResponse,
     TraceRequest,
     TraceResponse,
     VocabularyIn,
@@ -53,6 +56,18 @@ router = APIRouter(prefix="/api/v1")
 def get_client(request: Request) -> GeminiClient:
     """Return the app's shared Gemini client; overridden in isolated API tests."""
     return request.app.state.gemini_client
+
+
+@router.post("/vocabulary/suggest", response_model=SuggestResponse)
+def suggest_events(
+    request: SuggestRequest, client: Annotated[GeminiClient, Depends(get_client)]
+) -> SuggestResponse:
+    """Suggest event and field names for an editable live-agent vocabulary."""
+    try:
+        suggestion = suggest_vocabulary(request.policy, client=client)
+    except GeminiBadOutput as exc:
+        raise HaqwaError(GEMINI_BAD_OUTPUT, "Gemini returned unusable suggestions") from exc
+    return SuggestResponse.model_validate(suggestion.model_dump())
 
 
 def get_settings(request: Request) -> Settings:

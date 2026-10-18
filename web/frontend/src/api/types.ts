@@ -303,3 +303,14 @@ export interface PolicyDocumentResult {
   rules: ExtractedRule[]
   cached: boolean
 }
+
+export interface SuggestedEvent {
+  name: string
+  description: string
+}
+
+export interface SuggestedVocabulary {
+  events: SuggestedEvent[]
+  entity_field: string
+  fields: string[]
+}

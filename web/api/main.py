@@ -121,6 +121,7 @@ def create_app() -> FastAPI:
             "/api/v1/clarify",
             "/api/v1/explain",
             "/api/v1/policy-documents",
+            "/api/v1/vocabulary/suggest",
         ):
             try:
                 api.state.rate_limiter.check(client_ip(request))

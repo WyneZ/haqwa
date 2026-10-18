@@ -195,7 +195,7 @@ export function TestScreen({
         )}
 
         {source.kind === 'live' && (
-          <LiveEventsCard spec={spec} vocabulary={source.vocabulary} onRun={onRun} onSeeResults={onSeeResults} />
+          <LiveEventsCard spec={spec} vocabulary={source.vocabulary} suggestedEvents={source.suggestedEvents} onRun={onRun} onSeeResults={onSeeResults} />
         )}
 
         {source.kind === 'trace' && (

@@ -66,19 +66,26 @@ let agentPollCount = 0
 
 let eventsSession: EventsSession | null = null
 let eventsVocabulary: TraceVocabulary | null = null
+let eventsPollCount = 0
+
+const DISCOVERY_EVENTS: LogEvent[] = [
+  { event: 'order_approved', ts: '2026-10-18T00:00:00Z', data: { order_id: 'A-1', amount: 50 } },
+  { event: 'payment_captured', ts: '2026-10-18T00:00:01Z', data: { order_id: 'A-1', amount: 50, retry: false } },
+]
 
 /** Mock of the events-session transport; external reporting uses the real API. */
-export async function mockCreateEventsSession(vocabulary: TraceVocabulary): Promise<EventsSession> {
+export async function mockCreateEventsSession(vocabulary?: TraceVocabulary): Promise<EventsSession> {
   await delay(100)
   const id = `mock-events-${Date.now()}`
   const ingest_url = `http://localhost:8000/api/v1/agent-sessions/${id}/events`
-  eventsVocabulary = vocabulary
+  eventsVocabulary = vocabulary ?? null
+  eventsPollCount = 0
   eventsSession = {
     session_id: id,
     kind: 'events',
     ingest_url,
     expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    snippet: `curl -X POST "${ingest_url}" -H "Content-Type: application/json" -d '{"event":"${vocabulary.events[0]}","ts":"2026-10-18T00:00:00Z","data":{}}'`,
+    snippet: `curl -X POST "${ingest_url}" -H "Content-Type: application/json" -d '{"event":"${vocabulary?.events[0] ?? 'order_approved'}","ts":"2026-10-18T00:00:00Z","data":{"order_id":"A-1"}}'`,
   }
   return eventsSession
 }
@@ -86,13 +93,14 @@ export async function mockCreateEventsSession(vocabulary: TraceVocabulary): Prom
 export async function mockGetEventsSession(id: string): Promise<EventsSessionStatus | null> {
   await delay(100)
   if (eventsSession?.session_id !== id || Date.now() >= Date.parse(eventsSession.expires_at)) return null
-  return { session_id: id, kind: 'events', expires_at: eventsSession.expires_at, events: [], calls: [] }
+  eventsPollCount += 1
+  return { session_id: id, kind: 'events', expires_at: eventsSession.expires_at, events: eventsVocabulary ? [] : DISCOVERY_EVENTS.slice(0, eventsPollCount), calls: [] }
 }
 
 export async function mockCheckEventsSession(id: string, spec: Spec): Promise<RunResponse | null> {
-  if (!eventsVocabulary || eventsSession?.session_id !== id || Date.now() >= Date.parse(eventsSession.expires_at)) return null
+  if (eventsSession?.session_id !== id || Date.now() >= Date.parse(eventsSession.expires_at)) return null
   return {
-    events: [],
+    events: eventsVocabulary ? [] : DISCOVERY_EVENTS.slice(0, eventsPollCount),
     report: { results: spec.rules.map((rule) => ({ rule_id: rule.id, source: rule.source, status: 'pass', violations: [], checked_events: 0 })) },
   }
 }
