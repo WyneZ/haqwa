@@ -1118,12 +1118,16 @@ summary:hover {
   font-size: var(--text-sm);
 }
 
-.evidence-detail, .live-vocabulary {
+.evidence-detail, .live-vocabulary, .learn-live {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
   width: 100%;
+}
+
+.learn-live {
+  max-width: 100%;
 }
 
 .live-vocabulary input:not([type='checkbox']) {

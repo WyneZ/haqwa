@@ -112,6 +112,15 @@ test('mock live events session supports create, poll and check without a shop ru
   assert.ok(checked?.report.results.every(result => result.checked_events === 0))
 })
 
+test('mock discovery session is created without vocabulary and yields sample events', async () => {
+  const session = await mockCreateEventsSession()
+  const first = await mockGetEventsSession(session.session_id)
+  const second = await mockGetEventsSession(session.session_id)
+  assert.deepEqual(first?.events.map((event) => event.event), ['order_approved'])
+  assert.deepEqual(second?.events.map((event) => event.event), ['order_approved', 'payment_captured'])
+  assert.ok(second?.events[0].data.amount === 50)
+})
+
 test('mock answers return the final meaning: parsed meaning plus accepted decisions only', async () => {
   const original = supported()[0]
   const decisions = original.questions.filter(q => q.kind === 'decision')

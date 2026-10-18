@@ -15,6 +15,8 @@ import { ReviewCard } from '../components/ReviewCard'
 import { TechDetails } from '../components/TechDetails'
 import { TraceSummaryCard } from '../components/TraceSummaryCard'
 import { LiveVocabularyForm } from '../components/LiveVocabularyForm'
+import { LearnLiveVocabulary } from '../components/LearnLiveVocabulary'
+import type { SavedLiveSession } from '../lib/liveSession'
 import { usePersistentState } from '../lib/persist'
 import { toSpecRule } from '../lib/specRule'
 import { HR_NAME, HR_RULES, type Source } from '../lib/source'
@@ -54,6 +56,8 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
   const [demo, setDemo] = usePersistentState<'shop' | 'hr'>('evidence.demo', source.kind === 'trace' && source.name === HR_NAME ? 'hr' : 'shop')
   const [sourceBusy, setSourceBusy] = useState(false)
   const [sourceError, setSourceError] = useState<string | null>(null)
+  const [liveMode, setLiveMode] = usePersistentState<'type' | 'learn'>('evidence.live.mode', 'type')
+  const [, setLiveSession] = usePersistentState<SavedLiveSession | null>('live.session', null)
   const choiceRequest = useRef(0)
   const [text, setText] = usePersistentState('define.text', '')
   const [results, setResults] = usePersistentState<ClarifyResult[] | null>('define.results', null)
@@ -367,12 +371,22 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
           )}
           {choice === 'live' && (
             <div className="evidence-detail">
-              <LiveVocabularyForm policy={text} onUse={(vocabulary, suggestedEvents) => {
+              <div className="demo-options" role="group" aria-label="How to name live events">
+                <button type="button" className={`btn ${liveMode === 'type' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={liveMode === 'type'} onClick={() => setLiveMode('type')}>Type the names</button>
+                <button type="button" className={`btn ${liveMode === 'learn' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={liveMode === 'learn'} onClick={() => setLiveMode('learn')}>Learn the names from my agent</button>
+              </div>
+              {liveMode === 'type' ? <LiveVocabularyForm policy={text} onUse={(vocabulary, suggestedEvents) => {
                 ++choiceRequest.current
                 clearInterview()
                 onSourceChange({ kind: 'live', vocabulary, ...(suggestedEvents ? { suggestedEvents } : {}) }, null)
                 onPhaseChange('meaning')
-              }} />
+              }} /> : <LearnLiveVocabulary onUse={(vocabulary, session) => {
+                ++choiceRequest.current
+                clearInterview()
+                setLiveSession({ vocabularyKey: JSON.stringify(vocabulary), session })
+                onSourceChange({ kind: 'live', vocabulary }, null)
+                onPhaseChange('meaning')
+              }} />}
             </div>
           )}
           {choice === 'demo' && (
