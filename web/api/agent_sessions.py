@@ -1,25 +1,33 @@
-"""In-memory sessions for externally connected MCP agents."""
+"""In-memory sessions for externally connected agents."""
 
 from __future__ import annotations
 
 import secrets
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
-from haqwa.core.errors import SESSION_LIMIT, SESSION_NOT_FOUND, HaqwaError
+from haqwa.core.errors import INVALID_REQUEST, SESSION_LIMIT, SESSION_NOT_FOUND, HaqwaError
+from haqwa.core.events import Event
+from haqwa.core.trace import TraceVocabulary
 from haqwa.live.server import Fault, ShopState
+
+MAX_EVENTS_PER_SESSION = 1000
 
 
 @dataclass
 class AgentSession:
-    """A secret URL token and its private shop world."""
+    """A secret URL token and its private shop world or event trace."""
 
     session_id: str
-    fault: Fault
-    shop: ShopState
+    fault: Fault | None
+    shop: ShopState | None
     expires_at: datetime
     calls_started: int = 0
+    kind: Literal["shop", "events"] = "shop"
+    events: list[Event] = field(default_factory=list)
+    vocabulary: TraceVocabulary | None = None
 
 
 class AgentSessionStore:
@@ -47,18 +55,43 @@ class AgentSessionStore:
 
     def create(self, fault: Fault) -> AgentSession:
         """Create one private shop, after removing expired sessions."""
-        self.sweep()
-        if len(self.sessions) >= self.max_sessions:
-            raise HaqwaError(SESSION_LIMIT, "Session limit reached")
-        token = secrets.token_urlsafe(24)
         session = AgentSession(
-            session_id=token,
+            session_id=self._new_token(),
             fault=fault,
             shop=ShopState(fault),
             expires_at=self.clock() + timedelta(seconds=self.ttl_seconds),
         )
-        self.sessions[token] = session
+        self.sessions[session.session_id] = session
         return session
+
+    def create_events(self, vocabulary: TraceVocabulary | None) -> AgentSession:
+        """Create one private, expiring event trace."""
+        session = AgentSession(
+            session_id=self._new_token(),
+            fault=None,
+            shop=None,
+            expires_at=self.clock() + timedelta(seconds=self.ttl_seconds),
+            kind="events",
+            vocabulary=vocabulary,
+        )
+        self.sessions[session.session_id] = session
+        return session
+
+    def _new_token(self) -> str:
+        self.sweep()
+        if len(self.sessions) >= self.max_sessions:
+            raise HaqwaError(SESSION_LIMIT, "Session limit reached")
+        return secrets.token_urlsafe(24)
+
+    def add_events(self, token: str, events: list[Event]) -> int:
+        """Append a whole batch or reject it without changing the trace."""
+        session = self.get(token)
+        if session.kind != "events":
+            raise HaqwaError(INVALID_REQUEST, "not an events session")
+        if len(session.events) + len(events) > MAX_EVENTS_PER_SESSION:
+            raise HaqwaError(INVALID_REQUEST, "event limit reached")
+        session.events.extend(events)
+        return len(session.events)
 
     def get(self, token: str) -> AgentSession:
         """Find a live session or report the same error for unknown and expired tokens."""
