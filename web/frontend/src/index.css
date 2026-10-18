@@ -193,21 +193,38 @@ h3 {
   gap: var(--space-8) var(--space-10);
 }
 
-.layout--define {
-  grid-template-areas: 'source source' 'policy stage';
-  grid-template-rows: auto 1fr;
+.layout--policy,
+.layout--evidence {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
 }
 
-.layout--define > .source-picker {
-  grid-area: source;
+.layout--evidence > .source-picker {
   margin: 0;
 }
 
-.layout--define > .policy {
+.policy-samples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.policy-samples p {
+  width: 100%;
+  margin: 0;
+  color: var(--muted);
+}
+
+.layout--meaning {
+  grid-template-areas: 'policy stage';
+}
+
+.layout--meaning > .policy {
   grid-area: policy;
 }
 
-.layout--define > .stage {
+.layout--meaning > .stage {
   grid-area: stage;
 }
 
@@ -1451,7 +1468,13 @@ input[type='file']::file-selector-button {
     grid-row: 2;
     grid-column: 1 / -1;
     justify-content: space-between;
-    gap: var(--space-2);
+    gap: 2px;
+  }
+  .step {
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px;
+    font-size: 11px;
   }
   .topbar__reset {
     grid-row: 1;
@@ -1462,17 +1485,8 @@ input[type='file']::file-selector-button {
     gap: var(--space-6);
     padding: var(--space-4) var(--space-4) var(--space-10);
   }
-  .layout--define {
-    grid-template-areas: 'source' 'policy' 'stage';
-    grid-template-rows: auto auto 1fr;
-  }
-  .layout--define > .source-picker {
-    margin: 0;
-  }
-  /* While answering questions, the question card comes first on a phone. */
-  .layout--define:has(> .policy:not(.policy--editing)) {
-    grid-template-areas: 'stage' 'policy' 'source';
-    grid-template-rows: auto auto auto;
+  .layout--meaning {
+    grid-template-areas: 'stage' 'policy';
   }
   .policy {
     border-right: none;
