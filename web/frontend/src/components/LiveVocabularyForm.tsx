@@ -12,11 +12,13 @@ interface Props {
 /** Names the agent will report; no session is created until the Test stage. */
 export function LiveVocabularyForm({ policy, onUse }: Props) {
   const [events, setEvents] = usePersistentState<string[]>('evidence.live.events', [])
-  const [entity, setEntity] = usePersistentState('evidence.live.entity', 'order_id')
+  const [entity, setEntity] = usePersistentState('evidence.live.entity', '')
   const [fields, setFields] = usePersistentState<LiveField[]>('evidence.live.fields', [])
   const [eventInput, setEventInput] = useState('')
   const [fieldInput, setFieldInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const missingRequired = entity.trim() === ''
+    || (events.length === 0 && !eventInput.split(',').some((name) => name.trim() !== ''))
   const [suggesting, setSuggesting] = useState(false)
   const [suggested, setSuggested] = useState<SuggestedEvent[] | null>(null)
 
@@ -103,71 +105,82 @@ export function LiveVocabularyForm({ policy, onUse }: Props) {
 
   return (
     <form className="live-vocabulary" onSubmit={submit}>
-      <p>List the event names your agent will report after its actions.</p>
+      <p>Name the case field and events your agent will report.</p>
       <button type="button" className="btn btn--ghost" disabled={suggesting} onClick={() => void suggest()}>
         {suggesting ? 'Suggesting…' : 'Suggest from my policy'}
       </button>
       {suggested && <p className="card__lead">Suggestions filled the form. Edit any name or field before continuing.</p>}
-      <label htmlFor="live-event-name">Event names (at least one)</label>
-      <div className="live-vocabulary__entry">
+      <div className="live-vocabulary__group">
+        <label htmlFor="live-entity-field">Which field identifies one case? <span className="field-required" aria-hidden="true">*</span></label>
         <input
-          id="live-event-name"
-          value={eventInput}
-          onChange={(event) => setEventInput(event.target.value)}
-          onKeyDown={(event) => onEnter(event, addEvents)}
-          placeholder="order_approved"
+          id="live-entity-field"
+          value={entity}
+          onChange={(event) => setEntity(event.target.value)}
+          placeholder="e.g. order_id"
+          aria-describedby="live-entity-hint"
+          required
         />
-        <button type="button" className="btn btn--ghost" onClick={addEvents}>Add event</button>
+        <p id="live-entity-hint" className="card__lead">Events about the same case (for example one order) share this field.</p>
       </div>
-      {events.length > 0 && (
-        <ul className="name-chips" aria-label="Event names">
-          {events.map((name) => (
-            <li key={name} className="name-chip">
-              {name}
-              <button type="button" aria-label={`Remove event ${name}`} onClick={() => setEvents(events.filter((item) => item !== name))}>×</button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <label htmlFor="live-entity-field">Entity field</label>
-      <input
-        id="live-entity-field"
-        value={entity}
-        onChange={(event) => setEntity(event.target.value)}
-        placeholder="order_id"
-      />
-      <p className="card__lead">Events for the same entity share this field in <code>data</code>.</p>
-      <label htmlFor="live-other-field">Other fields (optional)</label>
-      <div className="live-vocabulary__entry">
-        <input
-          id="live-other-field"
-          value={fieldInput}
-          onChange={(event) => setFieldInput(event.target.value)}
-          onKeyDown={(event) => onEnter(event, addField)}
-          placeholder="amount"
-        />
-        <button type="button" className="btn btn--ghost" onClick={addField}>Add field</button>
+      <div className="live-vocabulary__group">
+        <label htmlFor="live-event-name">Event names (at least one) <span className="field-required" aria-hidden="true">*</span></label>
+        <div className="live-vocabulary__entry">
+          <input
+            id="live-event-name"
+            value={eventInput}
+            onChange={(event) => setEventInput(event.target.value)}
+            onKeyDown={(event) => onEnter(event, addEvents)}
+            placeholder="e.g. order_approved"
+            aria-describedby="live-event-hint"
+            required={events.length === 0}
+          />
+          <button type="button" className="btn btn--ghost" onClick={addEvents}>Add event</button>
+        </div>
+        <p id="live-event-hint" className="card__lead">Separate several names with commas, or press Enter.</p>
+        {events.length > 0 && (
+          <ul className="name-chips" aria-label="Event names">
+            {events.map((name) => (
+              <li key={name} className="name-chip">
+                {name}
+                <button type="button" aria-label={`Remove event ${name}`} onClick={() => setEvents(events.filter((item) => item !== name))}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {fields.length > 0 && (
-        <ul className="name-chips" aria-label="Other fields">
-          {fields.map((field) => (
-            <li key={field.name} className="name-chip">
-              <span>{field.name}</span>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={field.numeric}
-                  onChange={(event) => setFields(fields.map((item) => item.name === field.name ? { ...item, numeric: event.target.checked } : item))}
-                />
-                Numeric
-              </label>
-              <button type="button" aria-label={`Remove field ${field.name}`} onClick={() => setFields(fields.filter((item) => item.name !== field.name))}>×</button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="live-vocabulary__group">
+        <label htmlFor="live-other-field">Other fields (optional)</label>
+        <div className="live-vocabulary__entry">
+          <input
+            id="live-other-field"
+            value={fieldInput}
+            onChange={(event) => setFieldInput(event.target.value)}
+            onKeyDown={(event) => onEnter(event, addField)}
+            placeholder="amount"
+          />
+          <button type="button" className="btn btn--ghost" onClick={addField}>Add field</button>
+        </div>
+        {fields.length > 0 && (
+          <ul className="name-chips" aria-label="Other fields">
+            {fields.map((field) => (
+              <li key={field.name} className="name-chip">
+                <span>{field.name}</span>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={field.numeric}
+                    onChange={(event) => setFields(fields.map((item) => item.name === field.name ? { ...item, numeric: event.target.checked } : item))}
+                  />
+                  Numeric
+                </label>
+                <button type="button" aria-label={`Remove field ${field.name}`} onClick={() => setFields(fields.filter((item) => item.name !== field.name))}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
-      <button type="submit" className="btn btn--primary">Next: understand policy →</button>
+      <button type="submit" className="btn btn--primary" disabled={missingRequired}>Next: understand policy →</button>
     </form>
   )
 }

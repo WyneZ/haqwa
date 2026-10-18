@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { friendlyError, readPolicyDocument } from '../api/client'
 import type { PolicyDocumentResult } from '../api/types'
 import { POLICY_ACCEPT } from '../lib/policyFile'
@@ -7,18 +7,35 @@ interface Props {
   disabled: boolean
   /** Called with the rules the owner kept; they replace the policy text. */
   onUse: (rules: string[]) => void
+  onReviewChange?: (open: boolean) => void
+  onReadingChange?: (reading: boolean) => void
+  replacesText?: boolean
 }
 
 /**
  * "Upload a policy document": Haqwa reads the file and lists the rules it found, each with
  * the exact document text behind it. The owner ticks the ones to use; nothing is checked yet.
  */
-export function PolicyUpload({ disabled, onUse }: Props) {
+export function PolicyUpload({ disabled, onUse, onReviewChange, onReadingChange, replacesText = false }: Props) {
   const input = useRef<HTMLInputElement>(null)
   const [reading, setReading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PolicyDocumentResult | null>(null)
   const [keep, setKeep] = useState<boolean[]>([])
+  const reviewOpen = result !== null
+  const isReading = reading !== null
+
+  useEffect(() => {
+    onReviewChange?.(reviewOpen)
+  }, [reviewOpen, onReviewChange])
+
+  useEffect(() => () => onReviewChange?.(false), [onReviewChange])
+
+  useEffect(() => {
+    onReadingChange?.(isReading)
+  }, [isReading, onReadingChange])
+
+  useEffect(() => () => onReadingChange?.(false), [onReadingChange])
 
   async function choose(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -56,14 +73,12 @@ export function PolicyUpload({ disabled, onUse }: Props) {
         disabled={disabled || reading !== null}
         aria-label="Upload a policy document"
       />
-      <button
-        type="button"
-        className="btn btn--link"
-        onClick={() => input.current?.click()}
-        disabled={disabled || reading !== null}
-      >
-        {reading ? `Reading ${reading}…` : 'Or upload a policy document (.txt, .md, .docx, .pdf)'}
-      </button>
+      {reading && (
+        <div className="upload__result upload__reading" role="status">
+          <p>Reading <b>{reading}</b>…</p>
+          <p className="policy__hint">Your rules will appear here for you to review.</p>
+        </div>
+      )}
 
       {error && (
         <p className="notice notice--error" role="alert">
@@ -76,7 +91,7 @@ export function PolicyUpload({ disabled, onUse }: Props) {
           {result.rules.length === 0 ? (
             <p>
               No checkable rules were found in <b>{result.filename}</b>. You can still type them
-              above.
+              after closing this review.
             </p>
           ) : (
             <>
@@ -85,7 +100,7 @@ export function PolicyUpload({ disabled, onUse }: Props) {
                 {result.rules.length === 1 ? 'rule' : 'rules'} in <b>{result.filename}</b>. Keep
                 the ones Haqwa should check:
               </p>
-              <ul className="upload__list">
+              <ul className="upload__list" tabIndex={0} aria-label="Rules from your document">
                 {result.rules.map((rule, i) => (
                   <li key={i} className="upload__item">
                     <label>
@@ -105,7 +120,7 @@ export function PolicyUpload({ disabled, onUse }: Props) {
           <div className="upload__actions">
             {result.rules.length > 0 && (
               <button type="button" className="btn btn--primary" onClick={use} disabled={chosen === 0}>
-                Use {chosen} {chosen === 1 ? 'rule' : 'rules'}
+                {replacesText ? 'Replace your text with' : 'Use'} {chosen} {chosen === 1 ? 'rule' : 'rules'}
               </button>
             )}
             <button type="button" className="btn btn--link" onClick={() => setResult(null)}>
@@ -113,6 +128,16 @@ export function PolicyUpload({ disabled, onUse }: Props) {
             </button>
           </div>
         </section>
+      )}
+      {!reading && !result && (
+        <button
+          type="button"
+          className="btn btn--link"
+          onClick={() => input.current?.click()}
+          disabled={disabled}
+        >
+          Or upload a policy document (.txt, .md, .docx, .pdf)
+        </button>
       )}
     </div>
   )
