@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from 'react'
 import { checkEvents, friendlyError, listScenarios, runScenario, summarizeTrace } from '../api/client'
 import type { LogEvent, Scenario, Spec } from '../api/types'
 import { AgentConnectCard } from '../components/AgentConnectCard'
+import { LiveEventsCard } from '../components/LiveEventsCard'
 import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
@@ -194,10 +195,7 @@ export function TestScreen({
         )}
 
         {source.kind === 'live' && (
-          <section className="card test-picker">
-            <h2 className="card__title">Connect my agent</h2>
-            <p className="card__lead">Live activity will appear here when you connect your agent.</p>
-          </section>
+          <LiveEventsCard spec={spec} vocabulary={source.vocabulary} onRun={onRun} onSeeResults={onSeeResults} />
         )}
 
         {source.kind === 'trace' && (
