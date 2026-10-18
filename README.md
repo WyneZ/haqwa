@@ -2,6 +2,29 @@
 
 Haqwa turns plain English business policies into executable checks for software and AI workflows. Gemini helps interpret a policy and asks its owner about concrete event timelines. The confirmed answers become a versioned YAML spec. The checker then evaluates real events with deterministic Python; it does not call an LLM to decide pass or fail.
 
+## Try it in 2 minutes
+
+**Live demo:** https://haqwa-1020226488566.asia-southeast1.run.app — no sign-up, no key needed.
+
+1. **Define.** Pick the *Online shop* example (or write your own policy in plain English).
+   Haqwa's AI turns each sentence into a rule and asks you short Yes/No questions about
+   the cases the policy leaves open. Your answers, not the AI, decide what the rule means.
+   The rule's final meaning is shown in plain words before you confirm.
+2. **Test.** Run a demo agent run (for example *payment times out after charging*), or
+   upload your own event log as JSON.
+3. **Results.** See which rules held and which broke, with the exact events that broke
+   them. The verdict comes from Haqwa's deterministic checker; the AI explanation is
+   advisory only.
+
+**Optional — bring your own agent.** On the Test screen, open *Connect your own agent*,
+create a private endpoint, and point any MCP client (Streamable HTTP) at it, or run
+`uv run python examples/connect_agent.py --url "<endpoint>"` with your own model key.
+Watch its tool calls live, then press *Check now*. Sessions are private, in memory and
+expire after 30 minutes. See [Bring your own agent](#bring-your-own-agent).
+
+**Run locally:** `uv sync && ./scripts/dev.sh` (needs `GEMINI_API_KEY` in `.env` for the
+AI steps; the checker itself never calls an AI).
+
 ## Install and quickstart
 
 Python 3.12 and [uv](https://docs.astral.sh/uv/) are required for development.
