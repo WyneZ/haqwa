@@ -6,17 +6,18 @@ Haqwa turns plain English business policies into executable checks for software 
 
 **Live demo:** https://haqwa-1020226488566.asia-southeast1.run.app — no sign-up, no key needed.
 
-1. **Define.** Pick the *Online shop* example (or write your own policy in plain English).
-   Haqwa's AI turns each sentence into a rule and asks you short Yes/No questions about
-   the cases the policy leaves open. Your answers, not the AI, decide what the rule means.
-   The rule's final meaning is shown in plain words before you confirm.
-2. **Test.** Run a demo agent run (for example *payment times out after charging*), or
-   upload your own event log as JSON.
-3. **Results.** See which rules held and which broke, with the exact events that broke
-   them. The verdict comes from Haqwa's deterministic checker; the AI explanation is
-   advisory only.
+1. **Policy.** Type your policy or upload a `.txt`, `.md`, `.docx`, or `.pdf` file.
+2. **Evidence.** Choose A) upload an event log (JSON), B) connect your own agent live
+   by listing its event names (see [Connect your own agent (any policy)](#connect-your-own-agent-any-policy)),
+   or C) try a demo (online shop or HR).
+3. **Meaning.** Answer Yes/No questions about your rules. The confirmed meaning becomes
+   the spec.
+4. **Test.** Check your uploaded events, connect your live agent and press *Check now*,
+   or run a demo agent.
+5. **Results.** See which rules held, broke, or were not tested, with the exact events.
+   The verdict is deterministic; the AI explanation is advisory.
 
-**Optional — bring your own agent.** On the Test screen, open *Connect your own agent*,
+**Optional — test an MCP agent in our demo shop.** On the Test screen, open *Connect your own agent*,
 create a private endpoint, and point any MCP client (Streamable HTTP) at it, or run
 `uv run python examples/connect_agent.py --url "<endpoint>"` with your own model key.
 Watch its tool calls live, then press *Check now*. Sessions are private, in memory and
