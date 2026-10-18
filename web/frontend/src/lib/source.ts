@@ -1,9 +1,9 @@
-import type { TraceSummary, TraceVocabulary } from '../api/types'
+import type { SuggestedEvent, TraceSummary, TraceVocabulary } from '../api/types'
 
 export type Source =
   | { kind: 'shop' }
   | { kind: 'trace'; name: string; summary: TraceSummary; extraEvents: string[] }
-  | { kind: 'live'; vocabulary: TraceVocabulary }
+  | { kind: 'live'; vocabulary: TraceVocabulary; suggestedEvents?: SuggestedEvent[] }
 
 export const HR_NAME = 'HR leave sample'
 export const HR_RULES = [

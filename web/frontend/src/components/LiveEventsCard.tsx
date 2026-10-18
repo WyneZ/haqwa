@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, checkEventsSession, createEventsSession, friendlyError, getEventsSession } from '../api/client'
-import type { EventsSessionStatus, Spec, TraceVocabulary } from '../api/types'
+import type { EventsSessionStatus, Spec, SuggestedEvent, TraceVocabulary } from '../api/types'
 import { usePersistentState } from '../lib/persist'
 import { sessionForVocabulary, type SavedLiveSession } from '../lib/liveSession'
 import type { Run } from '../lib/run'
@@ -9,6 +9,7 @@ import { CopyField } from './AgentConnectCard'
 interface Props {
   spec: Spec
   vocabulary: TraceVocabulary
+  suggestedEvents?: SuggestedEvent[]
   onRun: (run: Run) => void
   onSeeResults: () => void
 }
@@ -22,7 +23,7 @@ function isMissing(error: unknown): boolean {
 }
 
 /** The event session is created here, when Test opens, so its 30 minute TTL is useful. */
-export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props) {
+export function LiveEventsCard({ spec, vocabulary, suggestedEvents, onRun, onSeeResults }: Props) {
   const vocabularyKey = JSON.stringify(vocabulary)
   const [saved, setSaved] = usePersistentState<SavedLiveSession | null>('live.session', null)
   const session = sessionForVocabulary(saved, vocabularyKey)
@@ -118,6 +119,19 @@ export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props)
   const python = session
     ? `# copy examples/report_events.py into your project\nfrom report_events import Reporter\nr = Reporter(${JSON.stringify(session.ingest_url)})\nr.emit(${JSON.stringify(vocabulary.events[0])}, ${entityArgument})`
     : ''
+  const guide = suggestedEvents && session
+    ? [
+        '# Send these events from your agent',
+        'from report_events import Reporter',
+        `reporter = Reporter(${JSON.stringify(session.ingest_url)})`,
+        '',
+        ...vocabulary.events.flatMap((name) => [
+          `${name}: ${suggestedEvents.find((item) => item.name === name)?.description ?? 'An event from your agent.'}`,
+          `reporter.emit(${JSON.stringify(name)}, ${entityArgument})`,
+          '',
+        ]),
+      ].join('\n')
+    : ''
 
   return (
     <section className="card agent-connect" aria-labelledby="live-events-title">
@@ -134,6 +148,21 @@ export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props)
       {session && !expired && (
         <>
           <CopyField label="Ingest URL" value={session.ingest_url} />
+          {suggestedEvents && (
+            <div className="agent-details">
+              <h3>Send these events from your agent</h3>
+              <p className="card__lead">Emit an event when the described action happens. Use the same entity value for related events.</p>
+              <ul>
+                {vocabulary.events.map((name) => (
+                  <li key={name}>
+                    <strong>{name}</strong> — {suggestedEvents.find((item) => item.name === name)?.description ?? 'An event from your agent.'}
+                    <br /><code>reporter.emit({JSON.stringify(name)}, {entityArgument})</code>
+                  </li>
+                ))}
+              </ul>
+              <CopyField label="Copy guide" value={guide} />
+            </div>
+          )}
           <p className="card__lead">Keep this URL private. Send <code>ts</code> as an ISO 8601 UTC time for time-based rules; without <code>ts</code>, the server uses arrival time.</p>
           <details className="agent-details" open>
             <summary>Python example</summary>
