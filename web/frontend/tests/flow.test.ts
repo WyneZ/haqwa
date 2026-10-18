@@ -6,6 +6,7 @@ import { Window } from 'happy-dom'
 import { createServer } from 'vite'
 import { DEMO_RESULTS } from '../src/api/fixtures.ts'
 import { buildLiveVocabulary } from '../src/lib/liveVocabulary.ts'
+import { seenNames, vocabularyFromSeen } from '../src/lib/discoveredVocabulary.ts'
 import { sessionForVocabulary } from '../src/lib/liveSession.ts'
 import { toSpecRule } from '../src/lib/specRule.ts'
 
@@ -71,7 +72,7 @@ async function waitFor(check: () => boolean) {
     if (check()) return
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
   }
-  assert.ok(check(), 'expected UI state appeared')
+  assert.ok(check(), `expected UI state appeared: ${browser.document.body.textContent}`)
 }
 
 test('header follows Policy, Evidence, Meaning, Test, Results; stale version starts at Policy', async () => {
@@ -108,6 +109,21 @@ test('live vocabulary validates names, duplicates and numeric fields', () => {
   })
 })
 
+test('discovery lists distinct names and marks numeric fields only when every seen value is a number', () => {
+  const names = seenNames([
+    { event: 'paid', ts: '2026-10-18T00:00:00Z', data: { order_id: 'A-1', amount: 1, retry: false, mixed: 2 } },
+    { event: 'paid', ts: '2026-10-18T00:00:01Z', data: { order_id: 'A-2', amount: 1.5, retry: true, mixed: 'x' } },
+    { event: 'shipped', ts: '2026-10-18T00:00:02Z', data: { order_id: 'A-2' } },
+  ])
+  assert.deepEqual(names.events, ['paid', 'shipped'])
+  assert.deepEqual(names.fields, ['amount', 'mixed', 'order_id', 'retry'])
+  assert.deepEqual(names.numericFields, ['amount'])
+  assert.deepEqual(vocabularyFromSeen(names, 'order_id'), {
+    events: ['paid', 'shipped'], fields: ['order_id', 'amount', 'mixed', 'retry'], field_values: {}, numeric_fields: ['amount'],
+  })
+  assert.throws(() => vocabularyFromSeen(names, 'customer_id'), /Choose an entity field/)
+})
+
 test('the live evidence form stores its vocabulary and advances to Meaning', async () => {
   const root = await renderApp()
   try {
@@ -127,6 +143,45 @@ test('the live evidence form stores its vocabulary and advances to Meaning', asy
     assert.equal(source.kind, 'live')
     assert.deepEqual(source.vocabulary.numeric_fields, ['amount'])
   } finally { await cleanup(root) }
+})
+
+test('learning names creates a vocabulary-free session and Test reuses it', async () => {
+  const root = await renderApp()
+  let saved: { vocabularyKey: string; session: { session_id: string; ingest_url: string } }
+  let source: unknown
+  try {
+    await click('Online shop policy')
+    await click('Next: choose evidence')
+    await click('Connect my agent (live)')
+    await click('Learn the names from my agent')
+    await waitFor(() => !!browser.document.querySelector('.agent-copy__value'))
+    assert.match(browser.document.body.textContent ?? '', /Python example/)
+    assert.match(browser.document.body.textContent ?? '', /curl example/)
+    await waitFor(() => !!browser.document.querySelector('[aria-label="Seen event names"]'))
+    assert.match(browser.document.body.textContent ?? '', /order_approved/)
+    assert.match(browser.document.body.textContent ?? '', /amount · numeric/)
+    const entity = browser.document.getElementById('learn-entity-field') as HTMLSelectElement
+    assert.equal(entity.value, 'order_id')
+    await click('Use these names')
+    assert.equal(browser.document.querySelector('[aria-current="step"] .step__label')?.textContent, 'Meaning')
+    saved = JSON.parse(browser.sessionStorage.getItem(key('live.session'))!)
+    source = JSON.parse(browser.sessionStorage.getItem(key('source'))!)
+    assert.deepEqual((source as { vocabulary: { numeric_fields: string[] } }).vocabulary.numeric_fields, ['amount'])
+    assert.equal(saved.vocabularyKey, JSON.stringify((source as { vocabulary: unknown }).vocabulary))
+  } finally { await cleanup(root) }
+
+  browser.sessionStorage.setItem(key('live.session'), JSON.stringify(saved!))
+  browser.sessionStorage.setItem(key('source'), JSON.stringify(source))
+  browser.sessionStorage.setItem(key('step'), JSON.stringify('test'))
+  browser.sessionStorage.setItem(key('spec'), JSON.stringify({ version: 2, rules: DEMO_RESULTS.filter((item) => item.status === 'supported').map((item) => toSpecRule(item.rule, [])) }))
+  browser.sessionStorage.setItem(key('specYaml'), JSON.stringify('version: 2'))
+  const testRoot = await renderApp()
+  try {
+    await waitFor(() => browser.document.body.textContent?.includes(saved!.session.ingest_url) ?? false)
+    assert.equal(JSON.parse(browser.sessionStorage.getItem(key('live.session'))!).session.session_id, saved!.session.session_id)
+    await click('Check now')
+    assert.equal(browser.document.querySelector('[aria-current="step"] .step__label')?.textContent, 'Results')
+  } finally { await cleanup(testRoot) }
 })
 
 test('policy suggestions fill editable live event and field names', async () => {

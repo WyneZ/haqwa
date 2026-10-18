@@ -224,10 +224,10 @@ export async function checkAgentSession(id: string, spec: Spec): Promise<RunResp
 }
 
 /** A private ingest endpoint for the user's own event-producing agent. */
-export function createEventsSession(vocabulary: TraceVocabulary): Promise<EventsSession> {
+export function createEventsSession(vocabulary?: TraceVocabulary): Promise<EventsSession> {
   return USE_MOCK
     ? mockCreateEventsSession(vocabulary)
-    : request<EventsSession>('/agent-sessions', { kind: 'events', vocabulary })
+    : request<EventsSession>('/agent-sessions', vocabulary ? { kind: 'events', vocabulary } : { kind: 'events' })
 }
 
 export async function getEventsSession(id: string): Promise<EventsSessionStatus> {
