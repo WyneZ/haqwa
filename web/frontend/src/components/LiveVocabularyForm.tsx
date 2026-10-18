@@ -156,7 +156,7 @@ export function LiveVocabularyForm({ policy, onUse }: Props) {
             value={fieldInput}
             onChange={(event) => setFieldInput(event.target.value)}
             onKeyDown={(event) => onEnter(event, addField)}
-            placeholder="amount"
+            placeholder="e.g. amount"
           />
           <button type="button" className="btn btn--ghost" onClick={addField}>Add field</button>
         </div>
