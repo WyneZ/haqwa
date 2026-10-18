@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test, { after } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { readFile } from 'node:fs/promises'
 import { act, createElement } from 'react'
 import type { Root } from 'react-dom/client'
 import { Window } from 'happy-dom'
@@ -22,7 +24,7 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: brow
 const { createRoot } = await import('react-dom/client')
 
 const vite = await createServer({
-  root: new URL('..', import.meta.url).pathname,
+  root: fileURLToPath(new URL('..', import.meta.url)),
   configFile: false,
   envFile: false,
   server: { middlewareMode: true },
@@ -47,7 +49,9 @@ async function cleanup(root: Root) {
 }
 
 function button(label: string): HTMLButtonElement {
-  const found = [...browser.document.querySelectorAll('button')].find((item) => item.textContent?.includes(label))
+  const buttons = [...browser.document.querySelectorAll('button')]
+  const found = buttons.find((item) => item.textContent?.trim() === label)
+    ?? buttons.find((item) => item.textContent?.includes(label))
   assert.ok(found, `button ${label} is visible`)
   return found as HTMLButtonElement
 }
@@ -86,16 +90,76 @@ test('header follows Policy, Evidence, Meaning, Test, Results; stale version sta
   } finally { await cleanup(root) }
 })
 
-test('demo policy button fills the policy box and keeps the evidence choice', async () => {
+test('demo selection automatically replaces the policy and switching demos updates it', async (context) => {
+  context.mock.method(globalThis, 'fetch', async (url: string) => {
+    assert.equal(url, '/samples/hr-events.json')
+    return new Response(await readFile(new URL('../public/samples/hr-events.json', import.meta.url), 'utf8'))
+  })
+  const root = await renderApp()
+  try {
+    await click('HR leave policy')
+    await click('Next: choose evidence')
+    await click('Try a demo')
+    assert.match(JSON.parse(browser.sessionStorage.getItem(key('define.text'))!), /charged twice/)
+    assert.match(browser.document.querySelector('[role="alert"]')?.textContent ?? '', /Online shop/)
+    assert.ok(!browser.document.body.textContent?.includes('Use the demo policy'))
+    await click('HR')
+    await waitFor(() => JSON.parse(browser.sessionStorage.getItem(key('source'))!).kind === 'trace')
+    assert.match(JSON.parse(browser.sessionStorage.getItem(key('define.text'))!), /leave request/)
+    assert.match(browser.document.querySelector('[role="alert"]')?.textContent ?? '', /HR/)
+    await click('← Edit policy')
+    const policy = browser.document.getElementById('policy') as HTMLTextAreaElement
+    assert.match(policy.value, /leave request/)
+    assert.equal(JSON.parse(browser.sessionStorage.getItem(key('evidence.choice'))!), 'demo')
+    await click('Online shop policy')
+    await click('Next: choose evidence')
+    await click('Next: understand policy')
+    assert.equal(browser.document.querySelector('[aria-current="step"] .step__label')?.textContent, 'Meaning')
+    assert.match((browser.document.getElementById('policy') as HTMLTextAreaElement).value, /leave request/)
+  } finally { await cleanup(root) }
+})
+
+test('document review locks policy editing and navigation until Cancel or Use', async () => {
   const root = await renderApp()
   try {
     await click('Online shop policy')
-    await click('Next: choose evidence')
-    await click('Try a demo')
-    await click('Use the demo policy')
     const policy = browser.document.getElementById('policy') as HTMLTextAreaElement
-    assert.match(policy.value, /charged twice/)
-    assert.equal(JSON.parse(browser.sessionStorage.getItem(key('evidence.choice'))!), 'demo')
+    const original = policy.value
+    const next = button('Next: choose evidence')
+    const fileInput = browser.document.querySelector('input[type="file"]') as HTMLInputElement
+    async function uploadDocument() {
+      await act(async () => {
+        Object.defineProperty(fileInput, 'files', {
+          configurable: true,
+          value: [new browser.File(['Policy document'], 'policy.txt', { type: 'text/plain' })],
+        })
+        fileInput.dispatchEvent(new browser.Event('change', { bubbles: true }))
+      })
+      assert.equal(policy.hidden, true)
+      assert.equal(next.disabled, true)
+      await waitFor(() => !!browser.document.querySelector('[aria-label="Rules found in your document"]'))
+    }
+    assert.equal(policy.readOnly, false)
+    assert.equal(next.disabled, false)
+    await uploadDocument()
+    assert.equal(policy.readOnly, true)
+    assert.equal(policy.hidden, true)
+    assert.equal(next.disabled, true)
+    assert.ok(button('Replace your text with 3 rules'))
+    assert.match(browser.document.querySelector('[aria-live="polite"]')?.textContent ?? '', /Use or cancel/)
+    await click('Cancel')
+    assert.equal(policy.readOnly, false)
+    assert.equal(policy.hidden, false)
+    assert.equal(next.disabled, false)
+    assert.equal(policy.value, original)
+    assert.equal(browser.document.activeElement, policy)
+    await uploadDocument()
+    await click('Replace your text with 3 rules')
+    assert.equal(policy.readOnly, false)
+    assert.equal(policy.hidden, false)
+    assert.equal(next.disabled, false)
+    assert.equal(browser.document.activeElement, policy)
+    assert.equal(browser.document.querySelector('.upload__result'), null)
   } finally { await cleanup(root) }
 })
 
@@ -130,8 +194,26 @@ test('the live evidence form stores its vocabulary and advances to Meaning', asy
     await click('Online shop policy')
     await click('Next: choose evidence')
     await click('Connect my agent (live)')
+    const entity = browser.document.getElementById('live-entity-field') as HTMLInputElement
+    assert.equal(entity.value, '')
+    const next = button('Next: understand policy')
+    assert.equal(next.disabled, true)
+    await input('live-entity-field', 'order_id')
+    assert.equal(next.disabled, true)
+    await input('live-entity-field', '   ')
     await input('live-event-name', 'order_approved')
     await click('Add event')
+    assert.equal(next.disabled, true)
+    await input('live-entity-field', 'order_id')
+    assert.equal(next.disabled, false)
+    await act(async () => {
+      (browser.document.querySelector('[aria-label="Remove event order_approved"]') as HTMLButtonElement).click()
+    })
+    assert.equal(next.disabled, true)
+    await input('live-event-name', ', ,')
+    assert.equal(next.disabled, true)
+    await input('live-event-name', 'order_approved')
+    assert.equal(next.disabled, false)
     await input('live-other-field', 'amount')
     await click('Add field')
     const numeric = browser.document.querySelector('.name-chip input[type="checkbox"]') as HTMLInputElement

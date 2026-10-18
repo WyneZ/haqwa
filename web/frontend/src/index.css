@@ -11,9 +11,10 @@
   --muted: #52655d;
   --line: #cfded8;
   --line-soft: #e5ede8;
-  --control-line: #6b887b;
+  --control-line: #aec9bb;
   --neutral: #484a46;
   --neutral-soft: #e3e4e2;
+  --input-bg: #ffffff;
   --ok: #1f6b3a;
   --ok-soft: #e4f1e8;
   --bad: #b42318;
@@ -88,8 +89,8 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 4px;
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
 }
 
 button,
@@ -254,19 +255,18 @@ h3 {
 
 .policy__text {
   width: 100%;
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--control-line);
   border-radius: var(--radius-md);
   font: var(--text-md)/1.7 var(--sans);
   color: var(--text);
   background: var(--surface);
   resize: vertical;
+  scrollbar-gutter: stable;
 }
 
 .policy__text[readonly] {
-  padding: 0;
   border-color: transparent;
-  border-radius: 0;
   color: var(--muted);
   background: transparent;
 }
@@ -277,7 +277,12 @@ h3 {
 }
 
 .policy__text:not([readonly]):hover {
-  border-color: var(--brand);
+  border-color: var(--brand-line);
+}
+
+.policy__text:focus-visible {
+  outline: none;
+  border-color: var(--brand-line);
 }
 
 .rules {
@@ -472,7 +477,7 @@ h3 {
 
 .card__question {
   margin: var(--space-1) 0 0;
-  font-size: var(--text-hero);
+  font-size: var(--text-xl);
   font-weight: 500;
   line-height: 1.25;
   letter-spacing: -0.025em;
@@ -518,8 +523,8 @@ h3 {
 }
 
 .btn:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 4px;
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .btn--primary {
@@ -725,6 +730,7 @@ summary:hover {
 .topbar__reset {
   justify-self: end;
   align-self: center;
+  white-space: nowrap;
 }
 
 .step--done {
@@ -817,8 +823,8 @@ summary:hover {
 }
 
 .scenario:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 4px;
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .scenario::before {
@@ -1080,6 +1086,7 @@ summary:hover {
 
 .evidence-choices {
   display: grid;
+  align-items: stretch;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
 }
@@ -1089,7 +1096,7 @@ summary:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-2);
-  min-height: 172px;
+  min-width: 0;
   padding: var(--space-4);
   border: 1px solid var(--control-line);
   border-radius: var(--radius-md);
@@ -1100,7 +1107,7 @@ summary:hover {
 }
 
 .evidence-card--selected {
-  border: 2px solid var(--brand);
+  border: 1px solid var(--brand);
   background: var(--brand-soft);
 }
 
@@ -1131,14 +1138,73 @@ summary:hover {
 }
 
 .live-vocabulary input:not([type='checkbox']) {
-  min-height: 44px;
-  max-width: 100%;
+  height: 48px;
+  width: 100%;
+  min-width: 0;
+  max-width: 480px;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  background: var(--input-bg);
+}
+
+.live-vocabulary input:not([type='checkbox']):focus {
+  outline: none;
+  background: var(--input-bg);
+  caret-color: var(--brand);
+}
+
+.live-vocabulary input:not([type='checkbox']):is(:autofill, :-webkit-autofill) {
+  box-shadow: 0 0 0 1000px var(--input-bg) inset;
+  -webkit-text-fill-color: var(--text);
+}
+
+.live-vocabulary input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.live-vocabulary {
+  gap: var(--space-6);
+}
+
+.live-vocabulary__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.field-required {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.live-vocabulary__group p,
+.live-vocabulary__group .name-chips {
+  margin: 0;
 }
 
 .live-vocabulary__entry, .demo-options {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.live-vocabulary__entry {
+  width: 100%;
+  align-items: center;
+}
+
+.live-vocabulary__entry input {
+  flex: 1 1 200px;
+}
+
+.live-vocabulary__entry .btn {
+  flex: 0 0 auto;
+  height: 48px;
 }
 
 .name-chips {
@@ -1156,6 +1222,10 @@ summary:hover {
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
   background: var(--bg);
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .name-chip button {
@@ -1501,9 +1571,29 @@ input[type='file']::file-selector-button {
 }
 
 @media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+  }
+  .steps {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+  .topbar__reset {
+    grid-row: 1;
+    grid-column: 2;
+  }
   .layout {
     grid-template-columns: 216px minmax(0, 1fr);
     gap: var(--space-6);
+  }
+  .layout--policy,
+  .layout--evidence {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evidence-choices {
+    grid-template-columns: minmax(0, 1fr);
   }
   .card {
     padding: var(--space-6);
@@ -1575,9 +1665,6 @@ input[type='file']::file-selector-button {
   .card__title {
     font-size: 26px;
   }
-  .card__question {
-    font-size: 28px;
-  }
   .empty {
     padding: var(--space-5);
   }
@@ -1648,7 +1735,7 @@ input[type='file']::file-selector-button {
   font-weight: 600;
 }
 
-/* Policy document upload: a quiet link under the policy text, then a checklist. */
+/* Document review replaces the policy editor; only the rule list scrolls. */
 .upload {
   display: grid;
   gap: var(--space-2);
@@ -1670,14 +1757,41 @@ input[type='file']::file-selector-button {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
+  min-width: 0;
+}
+
+.upload__result > p {
+  margin: 0;
+}
+
+.upload__reading {
+  min-height: 200px;
+  align-content: center;
 }
 
 .upload__list {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
-  padding: 0;
+  padding: var(--space-2);
   list-style: none;
+  max-height: clamp(160px, 40dvh, 360px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  border-block: 1px solid var(--line-soft);
+}
+
+.upload__item label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.upload__item input {
+  flex: 0 0 auto;
+  accent-color: var(--brand);
 }
 
 .upload__quote {

@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import {
   applyAnswers,
   clarifyRules,
@@ -60,6 +60,15 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
   const [, setLiveSession] = usePersistentState<SavedLiveSession | null>('live.session', null)
   const choiceRequest = useRef(0)
   const [text, setText] = usePersistentState('define.text', '')
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [policyReading, setPolicyReading] = useState(false)
+  const policyPending = reviewOpen || policyReading
+  const policyInput = useRef<HTMLTextAreaElement>(null)
+  const wasReviewOpen = useRef(false)
+  useEffect(() => {
+    if (wasReviewOpen.current && !policyPending) policyInput.current?.focus()
+    wasReviewOpen.current = policyPending
+  }, [policyPending])
   const [results, setResults] = usePersistentState<ClarifyResult[] | null>('define.results', null)
   const [interviewVocabulary, setInterviewVocabulary] = usePersistentState<TraceVocabulary | null>('define.vocabulary', null)
   const [loading, setLoading] = useState(false)
@@ -197,12 +206,13 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
     setSourceError(null)
     clearInterview()
     onSourceChange({ kind: 'shop' }, null)
-    if (next === 'demo' && demo === 'hr') void chooseDemo('hr', requestId)
+    if (next === 'demo') void chooseDemo(demo, requestId)
   }
 
   async function chooseDemo(next: 'shop' | 'hr', existingRequest?: number) {
     const requestId = existingRequest ?? ++choiceRequest.current
     setDemo(next)
+    setText(next === 'shop' ? DEMO_POLICY : HR_RULES)
     setSourceBusy(false)
     setSourceError(null)
     clearInterview()
@@ -325,14 +335,17 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
           busy={false}
           rows={null}
           submitLabel="Next: choose evidence →"
-          upload={<PolicyUpload disabled={false} onUse={(rules) => setText(rules.join('\n'))} />}
+          textLocked={policyPending}
+          textareaRef={policyInput}
+          submitHint={reviewOpen ? 'Use or cancel the rules from your document first.' : undefined}
+          upload={<PolicyUpload disabled={false} onUse={(rules) => setText(rules.join('\n'))} onReviewChange={setReviewOpen} onReadingChange={setPolicyReading} replacesText={text.trim() !== ''} />}
         />
         <div className="policy-samples">
           <p>Or start from a sample policy:</p>
-          <button type="button" className="btn btn--ghost" onClick={() => setText(DEMO_POLICY)}>
+          <button type="button" className="btn btn--ghost" disabled={policyPending} onClick={() => setText(DEMO_POLICY)}>
             Online shop policy
           </button>
-          <button type="button" className="btn btn--ghost" onClick={() => setText(HR_RULES)}>
+          <button type="button" className="btn btn--ghost" disabled={policyPending} onClick={() => setText(HR_RULES)}>
             HR leave policy
           </button>
         </div>
@@ -347,15 +360,15 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
           <h1 id="source-title" className="card__title">Choose evidence for your policy</h1>
           <div className="evidence-choices" role="group" aria-label="Evidence choices">
             <button type="button" className={`evidence-card${choice === 'upload' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'upload'} onClick={() => choose('upload')}>
-              <span className="evidence-card__letter">A</span><strong>Upload an event log (JSON)</strong>
+              <span className="evidence-card__letter">A{choice === 'upload' && <span aria-hidden="true"> ✓ Selected</span>}</span><strong>Upload an event log (JSON)</strong>
               <span>Use events your agent already recorded.</span>
             </button>
             <button type="button" className={`evidence-card${choice === 'live' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'live'} onClick={() => choose('live')}>
-              <span className="evidence-card__letter">B</span><strong>Connect my agent (live)</strong>
+              <span className="evidence-card__letter">B{choice === 'live' && <span aria-hidden="true"> ✓ Selected</span>}</span><strong>Connect my agent (live)</strong>
               <span>Name the events your agent will send while you test.</span>
             </button>
             <button type="button" className={`evidence-card${choice === 'demo' ? ' evidence-card--selected' : ''}`} aria-pressed={choice === 'demo'} onClick={() => choose('demo')}>
-              <span className="evidence-card__letter">C</span><strong>Try a demo</strong>
+              <span className="evidence-card__letter">C{choice === 'demo' && <span aria-hidden="true"> ✓ Selected</span>}</span><strong>Try a demo</strong>
               <span>Explore with Online shop or HR events.</span>
             </button>
           </div>
@@ -391,12 +404,14 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
           )}
           {choice === 'demo' && (
             <div className="evidence-detail">
-              <p>Demo agents only know the demo events; use A or B for your own policy.</p>
+              <p className="card__lead" role="alert">
+                Demo mode: Only the {demo === 'shop' ? 'Online shop' : 'HR'} sample policy and demo events will be used.
+                {' '}Your own policy will not be checked. Choose A or B to use your own policy.
+              </p>
               <div className="demo-options" role="group" aria-label="Demo events">
                 <button type="button" className={`btn ${demo === 'shop' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={demo === 'shop'} onClick={() => void chooseDemo('shop')}>Online shop</button>
                 <button type="button" className={`btn ${demo === 'hr' ? 'btn--primary' : 'btn--ghost'}`} aria-pressed={demo === 'hr'} onClick={() => void chooseDemo('hr')}>HR</button>
               </div>
-              <button type="button" className="btn btn--ghost" onClick={() => { setText(demo === 'shop' ? DEMO_POLICY : HR_RULES); clearInterview(); onPhaseChange('policy') }}>Use the demo policy</button>
               {demo === 'hr' && source.kind === 'trace' && <TraceSummaryCard summary={source.summary} />}
             </div>
           )}
@@ -406,7 +421,10 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
             <button type="button" className="btn btn--link" onClick={() => { editRules(); onPhaseChange('policy') }}>
               ← Edit policy
             </button>
-            {choice !== 'live' && <button type="button" className="btn btn--primary" disabled={sourceBusy || !choice || (choice === 'upload' && source.kind !== 'trace') || (choice === 'demo' && demo === 'hr' && source.kind !== 'trace')} onClick={() => onPhaseChange('meaning')}>Next: understand policy →</button>}
+            {choice !== 'live' && <button type="button" className="btn btn--primary" disabled={sourceBusy || !choice || (choice === 'upload' && source.kind !== 'trace') || (choice === 'demo' && demo === 'hr' && source.kind !== 'trace')} onClick={() => {
+              if (choice === 'demo') setText(demo === 'shop' ? DEMO_POLICY : HR_RULES)
+              onPhaseChange('meaning')
+            }}>Next: understand policy →</button>}
           </div>
         </section>
       </main>
