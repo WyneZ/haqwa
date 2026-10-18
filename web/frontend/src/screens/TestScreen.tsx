@@ -160,7 +160,7 @@ export function TestScreen({
         </ol>
         <SpecDownload specYaml={specYaml} />
         <button type="button" className="btn btn--link" onClick={onBack}>
-          ← Change my rules
+          ← Review rule meaning
         </button>
       </aside>
 
