@@ -115,7 +115,9 @@ async def create_session(
                 [
                     f'curl -X POST "{ingest_url}" \\',
                     '  -H "Content-Type: application/json" \\',
-                    '  -d \'{"event":"order_approved","data":{"order_id":"A-1"}}\'',
+                    '  -d "{\\"event\\":\\"order_approved\\",'
+                    '\\"ts\\":\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\",'
+                    '\\"data\\":{\\"order_id\\":\\"A-1\\"}}"',
                 ]
             ),
         )

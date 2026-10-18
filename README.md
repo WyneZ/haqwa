@@ -168,6 +168,41 @@ HTTP URL shape; adjust its keys to your client's format.
 8. Your agent's model and its cost are yours; Haqwa makes no LLM call for this.
 9. Use test data only; never real customer data.
 
+## Connect your own agent (any policy)
+
+Define your policy, choose **Connect my agent**, and enter the event names your agent
+will send. Copy the returned `ingest_url`. After each action in your agent's own code,
+report what happened; no MCP client or demo shop is needed. Watch **Live activity** as
+events arrive, then press **Check now** to check the stored trace against your policy.
+
+For Python, use the [dependency-free reporter](examples/report_events.py):
+
+```python
+from datetime import UTC, datetime
+from examples.report_events import Reporter
+
+reporter = Reporter("<ingest_url>")
+reporter.emit("order_approved", order_id="A-1", ts=datetime.now(UTC))
+# Also works: reporter.emit("order_approved", order_id="A-1", **data)
+```
+
+Or send one C2 event directly with curl (replace `<ingest_url>`):
+
+```sh
+curl -X POST "<ingest_url>" \
+  -H "Content-Type: application/json" \
+  -d "{\"event\":\"order_approved\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"data\":{\"order_id\":\"A-1\"}}"
+```
+
+For time-based rules, send `ts` as the action's actual ISO 8601 UTC time (for example,
+`2026-10-18T10:00:00Z`). If you omit `ts`, the server uses arrival time, which may
+change the order or elapsed time a rule sees. Run
+`python examples/report_events.py --url "<ingest_url>"` for a three-event demo with
+one approval-before-packing violation.
+
+Sessions are private and in memory, expire after 30 minutes, and hold at most 1,000
+events. The token in `ingest_url` is a secret; share it only with the reporting agent.
+
 ## Evidence
 
 The [recorded comparison](spikes/evidence/results/summary.md) used a log of 12 orders and

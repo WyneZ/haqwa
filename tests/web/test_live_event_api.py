@@ -1,5 +1,6 @@
 """HTTP contract for live event sessions."""
 
+import subprocess
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -62,6 +63,9 @@ def test_create_ingest_status_and_unknown_event() -> None:
         )
         assert len(data["snippet"].splitlines()) == 3
         assert url in data["snippet"]
+        assert '"ts"' in data["snippet"].replace('\\"', '"')
+        assert "date -u" in data["snippet"]
+        subprocess.run(["bash", "-n"], input=data["snippet"], text=True, check=True)
 
         response = client.post(url, json={"event": "order_approved", "data": {"order_id": "A-1"}})
         assert response.json() == {"accepted": 1, "total": 1, "unknown_events": []}
