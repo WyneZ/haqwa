@@ -23,6 +23,7 @@ interface Props {
   rows: RuleRow[] | null // null = still writing the policy
   placeholder?: string
   canSubmit?: boolean
+  submitLabel?: string
   onRedo?: (index: number) => void
   /** Shown under the text while writing, e.g. the policy document upload. */
   upload?: ReactNode
@@ -38,6 +39,7 @@ export function PolicyPanel({
   rows,
   placeholder,
   canSubmit = true,
+  submitLabel = 'Understand my rules',
   onRedo,
   upload,
 }: Props) {
@@ -65,7 +67,7 @@ export function PolicyPanel({
           onClick={onSubmit}
           disabled={busy || !canSubmit || text.trim() === ''}
         >
-          {busy ? 'Reading your rules…' : 'Understand my rules'}
+          {busy ? 'Reading your rules…' : submitLabel}
         </button>
       ) : (
         <>

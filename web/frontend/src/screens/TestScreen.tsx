@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from 'react'
 import { checkEvents, friendlyError, listScenarios, runScenario, summarizeTrace } from '../api/client'
 import type { LogEvent, Scenario, Spec } from '../api/types'
 import { AgentConnectCard } from '../components/AgentConnectCard'
+import { LiveEventsCard } from '../components/LiveEventsCard'
 import { SpecDownload } from '../components/SpecDownload'
 import { Timeline } from '../components/Timeline'
 import { Verdicts } from '../components/Verdicts'
@@ -85,8 +86,10 @@ export function TestScreen({
     run &&
     (source.kind === 'trace'
       ? run.source.kind === 'trace'
-      : run.source.kind === 'agent' ||
-        (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id))
+      : source.kind === 'shop' && (
+          run.source.kind === 'agent' ||
+          (run.source.kind === 'scenario' && chosen && run.source.scenario.id === chosen.id)
+        ))
       ? run
       : null
   const kinds = shown?.response.report.results.map(verdictKind) ?? []
@@ -94,6 +97,7 @@ export function TestScreen({
   const untested = kinds.filter((k) => k === 'untested').length
 
   async function start() {
+    if (source.kind === 'live') return
     if (source.kind === 'shop' && !chosen) return
     if (source.kind === 'trace' && !events) return
     setRunning(true)
@@ -160,7 +164,7 @@ export function TestScreen({
         </ol>
         <SpecDownload specYaml={specYaml} />
         <button type="button" className="btn btn--link" onClick={onBack}>
-          ← Change my rules
+          ← Review rule meaning
         </button>
       </aside>
 
@@ -170,9 +174,11 @@ export function TestScreen({
             H
           </span>
           <p>
-            {source.kind === 'trace'
-              ? "I'll check every event in your log against your rules. The checker decides; the AI only explains."
-              : 'Pick a run to check. Scripted agents show the classic mistakes; live runs are a real Gemini agent that we recorded.'}
+            {source.kind === 'live'
+              ? 'Your agent can send these events during a live test.'
+              : source.kind === 'trace'
+                ? "I'll check every event in your log against your rules. The checker decides; the AI only explains."
+                : 'Pick a run to check. Scripted agents show the classic mistakes; live runs are a real Gemini agent that we recorded.'}
           </p>
         </div>
 
@@ -186,6 +192,10 @@ export function TestScreen({
           <p className="notice notice--loading" role="status">
             Loading demo runs…
           </p>
+        )}
+
+        {source.kind === 'live' && (
+          <LiveEventsCard spec={spec} vocabulary={source.vocabulary} onRun={onRun} onSeeResults={onSeeResults} />
         )}
 
         {source.kind === 'trace' && (

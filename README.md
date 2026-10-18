@@ -6,17 +6,18 @@ Haqwa turns plain English business policies into executable checks for software 
 
 **Live demo:** https://haqwa-1020226488566.asia-southeast1.run.app — no sign-up, no key needed.
 
-1. **Define.** Pick the *Online shop* example (or write your own policy in plain English).
-   Haqwa's AI turns each sentence into a rule and asks you short Yes/No questions about
-   the cases the policy leaves open. Your answers, not the AI, decide what the rule means.
-   The rule's final meaning is shown in plain words before you confirm.
-2. **Test.** Run a demo agent run (for example *payment times out after charging*), or
-   upload your own event log as JSON.
-3. **Results.** See which rules held and which broke, with the exact events that broke
-   them. The verdict comes from Haqwa's deterministic checker; the AI explanation is
-   advisory only.
+1. **Policy.** Type your policy or upload a `.txt`, `.md`, `.docx`, or `.pdf` file.
+2. **Evidence.** Choose A) upload an event log (JSON), B) connect your own agent live
+   by listing its event names (see [Connect your own agent (any policy)](#connect-your-own-agent-any-policy)),
+   or C) try a demo (online shop or HR).
+3. **Meaning.** Answer Yes/No questions about your rules. The confirmed meaning becomes
+   the spec.
+4. **Test.** Check your uploaded events, connect your live agent and press *Check now*,
+   or run a demo agent.
+5. **Results.** See which rules held, broke, or were not tested, with the exact events.
+   The verdict is deterministic; the AI explanation is advisory.
 
-**Optional — bring your own agent.** On the Test screen, open *Connect your own agent*,
+**Optional — test an MCP agent in our demo shop.** On the Test screen, open *Connect your own agent*,
 create a private endpoint, and point any MCP client (Streamable HTTP) at it, or run
 `uv run python examples/connect_agent.py --url "<endpoint>"` with your own model key.
 Watch its tool calls live, then press *Check now*. Sessions are private, in memory and
@@ -190,6 +191,41 @@ HTTP URL shape; adjust its keys to your client's format.
    and are lost on redeploy.
 8. Your agent's model and its cost are yours; Haqwa makes no LLM call for this.
 9. Use test data only; never real customer data.
+
+## Connect your own agent (any policy)
+
+Define your policy, choose **Connect my agent**, and enter the event names your agent
+will send. Copy the returned `ingest_url`. After each action in your agent's own code,
+report what happened; no MCP client or demo shop is needed. Watch **Live activity** as
+events arrive, then press **Check now** to check the stored trace against your policy.
+
+For Python, use the [dependency-free reporter](examples/report_events.py):
+
+```python
+from datetime import UTC, datetime
+from examples.report_events import Reporter
+
+reporter = Reporter("<ingest_url>")
+reporter.emit("order_approved", order_id="A-1", ts=datetime.now(UTC))
+# Also works: reporter.emit("order_approved", order_id="A-1", **data)
+```
+
+Or send one C2 event directly with curl (replace `<ingest_url>`):
+
+```sh
+curl -X POST "<ingest_url>" \
+  -H "Content-Type: application/json" \
+  -d "{\"event\":\"order_approved\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"data\":{\"order_id\":\"A-1\"}}"
+```
+
+For time-based rules, send `ts` as the action's actual ISO 8601 UTC time (for example,
+`2026-10-18T10:00:00Z`). If you omit `ts`, the server uses arrival time, which may
+change the order or elapsed time a rule sees. Run
+`python examples/report_events.py --url "<ingest_url>"` for a three-event demo with
+one approval-before-packing violation.
+
+Sessions are private and in memory, expire after 30 minutes, and hold at most 1,000
+events. The token in `ingest_url` is a secret; share it only with the reporting agent.
 
 ## Evidence
 

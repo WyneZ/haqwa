@@ -11,8 +11,11 @@ import {
   mockCheckAgentSession,
   mockClarify,
   mockCreateAgentSession,
+  mockCreateEventsSession,
   mockExplain,
   mockGetAgentSession,
+  mockGetEventsSession,
+  mockCheckEventsSession,
   mockListScenarios,
   mockPolicyDocument,
   mockRun,
@@ -27,6 +30,8 @@ import type {
   ApiProblem,
   ClarifyResponse,
   Explanation,
+  EventsSession,
+  EventsSessionStatus,
   LogEvent,
   PolicyDocumentResult,
   RuleV2,
@@ -199,6 +204,27 @@ export async function checkAgentSession(id: string, spec: Spec): Promise<RunResp
   if (!response) {
     throw new ApiError('Session not found or expired', 404, { code: 'session_not_found' })
   }
+  return response
+}
+
+/** A private ingest endpoint for the user's own event-producing agent. */
+export function createEventsSession(vocabulary: TraceVocabulary): Promise<EventsSession> {
+  return USE_MOCK
+    ? mockCreateEventsSession(vocabulary)
+    : request<EventsSession>('/agent-sessions', { kind: 'events', vocabulary })
+}
+
+export async function getEventsSession(id: string): Promise<EventsSessionStatus> {
+  if (!USE_MOCK) return request<EventsSessionStatus>(`/agent-sessions/${encodeURIComponent(id)}`)
+  const session = await mockGetEventsSession(id)
+  if (!session) throw new ApiError('Session not found or expired', 404, { code: 'session_not_found' })
+  return session
+}
+
+export async function checkEventsSession(id: string, spec: Spec): Promise<RunResponse> {
+  if (!USE_MOCK) return request<RunResponse>(`/agent-sessions/${encodeURIComponent(id)}/check`, { spec })
+  const response = await mockCheckEventsSession(id, spec)
+  if (!response) throw new ApiError('Session not found or expired', 404, { code: 'session_not_found' })
   return response
 }
 

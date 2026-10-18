@@ -8,10 +8,11 @@ import { DefineScreen } from './screens/DefineScreen'
 import { ResultsScreen } from './screens/ResultsScreen'
 import { TestScreen } from './screens/TestScreen'
 
-type Step = 'define' | 'test' | 'results'
+type Step = 'policy' | 'evidence' | 'meaning' | 'test' | 'results'
+const STEPS: Step[] = ['policy', 'evidence', 'meaning', 'test', 'results']
 
 /**
- * Three screens, no router (decision 2026-10-05). The wizard state is saved in
+ * Five stages, no router (decision 2026-10-05). The wizard state is saved in
  * sessionStorage, so a refresh keeps the owner where they were.
  * "Start over" clears it and remounts everything with a new key.
  */
@@ -29,22 +30,29 @@ export default function App() {
 }
 
 function Wizard({ onStartOver }: { onStartOver: () => void }) {
-  const [step, setStep] = usePersistentState<Step>('step', 'define')
+  const [step, setStep] = usePersistentState<Step>('step', 'policy')
   const [spec, setSpec] = usePersistentState<Spec | null>('spec', null)
   const [specYaml, setSpecYaml] = usePersistentState<string | null>('specYaml', null)
   const [savedRun, setSavedRun] = usePersistentState<Run | null>('run', null)
   const [traceRun, setTraceRun] = useState<Run | null>(null)
+  const [liveRun, setLiveRun] = useState<Run | null>(null)
   const [source, setSource] = usePersistentState<Source>('source', { kind: 'shop' })
   const [events, setEvents] = useState<LogEvent[] | null>(null)
-  const run = source.kind === 'shop' ? savedRun : traceRun
+  const run = source.kind === 'shop' ? savedRun : source.kind === 'trace' ? traceRun : liveRun
 
   function setRun(next: Run | null) {
     if (next?.source.kind === 'trace') {
       setTraceRun(next)
       setSavedRun(null)
+      setLiveRun(null)
+    } else if (next?.source.kind === 'live') {
+      setLiveRun(next)
+      setSavedRun(null)
+      setTraceRun(null)
     } else {
       setSavedRun(next)
       setTraceRun(null)
+      setLiveRun(null)
     }
   }
 
@@ -57,8 +65,9 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
   }
 
   // Never show a screen without its data (e.g. saved data from an older version).
-  let view: Step = 'define'
-  if (spec && specYaml && step !== 'define') view = step === 'results' && run ? 'results' : 'test'
+  let view: Step = step
+  if ((step === 'test' || step === 'results') && (!spec || !specYaml)) view = 'policy'
+  if (view === 'results' && !run) view = 'test'
 
   function rulesConfirmed(rules: SpecRule[], yaml: string) {
     setSpec({ version: 2, rules })
@@ -69,9 +78,15 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
 
   return (
     <div className="app">
-      <Header active={['define', 'test', 'results'].indexOf(view)} onStartOver={onStartOver} />
-      {view === 'define' && (
-        <DefineScreen source={source} onSourceChange={changeSource} onDone={rulesConfirmed} />
+      <Header active={STEPS.indexOf(view)} onStartOver={onStartOver} />
+      {(view === 'policy' || view === 'evidence' || view === 'meaning') && (
+        <DefineScreen
+          phase={view}
+          onPhaseChange={setStep}
+          source={source}
+          onSourceChange={changeSource}
+          onDone={rulesConfirmed}
+        />
       )}
       {view === 'test' && spec && specYaml && (
         <TestScreen
@@ -86,7 +101,7 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
           }}
           run={run}
           onRun={setRun}
-          onBack={() => setStep('define')}
+          onBack={() => setStep('meaning')}
           onSeeResults={() => setStep('results')}
         />
       )}

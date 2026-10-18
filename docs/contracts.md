@@ -367,6 +367,41 @@ MCP tool error, `Session not found or expired`; tool calls above the cap return
 or `session_limit` (429). Excess session creation uses the existing
 `rate_limited` code (429).
 
+### C3 additions (live events)
+
+An agent using any framework can report its own events to a private session. These
+routes add an event source alongside the existing MCP shop sessions; the shop request
+and response shapes above remain unchanged. All paths below have the `/api/v1` prefix.
+
+| Method + path | Request | Response |
+|---|---|---|
+| `POST /agent-sessions` | `{"kind":"events","vocabulary":VocabularyIn?}` | `{session_id, kind:"events", ingest_url, expires_at, snippet}` |
+| `POST /agent-sessions/{id}/events` | One C2 event or a list of C2 events | `{accepted, total, unknown_events?}` |
+| `GET /agent-sessions/{id}` | — | `{session_id, kind:"events", expires_at, events:[...], calls:[]}` |
+| `POST /agent-sessions/{id}/check` | `{spec, event_map?}` | Existing `RunResponse`: `{events, report}` |
+
+`ingest_url` is absolute, uses HTTPS behind an HTTPS proxy, and contains the private
+session token: `{base}/api/v1/agent-sessions/{id}/events`. The three-line curl
+`snippet` includes the URL and sends `ts` in ISO 8601 UTC. For time-based rules,
+report the action's actual UTC `ts` (for example, `2026-10-18T10:00:00Z`). If `ts`
+is omitted, the server uses its UTC arrival time; delays can change ordering and
+elapsed-time results. `data` carries entity fields such as `order_id`.
+
+Event sessions share the shop sessions' creation limit, 30-minute default TTL, and
+20-session default capacity. Ingest accepts up to 256 KiB per request and 120
+requests per minute per session. A session holds at most 1,000 events; a batch that
+would exceed the cap stores none of that batch and returns 422 `invalid_request`
+with detail `event limit reached`. Invalid events return 422 `invalid_events`.
+Unknown or expired sessions return 404 `session_not_found`; rate limits return 429
+`rate_limited`. All errors use the RFC 9457 problem response.
+
+If a vocabulary was supplied at creation, names outside it are still stored as
+evidence and listed in `unknown_events` in the ingest response. `/check` compiles
+the submitted spec, then the core checker sorts the stored events by `ts` and
+evaluates them. Event-session tokens used on either shop MCP mount return HTTP 404
+`session_not_found` as problem JSON. The MCP shop behavior for shop sessions is
+unchanged.
+
 ### C3 v2 — clarify, answers, explain, seal, runs (DRAFT, 2026-10-16; core wired 2026-10-17)
 
 **DRAFT: Wyne must review these shapes.** On `feat/ai-rule-ast`, v2 replaces v1
