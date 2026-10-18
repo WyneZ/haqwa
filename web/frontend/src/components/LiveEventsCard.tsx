@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, checkEventsSession, createEventsSession, friendlyError, getEventsSession } from '../api/client'
-import type { EventsSession, EventsSessionStatus, Spec, TraceVocabulary } from '../api/types'
+import type { EventsSessionStatus, Spec, TraceVocabulary } from '../api/types'
 import { usePersistentState } from '../lib/persist'
+import { sessionForVocabulary, type SavedLiveSession } from '../lib/liveSession'
 import type { Run } from '../lib/run'
 import { CopyField } from './AgentConnectCard'
 
@@ -10,11 +11,6 @@ interface Props {
   vocabulary: TraceVocabulary
   onRun: (run: Run) => void
   onSeeResults: () => void
-}
-
-interface SavedSession {
-  vocabularyKey: string
-  session: EventsSession
 }
 
 function remainingTime(expiresAt: string): number {
@@ -28,14 +24,14 @@ function isMissing(error: unknown): boolean {
 /** The event session is created here, when Test opens, so its 30 minute TTL is useful. */
 export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props) {
   const vocabularyKey = JSON.stringify(vocabulary)
-  const [saved, setSaved] = usePersistentState<SavedSession | null>('live.session', null)
-  const session = saved?.vocabularyKey === vocabularyKey ? saved.session : null
+  const [saved, setSaved] = usePersistentState<SavedLiveSession | null>('live.session', null)
+  const session = sessionForVocabulary(saved, vocabularyKey)
   const [status, setStatus] = useState<EventsSessionStatus | null>(null)
   const [remaining, setRemaining] = useState(() => session ? remainingTime(session.expires_at) : 0)
   const [notFound, setNotFound] = useState(false)
   const [busy, setBusy] = useState<'create' | 'check' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const autoStarted = useRef(false)
+  const autoStartedKey = useRef<string | null>(null)
   const expired = !!session && (notFound || remaining === 0)
 
   async function create() {
@@ -55,8 +51,9 @@ export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props)
   }
 
   useEffect(() => {
-    if (!session && !autoStarted.current) {
-      autoStarted.current = true
+    if (!session && autoStartedKey.current !== vocabularyKey) {
+      autoStartedKey.current = vocabularyKey
+      if (saved) setSaved(null)
       void create()
     }
   })
@@ -119,7 +116,7 @@ export function LiveEventsCard({ spec, vocabulary, onRun, onSeeResults }: Props)
     ? `${vocabulary.fields[0]}="A-1"`
     : `**{${JSON.stringify(vocabulary.fields[0])}: "A-1"}`
   const python = session
-    ? `# copy examples/report_events.py into your project\nfrom examples.report_events import Reporter\nr = Reporter(${JSON.stringify(session.ingest_url)})\nr.emit(${JSON.stringify(vocabulary.events[0])}, ${entityArgument})`
+    ? `# copy examples/report_events.py into your project\nfrom report_events import Reporter\nr = Reporter(${JSON.stringify(session.ingest_url)})\nr.emit(${JSON.stringify(vocabulary.events[0])}, ${entityArgument})`
     : ''
 
   return (
