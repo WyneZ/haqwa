@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { DEMO_RESULTS } from '../src/api/fixtures.ts'
-import { mockApplyAnswers, mockCheckAgentSession, mockCreateAgentSession, mockGetAgentSession, mockPolicyDocument, mockRun, mockSeal } from '../src/api/mocks.ts'
+import { mockApplyAnswers, mockCheckAgentSession, mockCheckEventsSession, mockCreateAgentSession, mockCreateEventsSession, mockGetAgentSession, mockGetEventsSession, mockPolicyDocument, mockRun, mockSeal } from '../src/api/mocks.ts'
 import { toSpecRule } from '../src/lib/specRule.ts'
 
 const supported = () => DEMO_RESULTS.filter((result) => result.status === 'supported')
@@ -96,6 +96,20 @@ test('mock Define to Results uses v2 specs with fixture verdicts', async () => {
   await mockGetAgentSession(session.session_id) // the mock agent makes its calls
   const checked = await mockCheckAgentSession(session.session_id, spec)
   assert.ok(checked?.report.results.some(r => r.rule_id === 'no-ship-after-cancel' && r.status === 'violation'))
+})
+
+test('mock live events session supports create, poll and check without a shop run', async () => {
+  const vocabulary = { events: ['order_approved'], fields: ['order_id'], field_values: {}, numeric_fields: [] }
+  const spec = { version: 2 as const, rules: supported().map(r => toSpecRule(r.rule, [])) }
+  const session = await mockCreateEventsSession(vocabulary)
+  assert.equal(session.kind, 'events')
+  assert.ok(session.ingest_url.endsWith(`/${session.session_id}/events`))
+  assert.ok(session.snippet.includes(session.ingest_url))
+  const status = await mockGetEventsSession(session.session_id)
+  assert.equal(status?.kind, 'events')
+  assert.deepEqual(status?.events, [])
+  const checked = await mockCheckEventsSession(session.session_id, spec)
+  assert.ok(checked?.report.results.every(result => result.checked_events === 0))
 })
 
 test('mock answers return the final meaning: parsed meaning plus accepted decisions only', async () => {

@@ -35,17 +35,24 @@ function Wizard({ onStartOver }: { onStartOver: () => void }) {
   const [specYaml, setSpecYaml] = usePersistentState<string | null>('specYaml', null)
   const [savedRun, setSavedRun] = usePersistentState<Run | null>('run', null)
   const [traceRun, setTraceRun] = useState<Run | null>(null)
+  const [liveRun, setLiveRun] = useState<Run | null>(null)
   const [source, setSource] = usePersistentState<Source>('source', { kind: 'shop' })
   const [events, setEvents] = useState<LogEvent[] | null>(null)
-  const run = source.kind === 'shop' ? savedRun : traceRun
+  const run = source.kind === 'shop' ? savedRun : source.kind === 'trace' ? traceRun : liveRun
 
   function setRun(next: Run | null) {
     if (next?.source.kind === 'trace') {
       setTraceRun(next)
       setSavedRun(null)
+      setLiveRun(null)
+    } else if (next?.source.kind === 'live') {
+      setLiveRun(next)
+      setSavedRun(null)
+      setTraceRun(null)
     } else {
       setSavedRun(next)
       setTraceRun(null)
+      setLiveRun(null)
     }
   }
 

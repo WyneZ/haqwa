@@ -187,6 +187,22 @@ export interface AgentSessionStatus {
   calls: AgentToolCall[]
 }
 
+export interface EventsSession {
+  session_id: string
+  kind: 'events'
+  ingest_url: string
+  expires_at: string
+  snippet: string
+}
+
+export interface EventsSessionStatus {
+  session_id: string
+  kind: 'events'
+  expires_at: string
+  events: LogEvent[]
+  calls: AgentToolCall[]
+}
+
 export interface TraceVocabulary {
   events: string[]
   fields: string[]

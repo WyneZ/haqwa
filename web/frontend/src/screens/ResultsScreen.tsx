@@ -30,6 +30,8 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
       ? `Scenario: ${source.scenario.title}`
       : source.kind === 'agent'
         ? `Your agent · live (${source.fault === 'timeout_after_commit' ? 'payment timeout' : 'stale order status'})`
+        : source.kind === 'live'
+          ? `Your agent · live (${source.eventCount} events)`
         : `Your events: ${source.name} (${source.eventCount} events)`
 
   /** Same fault, fixed agent: the "before / after" step of the demo. */
@@ -66,7 +68,14 @@ export function ResultsScreen({ spec, specYaml, run, onRun, onBack }: Props) {
         </section>
       )}
 
-      {violations.length === 0 && source.kind !== 'trace' && !(source.kind === 'agent' && response.events.length === 0) && (
+      {source.kind === 'live' && response.events.length === 0 && (
+        <section className="card">
+          <h2 className="card__title">No activity to check yet</h2>
+          <p>Send events from your agent, then go back to the live session and check again.</p>
+        </section>
+      )}
+
+      {violations.length === 0 && source.kind !== 'trace' && !(source.kind === 'agent' && response.events.length === 0) && !(source.kind === 'live' && response.events.length === 0) && (
         <section className="card card--pass">
           <h2 className="card__title">✓ All rules held</h2>
           <p>The agent did nothing your rules forbid.</p>

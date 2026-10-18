@@ -28,7 +28,7 @@ const REQUIREMENTS = [
   'Time-based rules (within N hours) are not tested in live sessions because the shop clock does not advance.',
 ]
 
-function CopyField({ label, value }: { label: string; value: string }) {
+export function CopyField({ label, value }: { label: string; value: string }) {
   const content = useRef<HTMLElement>(null)
   const [copyState, setCopyState] = useState('Copy')
 
@@ -177,9 +177,9 @@ export function AgentConnectCard({ spec, onRun }: Props) {
 
   return (
     <section className="card agent-connect" aria-labelledby="agent-connect-title">
-      <h2 id="agent-connect-title" className="card__title">Connect your own agent</h2>
+      <h2 id="agent-connect-title" className="card__title">Test your own MCP agent in our demo shop</h2>
       <p className="card__lead">
-        Give your MCP agent a private shop with a fault injected. Haqwa records what it does and checks it against your rules.
+        Runs on your computer with your own model key. Give your MCP agent a private shop with a fault injected. Haqwa records what it does and checks it against your rules.
       </p>
 
       {!session && (
