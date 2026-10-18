@@ -18,15 +18,17 @@ class FakeClient:
 
 
 def test_suggest_deduplicates_names_and_fields() -> None:
-    client = FakeClient({
-        "events": [
-            {"name": "order_charged", "description": "Charged the order"},
-            {"name": "order_charged", "description": "Again"},
-            {"name": "order_shipped", "description": "Shipped the order"},
-        ],
-        "entity_field": "order_id",
-        "fields": ["order_id", "amount", "amount"],
-    })
+    client = FakeClient(
+        {
+            "events": [
+                {"name": "order_charged", "description": "Charged the order"},
+                {"name": "order_charged", "description": "Again"},
+                {"name": "order_shipped", "description": "Shipped the order"},
+            ],
+            "entity_field": "order_id",
+            "fields": ["order_id", "amount", "amount"],
+        }
+    )
     result = suggest_vocabulary("Never charge twice.", client=client)
     assert [event.name for event in result.events] == ["order_charged", "order_shipped"]
     assert result.fields == ["order_id", "amount"]
@@ -35,18 +37,24 @@ def test_suggest_deduplicates_names_and_fields() -> None:
 
 @pytest.mark.parametrize("bad", ["OrderCharged", "9charged", "order-charged", "x" * 65])
 def test_suggest_rejects_invalid_event_names(bad: str) -> None:
-    client = FakeClient({
-        "events": [{"name": bad, "description": "Charged the order"}],
-        "entity_field": "order_id", "fields": ["order_id"],
-    })
+    client = FakeClient(
+        {
+            "events": [{"name": bad, "description": "Charged the order"}],
+            "entity_field": "order_id",
+            "fields": ["order_id"],
+        }
+    )
     with pytest.raises(GeminiBadOutput):
         suggest_vocabulary("Never charge twice.", client=client)
 
 
 def test_suggest_rejects_too_many_events() -> None:
-    client = FakeClient({
-        "events": [{"name": f"event_{i}", "description": "Done"} for i in range(31)],
-        "entity_field": "order_id", "fields": ["order_id"],
-    })
+    client = FakeClient(
+        {
+            "events": [{"name": f"event_{i}", "description": "Done"} for i in range(31)],
+            "entity_field": "order_id",
+            "fields": ["order_id"],
+        }
+    )
     with pytest.raises(GeminiBadOutput):
         suggest_vocabulary("Policy", client=client)

@@ -101,7 +101,13 @@ def test_health_scenarios_and_openapi(client: TestClient) -> None:
     )
     paths = client.get("/openapi.json").json()["paths"]
     for path in (
-        "clarify", "answers", "seal", "scenarios", "runs", "explain", "vocabulary/suggest"
+        "clarify",
+        "answers",
+        "seal",
+        "scenarios",
+        "runs",
+        "explain",
+        "vocabulary/suggest",
     ):
         assert f"/api/v1/{path}" in paths
 
@@ -113,10 +119,15 @@ def test_suggest_endpoint_with_fake_client(client: TestClient) -> None:
         def generate(self, prompt, schema):
             assert "Never charge twice" in prompt
             return GeminiResult(
-                value=schema.model_validate({
-                    "events": [{"name": "order_charged", "description": "The order was charged."}],
-                    "entity_field": "order_id", "fields": ["order_id", "amount"],
-                }),
+                value=schema.model_validate(
+                    {
+                        "events": [
+                            {"name": "order_charged", "description": "The order was charged."}
+                        ],
+                        "entity_field": "order_id",
+                        "fields": ["order_id", "amount"],
+                    }
+                ),
                 cached=False,
                 model="fake",
             )
@@ -126,7 +137,8 @@ def test_suggest_endpoint_with_fake_client(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "events": [{"name": "order_charged", "description": "The order was charged."}],
-        "entity_field": "order_id", "fields": ["order_id", "amount"],
+        "entity_field": "order_id",
+        "fields": ["order_id", "amount"],
     }
 
 
@@ -135,15 +147,23 @@ def test_suggest_invalid_output_is_502_problem(client: TestClient) -> None:
 
     class FakeClient:
         def generate(self, prompt, schema):
-            return GeminiResult(value=schema.model_validate({
-                "events": [{"name": "Bad-Name", "description": "Bad"}],
-                "entity_field": "order_id", "fields": ["order_id"],
-            }), cached=False, model="fake")
+            return GeminiResult(
+                value=schema.model_validate(
+                    {
+                        "events": [{"name": "Bad-Name", "description": "Bad"}],
+                        "entity_field": "order_id",
+                        "fields": ["order_id"],
+                    }
+                ),
+                cached=False,
+                model="fake",
+            )
 
     client.app.dependency_overrides[routes.get_client] = FakeClient
     assert_problem(
         client.post("/api/v1/vocabulary/suggest", json={"policy": "Never charge twice"}),
-        "gemini_bad_output", 502,
+        "gemini_bad_output",
+        502,
     )
     assert_problem(
         client.post("/api/v1/vocabulary/suggest", json={"policy": "  "}), "invalid_request", 422
