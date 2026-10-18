@@ -24,11 +24,13 @@ from haqwa.core.errors import (
     INTERNAL_ERROR,
     INVALID_REQUEST,
     INVALID_SPEC,
+    SESSION_NOT_FOUND,
     HaqwaError,
     to_problem,
 )
 from haqwa.live.server import Fault, ShopState, register_tools
 
+from .agent_routes import EVENT_REQUESTS_PER_MINUTE
 from .agent_routes import router as agent_router
 from .agent_sessions import AgentSessionStore
 from .config import get_settings
@@ -66,7 +68,7 @@ def create_app() -> FastAPI:
                 session = sessions.get(token)
             except (KeyError, HaqwaError) as exc:
                 raise ToolError("Session not found or expired") from exc
-            if session.fault != fault:
+            if session.kind != "shop" or session.fault != fault or session.shop is None:
                 raise ToolError("Session not found or expired")
             if session.calls_started >= settings.agent_max_calls:
                 raise ToolError("Too many requests")
@@ -91,7 +93,27 @@ def create_app() -> FastAPI:
     api.state.agent_create_limiter = RateLimiter(
         settings.agent_create_per_min, settings.agent_create_per_day
     )
+    api.state.agent_event_limiter = RateLimiter(EVENT_REQUESTS_PER_MINUTE, 100_000_000)
     api.state.agent_sessions = sessions
+
+    @api.middleware("http")
+    async def reject_event_tokens_on_shop_mounts(request: Request, call_next):
+        if any(
+            request.url.path == mount or request.url.path.startswith(mount + "/")
+            for mount in ("/agent/timeout", "/agent/stale")
+        ):
+            token = request.query_params.get("session")
+            if token:
+                try:
+                    session = sessions.get(token)
+                except HaqwaError:
+                    pass
+                else:
+                    if session.kind != "shop":
+                        return _problem(
+                            HaqwaError(SESSION_NOT_FOUND, "Session not found or expired")
+                        )
+        return await call_next(request)
 
     @api.middleware("http")
     async def limit_gemini_routes(request: Request, call_next):
