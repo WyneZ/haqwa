@@ -100,8 +100,54 @@ def test_health_scenarios_and_openapi(client: TestClient) -> None:
         if s["agent"] == "gemini" and "gemini_live_" not in s["id"]
     )
     paths = client.get("/openapi.json").json()["paths"]
-    for path in ("clarify", "answers", "seal", "scenarios", "runs", "explain"):
+    for path in (
+        "clarify", "answers", "seal", "scenarios", "runs", "explain", "vocabulary/suggest"
+    ):
         assert f"/api/v1/{path}" in paths
+
+
+def test_suggest_endpoint_with_fake_client(client: TestClient) -> None:
+    from haqwa.ai.client import GeminiResult
+
+    class FakeClient:
+        def generate(self, prompt, schema):
+            assert "Never charge twice" in prompt
+            return GeminiResult(
+                value=schema.model_validate({
+                    "events": [{"name": "order_charged", "description": "The order was charged."}],
+                    "entity_field": "order_id", "fields": ["order_id", "amount"],
+                }),
+                cached=False,
+                model="fake",
+            )
+
+    client.app.dependency_overrides[routes.get_client] = FakeClient
+    response = client.post("/api/v1/vocabulary/suggest", json={"policy": "Never charge twice"})
+    assert response.status_code == 200
+    assert response.json() == {
+        "events": [{"name": "order_charged", "description": "The order was charged."}],
+        "entity_field": "order_id", "fields": ["order_id", "amount"],
+    }
+
+
+def test_suggest_invalid_output_is_502_problem(client: TestClient) -> None:
+    from haqwa.ai.client import GeminiResult
+
+    class FakeClient:
+        def generate(self, prompt, schema):
+            return GeminiResult(value=schema.model_validate({
+                "events": [{"name": "Bad-Name", "description": "Bad"}],
+                "entity_field": "order_id", "fields": ["order_id"],
+            }), cached=False, model="fake")
+
+    client.app.dependency_overrides[routes.get_client] = FakeClient
+    assert_problem(
+        client.post("/api/v1/vocabulary/suggest", json={"policy": "Never charge twice"}),
+        "gemini_bad_output", 502,
+    )
+    assert_problem(
+        client.post("/api/v1/vocabulary/suggest", json={"policy": "  "}), "invalid_request", 422
+    )
 
 
 def test_clarify_supported_and_unsupported(client: TestClient, monkeypatch) -> None:

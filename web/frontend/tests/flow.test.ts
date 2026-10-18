@@ -129,6 +129,45 @@ test('the live evidence form stores its vocabulary and advances to Meaning', asy
   } finally { await cleanup(root) }
 })
 
+test('policy suggestions fill editable live event and field names', async () => {
+  const root = await renderApp()
+  try {
+    await click('Online shop policy')
+    await click('Next: choose evidence')
+    await click('Connect my agent (live)')
+    await click('Suggest from my policy')
+    await waitFor(() => !!browser.document.body.textContent?.includes('order_charged'))
+    assert.equal((browser.document.getElementById('live-entity-field') as HTMLInputElement).value, 'order_id')
+    await input('live-entity-field', 'purchase_id')
+    await click('Next: understand policy')
+    const source = JSON.parse(browser.sessionStorage.getItem(key('source'))!)
+    assert.deepEqual(source.vocabulary.events, ['order_charged', 'order_cancelled', 'order_shipped'])
+    assert.equal(source.vocabulary.fields[0], 'purchase_id')
+    assert.equal(source.suggestedEvents[0].description, 'The order was charged.')
+  } finally { await cleanup(root) }
+})
+
+test('Test shows the suggested event guide and examples', async () => {
+  const vocabulary = buildLiveVocabulary(['order_charged', 'order_shipped'], 'order_id', [])
+  browser.sessionStorage.setItem(key('step'), JSON.stringify('test'))
+  browser.sessionStorage.setItem(key('source'), JSON.stringify({
+    kind: 'live', vocabulary,
+    suggestedEvents: [
+      { name: 'order_charged', description: 'The order was charged.' },
+      { name: 'order_shipped', description: 'The order was shipped.' },
+    ],
+  }))
+  browser.sessionStorage.setItem(key('spec'), JSON.stringify({ version: 2, rules: DEMO_RESULTS.filter((item) => item.status === 'supported').map((item) => toSpecRule(item.rule, [])) }))
+  browser.sessionStorage.setItem(key('specYaml'), JSON.stringify('version: 2'))
+  const root = await renderApp()
+  try {
+    await waitFor(() => browser.document.body.textContent?.includes('Copy guide') ?? false)
+    assert.match(browser.document.body.textContent ?? '', /The order was charged/)
+    assert.match(browser.document.body.textContent ?? '', /reporter\.emit\("order_shipped", order_id="A-1"\)/)
+    assert.match(browser.document.body.textContent ?? '', /Copy guide/)
+  } finally { await cleanup(root) }
+})
+
 test('a saved session for another vocabulary is discarded and replaced on Test', async () => {
   const oldVocabulary = buildLiveVocabulary(['old_event'], 'order_id', [])
   const currentVocabulary = buildLiveVocabulary(['order_approved'], 'order_id', [])

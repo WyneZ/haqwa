@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, model
 
 from haqwa.ai.answers_v2 import AnswerV2, QuestionV2
 from haqwa.ai.extract import ExtractedRule
+from haqwa.ai.suggest import SuggestedEvent
 from haqwa.core.events import Event
 from haqwa.core.report import Report, Violation
 from haqwa.core.rules_v2 import RuleV2
@@ -56,6 +57,23 @@ class ClarifyResult(BaseModel):
 class ClarifyResponse(BaseModel):
     cached: bool
     results: list[ClarifyResult]
+
+
+class SuggestRequest(BaseModel):
+    policy: str = Field(min_length=1, max_length=20_000)
+
+    @field_validator("policy")
+    @classmethod
+    def non_empty_policy(cls, policy: str) -> str:
+        if not policy.strip():
+            raise ValueError("policy must contain non-empty text")
+        return policy
+
+
+class SuggestResponse(BaseModel):
+    events: list[SuggestedEvent]
+    entity_field: str
+    fields: list[str]
 
 
 class AnswersRequest(BaseModel):

@@ -40,6 +40,7 @@ import type {
   SealResponse,
   SelfTestFailure,
   Spec,
+  SuggestedVocabulary,
   TraceSummary,
   TraceVocabulary,
   Violation,
@@ -97,6 +98,21 @@ export function clarifyRules(
   return USE_MOCK
     ? mockClarify(rules)
     : request<ClarifyResponse>('/clarify', { rules, ...(vocabulary ? { vocabulary } : {}) })
+}
+
+/** Suggest editable live-agent event names from the owner's policy. */
+export function suggestVocabulary(policy: string): Promise<SuggestedVocabulary> {
+  return USE_MOCK
+    ? Promise.resolve({
+        events: [
+          { name: 'order_charged', description: 'The order was charged.' },
+          { name: 'order_cancelled', description: 'The order was cancelled.' },
+          { name: 'order_shipped', description: 'The order was shipped.' },
+        ],
+        entity_field: 'order_id',
+        fields: ['order_id'],
+      })
+    : request<SuggestedVocabulary>('/vocabulary/suggest', { policy })
 }
 
 /**

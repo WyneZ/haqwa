@@ -36,6 +36,7 @@ RATE_LIMITED = ErrorCode("rate_limited", "Rate limit exceeded", 429, 3)
 SESSION_NOT_FOUND = ErrorCode("session_not_found", "Session not found or expired", 404, 3)
 SESSION_LIMIT = ErrorCode("session_limit", "Session limit reached", 429, 3)
 GEMINI_UNAVAILABLE = ErrorCode("gemini_unavailable", "Gemini unavailable", 503, 4)
+GEMINI_BAD_OUTPUT = ErrorCode("gemini_bad_output", "Gemini returned invalid output", 502, 4)
 INTERNAL_ERROR = ErrorCode("internal_error", "Internal server error", 500, 3)
 
 CODES: dict[str, ErrorCode] = {
@@ -55,6 +56,7 @@ CODES: dict[str, ErrorCode] = {
         SESSION_NOT_FOUND,
         SESSION_LIMIT,
         GEMINI_UNAVAILABLE,
+        GEMINI_BAD_OUTPUT,
         INTERNAL_ERROR,
     )
 }

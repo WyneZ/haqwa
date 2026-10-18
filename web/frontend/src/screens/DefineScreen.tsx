@@ -367,10 +367,10 @@ export function DefineScreen({ phase, onPhaseChange, source, onSourceChange, onD
           )}
           {choice === 'live' && (
             <div className="evidence-detail">
-              <LiveVocabularyForm onUse={(vocabulary) => {
+              <LiveVocabularyForm policy={text} onUse={(vocabulary, suggestedEvents) => {
                 ++choiceRequest.current
                 clearInterview()
-                onSourceChange({ kind: 'live', vocabulary }, null)
+                onSourceChange({ kind: 'live', vocabulary, ...(suggestedEvents ? { suggestedEvents } : {}) }, null)
                 onPhaseChange('meaning')
               }} />
             </div>

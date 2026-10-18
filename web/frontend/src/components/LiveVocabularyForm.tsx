@@ -1,20 +1,42 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { TraceVocabulary } from '../api/types'
+import { friendlyError, suggestVocabulary } from '../api/client'
+import type { SuggestedEvent, TraceVocabulary } from '../api/types'
 import { buildLiveVocabulary, NAME, type LiveField } from '../lib/liveVocabulary'
 import { usePersistentState } from '../lib/persist'
 
 interface Props {
-  onUse: (vocabulary: TraceVocabulary) => void
+  policy: string
+  onUse: (vocabulary: TraceVocabulary, suggestedEvents?: SuggestedEvent[]) => void
 }
 
 /** Names the agent will report; no session is created until the Test stage. */
-export function LiveVocabularyForm({ onUse }: Props) {
+export function LiveVocabularyForm({ policy, onUse }: Props) {
   const [events, setEvents] = usePersistentState<string[]>('evidence.live.events', [])
   const [entity, setEntity] = usePersistentState('evidence.live.entity', 'order_id')
   const [fields, setFields] = usePersistentState<LiveField[]>('evidence.live.fields', [])
   const [eventInput, setEventInput] = useState('')
   const [fieldInput, setFieldInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggested, setSuggested] = useState<SuggestedEvent[] | null>(null)
+
+  async function suggest() {
+    setSuggesting(true)
+    setError(null)
+    try {
+      const result = await suggestVocabulary(policy)
+      setEvents(result.events.map((event) => event.name))
+      setEntity(result.entity_field)
+      setFields(result.fields.filter((field) => field !== result.entity_field).map((name) => ({ name, numeric: false })))
+      setSuggested(result.events)
+      setEventInput('')
+      setFieldInput('')
+    } catch (cause) {
+      setError(friendlyError(cause))
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   function addEvents() {
     const names = eventInput.split(',').map((name) => name.trim()).filter(Boolean)
@@ -73,7 +95,7 @@ export function LiveVocabularyForm({ onUse }: Props) {
         setFieldInput('')
       }
       setError(null)
-      onUse(vocabulary)
+      onUse(vocabulary, suggested?.filter((item) => vocabulary.events.includes(item.name)))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Check the names and try again.')
     }
@@ -82,6 +104,10 @@ export function LiveVocabularyForm({ onUse }: Props) {
   return (
     <form className="live-vocabulary" onSubmit={submit}>
       <p>List the event names your agent will report after its actions.</p>
+      <button type="button" className="btn btn--ghost" disabled={suggesting} onClick={() => void suggest()}>
+        {suggesting ? 'Suggesting…' : 'Suggest from my policy'}
+      </button>
+      {suggested && <p className="card__lead">Suggestions filled the form. Edit any name or field before continuing.</p>}
       <label htmlFor="live-event-name">Event names (at least one)</label>
       <div className="live-vocabulary__entry">
         <input
